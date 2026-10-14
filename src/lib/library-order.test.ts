@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { ReadingStatus } from "@prisma/client";
+import { PlayStatus } from "@prisma/client";
 import { moveId, orderByIds, statusTabsToShow } from "@/lib/library-order";
 
-const { WANT_TO_READ, READING, READ, DNF } = ReadingStatus;
+const { WANT_TO_PLAY, PLAYING, COMPLETED, DROPPED } = PlayStatus;
 const items = (...ids: string[]) => ids.map((id) => ({ id }));
 const ids = (list: { id: string }[]) => list.map((x) => x.id);
 
@@ -44,20 +44,20 @@ describe("moveId", () => {
 
 describe("statusTabsToShow", () => {
   it("drops hidden statuses and keeps the usual order", () => {
-    expect(statusTabsToShow([DNF, WANT_TO_READ], "all")).toEqual([READING, READ]);
-    expect(statusTabsToShow([], "all")).toEqual([WANT_TO_READ, READING, READ, DNF]);
+    expect(statusTabsToShow([DROPPED, WANT_TO_PLAY], "all")).toEqual([PLAYING, COMPLETED]);
+    expect(statusTabsToShow([], "all")).toEqual([WANT_TO_PLAY, PLAYING, COMPLETED, DROPPED]);
   });
 
   it("keeps the tab on screen even when it is hidden", () => {
-    expect(statusTabsToShow([DNF], DNF)).toEqual([WANT_TO_READ, READING, READ, DNF]);
+    expect(statusTabsToShow([DROPPED], DROPPED)).toEqual([WANT_TO_PLAY, PLAYING, COMPLETED, DROPPED]);
   });
 
   it("shows every tab when all are hidden", () => {
-    expect(statusTabsToShow([WANT_TO_READ, READING, READ, DNF], "all")).toEqual([
-      WANT_TO_READ,
-      READING,
-      READ,
-      DNF,
+    expect(statusTabsToShow([WANT_TO_PLAY, PLAYING, COMPLETED, DROPPED], "all")).toEqual([
+      WANT_TO_PLAY,
+      PLAYING,
+      COMPLETED,
+      DROPPED,
     ]);
   });
 });

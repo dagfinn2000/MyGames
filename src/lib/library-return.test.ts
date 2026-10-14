@@ -9,7 +9,7 @@ import {
 describe("isLibraryHref", () => {
   it("accepts the library, with or without a query, and the reading room", () => {
     expect(isLibraryHref("/games")).toBe(true);
-    expect(isLibraryHref("/games?sort=title&shelf=READ")).toBe(true);
+    expect(isLibraryHref("/games?sort=title&shelf=COMPLETED")).toBe(true);
     expect(isLibraryHref("/room")).toBe(true);
   });
 
@@ -17,7 +17,7 @@ describe("isLibraryHref", () => {
     expect(isLibraryHref("/games/abc123")).toBe(false);
     expect(isLibraryHref("/games/new")).toBe(false);
     expect(isLibraryHref("/booksx")).toBe(false);
-    expect(isLibraryHref("/reading")).toBe(false);
+    expect(isLibraryHref("/playing")).toBe(false);
     expect(isLibraryHref("/room/x")).toBe(false);
     expect(isLibraryHref("//evil.example/games")).toBe(false);
     expect(isLibraryHref("https://evil.example/games")).toBe(false);
@@ -35,7 +35,7 @@ describe("noteAction", () => {
   });
 
   it("forgets it when a game is opened from anywhere else", () => {
-    expect(noteAction("/reading")).toBe("forget");
+    expect(noteAction("/playing")).toBe("forget");
     expect(noteAction("/stats/year/2026")).toBe("forget");
     expect(noteAction("/games/new")).toBe("forget");
     expect(noteAction("/games/check")).toBe("forget");

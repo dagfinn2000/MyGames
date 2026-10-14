@@ -15,7 +15,7 @@ export interface Finish {
   dateFinished: Date;
   pageCount: number | null;
   /** True when the game had been finished before this pass. */
-  isReread: boolean;
+  isReplay: boolean;
 }
 
 /**
@@ -23,10 +23,10 @@ export interface Finish {
  * game has an earlier dated finish, or any undated past read — "read it
  * before" placeholders are presumed to come first.
  */
-export function markRereads<T extends { gameId: string; dateFinished: Date }>(
+export function markReplays<T extends { gameId: string; dateFinished: Date }>(
   finishes: T[],
-  undatedReadGameIds: ReadonlySet<string>,
-): (T & { isReread: boolean })[] {
+  undatedCompletedGameIds: ReadonlySet<string>,
+): (T & { isReplay: boolean })[] {
   const byGame = new Map<string, Date[]>();
   for (const f of finishes) {
     const list = byGame.get(f.gameId) ?? [];
@@ -35,30 +35,30 @@ export function markRereads<T extends { gameId: string; dateFinished: Date }>(
   }
   return finishes.map((f) => ({
     ...f,
-    isReread:
-      undatedReadGameIds.has(f.gameId) ||
+    isReplay:
+      undatedCompletedGameIds.has(f.gameId) ||
       (byGame.get(f.gameId) ?? []).some((d) => d < f.dateFinished),
   }));
 }
 
 export interface GoalRule {
   unit: GoalUnit;
-  countRereads: boolean;
+  countReplays: boolean;
 }
 
 /** The finishes that count toward a goal — all of them, or first reads
  *  only when re-reads are left out. */
-export function countedFinishes<T extends Pick<Finish, "isReread">>(
+export function countedFinishes<T extends Pick<Finish, "isReplay">>(
   finishes: T[],
-  rule: Pick<GoalRule, "countRereads">,
+  rule: Pick<GoalRule, "countReplays">,
 ): T[] {
-  return rule.countRereads ? finishes : finishes.filter((f) => !f.isReread);
+  return rule.countReplays ? finishes : finishes.filter((f) => !f.isReplay);
 }
 
 /** Progress toward a goal from what the year's passes add (countWindow in
  *  lib/stats-count.ts): their games, or their pages. */
 export function goalProgress(
-  yearItems: { isReread: boolean; games: number; pages: number }[],
+  yearItems: { isReplay: boolean; games: number; pages: number }[],
   rule: GoalRule,
 ): number {
   return countedFinishes(yearItems, rule).reduce(

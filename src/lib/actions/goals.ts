@@ -12,7 +12,7 @@ const goalSchema = z.object({
   // sensible game count.
   target: z.coerce.number().int().min(0).max(1_000_000),
   unit: z.nativeEnum(GoalUnit).catch(GoalUnit.GAMES),
-  countRereads: z.boolean(),
+  countReplays: z.boolean(),
 });
 
 /** What the goal form shows after a save. */
@@ -27,7 +27,7 @@ export interface GoalFormState {
  * Any year can be saved, so next year's goal can be set in December and a
  * past one corrected; each year's goal is its own row.
  */
-export async function setReadingGoal(formData: FormData): Promise<GoalFormState> {
+export async function setPlayGoal(formData: FormData): Promise<GoalFormState> {
   const userId = await requireUserId();
 
   const parsed = goalSchema.safeParse({
@@ -36,18 +36,18 @@ export async function setReadingGoal(formData: FormData): Promise<GoalFormState>
     target: formData.get("target") || 0,
     unit: formData.get("unit"),
     // An unticked checkbox submits nothing at all.
-    countRereads: formData.get("countRereads") === "on",
+    countReplays: formData.get("countReplays") === "on",
   });
   if (!parsed.success) return { error: "Enter a whole number from 0 to 1,000,000." };
-  const { year, target, unit, countRereads } = parsed.data;
+  const { year, target, unit, countReplays } = parsed.data;
 
   if (target === 0) {
-    await prisma.readingGoal.deleteMany({ where: { userId, year } });
+    await prisma.playGoal.deleteMany({ where: { userId, year } });
   } else {
-    await prisma.readingGoal.upsert({
+    await prisma.playGoal.upsert({
       where: { userId_year: { userId, year } },
-      create: { userId, year, target, unit, countRereads },
-      update: { target, unit, countRereads },
+      create: { userId, year, target, unit, countReplays },
+      update: { target, unit, countReplays },
     });
   }
 

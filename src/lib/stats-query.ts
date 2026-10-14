@@ -1,4 +1,4 @@
-import { ReadingStatus, type Prisma } from "@prisma/client";
+import { PlayStatus, type Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { GameDayPages, StatsInputs } from "@/lib/stats-count";
 
@@ -89,10 +89,10 @@ export async function loadStatsInputs(
   userId: string,
   timeZone: string,
 ): Promise<StatsInputs<StatsGame>> {
-  const [games, reads, logDays, lastLogs] = await Promise.all([
+  const [games, playthroughs, logDays, lastLogs] = await Promise.all([
     prisma.game.findMany({ where: { userId }, select: statsGameSelect }),
     // Archived passes from the read history: re-reads and pre-app reads.
-    prisma.read.findMany({
+    prisma.playthrough.findMany({
       where: { game: { userId } },
       select: { gameId: true, dateStarted: true, dateFinished: true, rating: true },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -100,7 +100,7 @@ export async function loadStatsInputs(
     gameDayPageTotalsForUser(userId, timeZone),
     prisma.progressEntry.groupBy({
       by: ["gameId"],
-      where: { game: { userId, status: ReadingStatus.DNF } },
+      where: { game: { userId, status: PlayStatus.DROPPED } },
       _max: { date: true },
     }),
   ]);
@@ -109,5 +109,5 @@ export async function loadStatsInputs(
   for (const row of lastLogs) {
     if (row._max.date) lastLogDates.set(row.gameId, row._max.date);
   }
-  return { games, reads, logDays, lastLogDates };
+  return { games, playthroughs, logDays, lastLogDates };
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import type { GameFormat } from "@prisma/client";
-import { logPage, moveFromReading } from "@/lib/actions/progress";
+import { logPage, moveFromPlaying } from "@/lib/actions/progress";
 import { celebrate } from "@/lib/confetti";
 import { calendarDay, dayKey, shiftDayKey } from "@/lib/dates";
 import {
@@ -15,7 +15,7 @@ import {
   unitFor,
   type ProgressUnit,
 } from "@/lib/progress-units";
-import { recentDays, type MoveResult } from "@/lib/reading-log";
+import { recentDays, type MoveResult } from "@/lib/play-log";
 import { cn } from "@/lib/utils";
 import { usePreferences } from "@/components/preferences-provider";
 import { ProgressField, ProgressNotes, unitLabel } from "@/components/progress-input";
@@ -146,10 +146,10 @@ export function QuickLog({
     });
   }
 
-  function move(to: "READ" | "DNF", origin: HTMLElement) {
+  function move(to: "COMPLETED" | "DROPPED", origin: HTMLElement) {
     setMessage(null);
     startTransition(async () => {
-      const result = await moveFromReading(game.id, to);
+      const result = await moveFromPlaying(game.id, to);
       if ("error" in result) return fail(result.error);
       // Before the row goes away with the move.
       if (result.finished) celebrate(origin);
@@ -241,7 +241,7 @@ export function QuickLog({
                 variant="ghost"
                 size="sm"
                 disabled={pending}
-                onClick={(e) => move("READ", e.currentTarget)}
+                onClick={(e) => move("COMPLETED", e.currentTarget)}
               >
                 Finished
               </Button>
@@ -250,7 +250,7 @@ export function QuickLog({
                 variant="ghost"
                 size="sm"
                 disabled={pending}
-                onClick={(e) => move("DNF", e.currentTarget)}
+                onClick={(e) => move("DROPPED", e.currentTarget)}
               >
                 Stopped
               </Button>
@@ -276,7 +276,7 @@ export function QuickLog({
               type="button"
               size="sm"
               disabled={pending}
-              onClick={(e) => move("READ", e.currentTarget)}
+              onClick={(e) => move("COMPLETED", e.currentTarget)}
             >
               Mark as Read
             </Button>

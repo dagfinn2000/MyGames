@@ -2,8 +2,8 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import type { Game, ProgressEntry } from "@prisma/client";
-import { ReadingStatus } from "@prisma/client";
-import { updateReading } from "@/lib/actions/games";
+import { PlayStatus } from "@prisma/client";
+import { updatePlay } from "@/lib/actions/games";
 import { celebrate } from "@/lib/confetti";
 import { STATUS_LABELS, toDateInputValue } from "@/lib/display";
 import { usePreferences } from "@/components/preferences-provider";
@@ -38,15 +38,15 @@ import {
  * the bar in the game's unit, the quick-log row while the game is being
  * read, and the sparkline and pace drawn from the automatic reading log.
  * Then the form for status, star rating, dates and the personal review,
- * which saves through the updateReading server action, and the log itself.
+ * which saves through the updatePlay server action, and the log itself.
  *
  * While the game is Currently Reading, progress is logged only through the
  * quick row (its own form, outside this one), and saving the reading form
- * keeps the game's page as the server has it (updateReading), so saving a
+ * keeps the game's page as the server has it (updatePlay), so saving a
  * review never moves progress. Any other status keeps a progress box in the
  * form.
  */
-export function ReadingCard({
+export function PlayingCard({
   game,
   progress,
 }: {
@@ -54,12 +54,12 @@ export function ReadingCard({
   game: Omit<Game, "searchText" | "reviewSearchText">;
   progress: ProgressEntry[];
 }) {
-  const action = updateReading.bind(null, game.id);
+  const action = updatePlay.bind(null, game.id);
   const [state, formAction, pending] = useActionState(action, {});
   const prefs = usePreferences();
   const saveButton = useRef<HTMLButtonElement>(null);
   const info = unitFor(game, prefs);
-  const reading = game.status === ReadingStatus.READING;
+  const reading = game.status === PlayStatus.PLAYING;
 
   // Finishing a game gets a burst of confetti from the save button. Each
   // save returns a new state object, so this runs once per save.
@@ -133,7 +133,7 @@ export function ReadingCard({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.values(ReadingStatus).map((s) => (
+                  {Object.values(PlayStatus).map((s) => (
                     <SelectItem key={s} value={s}>
                       {STATUS_LABELS[s]}
                     </SelectItem>
@@ -160,7 +160,7 @@ export function ReadingCard({
             </div>
             <FinishedDateField
               defaultDate={toDateInputValue(game.dateFinished, prefs.timeZone)}
-              defaultUnknown={game.status === ReadingStatus.READ && !game.dateFinished}
+              defaultUnknown={game.status === PlayStatus.COMPLETED && !game.dateFinished}
             />
             {reading ? (
               // Ignored while the game is still being read (the server keeps

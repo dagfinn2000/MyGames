@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ReadingStatus } from "@prisma/client";
+import { PlayStatus } from "@prisma/client";
 import {
   activeFilterChips,
   buildGameWhere,
@@ -82,9 +82,9 @@ describe("parseFilters", () => {
 
 describe("buildGameWhere", () => {
   it("builds exactly the old shape for the old filters", () => {
-    expect(where({ shelf: "READ", tag: "fantasy", q: "dune", minRating: "8", series: "Dune" })).toEqual({
+    expect(where({ shelf: "COMPLETED", tag: "fantasy", q: "dune", minRating: "8", series: "Dune" })).toEqual({
       userId: "u1",
-      status: ReadingStatus.READ,
+      status: PlayStatus.COMPLETED,
       rating: { gte: 8 },
       tags: { has: "fantasy" },
       seriesName: { equals: "Dune", mode: "insensitive" },
@@ -103,10 +103,10 @@ describe("buildGameWhere", () => {
   });
 
   it("leaves the status tab alone for unrated games", () => {
-    const w = where({ shelf: "READ", minRating: "unrated" });
-    expect(w.status).toBe(ReadingStatus.READ);
+    const w = where({ shelf: "COMPLETED", minRating: "unrated" });
+    expect(w.status).toBe(PlayStatus.COMPLETED);
     expect(w.rating).toBeUndefined();
-    expect(w.AND).toEqual([{ rating: null }, { status: { not: ReadingStatus.WANT_TO_READ } }]);
+    expect(w.AND).toEqual([{ rating: null }, { status: { not: PlayStatus.WANT_TO_PLAY } }]);
   });
 
   it("looks for each missing detail", () => {
@@ -123,8 +123,8 @@ describe("buildGameWhere", () => {
     expect(where({ finished: "2024" }).AND).toEqual([
       {
         OR: [
-          { status: ReadingStatus.READ, dateFinished: sure },
-          { reads: { some: { dateFinished: sure } } },
+          { status: PlayStatus.COMPLETED, dateFinished: sure },
+          { playthroughs: { some: { dateFinished: sure } } },
         ],
       },
     ]);
@@ -132,8 +132,8 @@ describe("buildGameWhere", () => {
     expect(withEdges.AND).toEqual([
       {
         OR: [
-          { status: ReadingStatus.READ, dateFinished: sure },
-          { reads: { some: { dateFinished: sure } } },
+          { status: PlayStatus.COMPLETED, dateFinished: sure },
+          { playthroughs: { some: { dateFinished: sure } } },
           { id: { in: ["b1"] } },
         ],
       },

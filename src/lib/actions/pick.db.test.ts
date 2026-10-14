@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { GameOwnership, PrismaClient, ReadingStatus } from "@prisma/client";
+import { GameOwnership, PrismaClient, PlayStatus } from "@prisma/client";
 
 /**
  * Pick for me against a real database. The rule itself is unit-tested in
@@ -68,15 +68,15 @@ afterEach(async () => {
 
 describe("pickRandomGame", () => {
   it("stays on the status tab instead of opening a Want to Read game", async () => {
-    const read = await makeGame({ status: ReadingStatus.READ });
-    await makeGame({ status: ReadingStatus.WANT_TO_READ });
+    const read = await makeGame({ status: PlayStatus.COMPLETED });
+    await makeGame({ status: PlayStatus.WANT_TO_PLAY });
 
-    expect(await picks({ shelf: "READ" })).toEqual(new Set([read.id]));
+    expect(await picks({ shelf: "COMPLETED" })).toEqual(new Set([read.id]));
   });
 
   it("prefers Want to Read on the All tab, and falls back when there is none", async () => {
-    const want = await makeGame({ status: ReadingStatus.WANT_TO_READ });
-    const read = await makeGame({ status: ReadingStatus.READ });
+    const want = await makeGame({ status: PlayStatus.WANT_TO_PLAY });
+    const read = await makeGame({ status: PlayStatus.COMPLETED });
     expect(await picks({})).toEqual(new Set([want.id]));
 
     await prisma.game.delete({ where: { id: want.id } });
@@ -113,12 +113,12 @@ describe("pickRandomGame", () => {
 
   it("only picks the next game in a series when asked to", async () => {
     await setPrefs({ pickNextInSeries: true });
-    await makeGame({ seriesName: "Mistborn", seriesNumber: 1, status: ReadingStatus.READ });
+    await makeGame({ seriesName: "Mistborn", seriesNumber: 1, status: PlayStatus.COMPLETED });
     const two = await makeGame({ seriesName: "Mistborn", seriesNumber: 2 });
     await makeGame({ seriesName: "mistborn", seriesNumber: 3 });
 
     // #1 is not on the Want to Read tab, but it still counts as read.
-    expect(await picks({ shelf: "WANT_TO_READ" })).toEqual(new Set([two.id]));
+    expect(await picks({ shelf: "WANT_TO_PLAY" })).toEqual(new Set([two.id]));
   });
 
   it("says when the switches leave nothing, and when nothing matches", async () => {
@@ -126,14 +126,14 @@ describe("pickRandomGame", () => {
     await makeGame({ ownership: GameOwnership.WISHLIST });
 
     expect(await picks({})).toEqual(new Set(["settings"]));
-    expect(await picks({ shelf: "READ" })).toEqual(new Set(["none"]));
+    expect(await picks({ shelf: "COMPLETED" })).toEqual(new Set(["none"]));
     expect(await picks({ q: "no such game" })).toEqual(new Set(["none"]));
   });
 
   it("never looks at another account's games", async () => {
     await setPrefs({ pickNextInSeries: true });
-    await makeGame({ status: ReadingStatus.WANT_TO_READ }, otherUserId);
-    // Their unread #1 in a same-named series must not hold back my #2.
+    await makeGame({ status: PlayStatus.WANT_TO_PLAY }, otherUserId);
+    // Their unplayed #1 in a same-named series must not hold back my #2.
     await makeGame({ seriesName: "Mistborn", seriesNumber: 1 }, otherUserId);
     const mine = await makeGame({ seriesName: "Mistborn", seriesNumber: 2 });
 

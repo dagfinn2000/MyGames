@@ -1,4 +1,4 @@
-import { ReadingStatus } from "@prisma/client";
+import { PlayStatus } from "@prisma/client";
 
 /**
  * Which game of a series comes next. Shared by the library's series
@@ -7,9 +7,9 @@ import { ReadingStatus } from "@prisma/client";
 
 export interface SeriesMember {
   seriesNumber: number | null;
-  status: ReadingStatus;
-  /** Finished passes before the current one (see reading-state.ts). */
-  timesRead: number;
+  status: PlayStatus;
+  /** Finished passes before the current one (see play-state.ts). */
+  timesCompleted: number;
 }
 
 /** Series names compared the way the series filter does: case-insensitive,
@@ -19,8 +19,8 @@ export function seriesKey(name: string): string {
 }
 
 /** Read at least once, or put down for good. Either way, not what's next. */
-export function isDoneInSeries(b: Pick<SeriesMember, "status" | "timesRead">): boolean {
-  return b.status === ReadingStatus.READ || b.status === ReadingStatus.DNF || b.timesRead > 0;
+export function isDoneInSeries(b: Pick<SeriesMember, "status" | "timesCompleted">): boolean {
+  return b.status === PlayStatus.COMPLETED || b.status === PlayStatus.DROPPED || b.timesCompleted > 0;
 }
 
 /**

@@ -6,7 +6,7 @@
  * goes round it by itself.
  *
  * The cat and the dog are painted in the house's cat and dog paints, so
- * they wear the coats chosen for them (reading-room.css); the cat's grid
+ * they wear the coats chosen for them (game-room.css); the cat's grid
  * marks where a tabby's stripes, a calico's patches and a Siamese's dark
  * points go, which other coats paint over plainly.
  */

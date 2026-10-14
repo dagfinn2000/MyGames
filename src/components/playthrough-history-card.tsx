@@ -1,15 +1,15 @@
 "use client";
 
 import { useActionState, useEffect, useId, useRef, useState, useTransition } from "react";
-import type { Game, Read } from "@prisma/client";
-import { ReadingStatus } from "@prisma/client";
+import type { Game, Playthrough } from "@prisma/client";
+import { PlayStatus } from "@prisma/client";
 import { Pencil, Repeat, Trash2, X } from "lucide-react";
 import {
-  addPastRead,
-  deletePastRead,
-  readAgain,
-  updatePastRead,
-} from "@/lib/actions/reads";
+  addPastPlaythrough,
+  deletePastPlaythrough,
+  playAgain,
+  updatePastPlaythrough,
+} from "@/lib/actions/playthroughs";
 import { formatDate, toDateInputValue, type FormatPrefs } from "@/lib/display";
 import { submitKeepingInput } from "@/lib/submit-form";
 import { usePreferences } from "@/components/preferences-provider";
@@ -28,7 +28,7 @@ import {
 
 /** "12 May 2024 – 3 Jun 2024", partial-date variants, or "Undated read". */
 function readLabel(
-  read: Pick<Read, "dateStarted" | "dateFinished">,
+  read: Pick<Playthrough, "dateStarted" | "dateFinished">,
   prefs: FormatPrefs,
 ): string {
   const start = formatDate(read.dateStarted, prefs);
@@ -46,36 +46,36 @@ function readLabel(
  * reads from before the app. The Game row itself always holds the latest
  * read — that's the "Latest" row here and the editable reading card above.
  */
-export function ReadHistoryCard({
+export function PlaythroughHistoryCard({
   game,
-  reads,
+  playthroughs,
 }: {
   game: Pick<
     Game,
     "id" | "status" | "dateStarted" | "dateFinished" | "rating"
   >;
-  reads: Read[];
+  playthroughs: Playthrough[];
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const prefs = usePreferences();
-  const finished = game.status === ReadingStatus.READ;
+  const finished = game.status === PlayStatus.COMPLETED;
 
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle>Read history</CardTitle>
-        {finished && <ReadAgainButton gameId={game.id} />}
+        {finished && <PlayAgainButton gameId={game.id} />}
       </CardHeader>
       {/* grid-cols-1 clamps the tracks so a long unbroken token in a note
           (a pasted URL, say) wraps via break-words instead of stretching
           the card. */}
       <CardContent className="grid grid-cols-1 gap-4">
-        {(reads.length > 0 || finished) && (
+        {(playthroughs.length > 0 || finished) && (
           <ul className="grid grid-cols-1 gap-2">
-            {reads.map((read) => (
+            {playthroughs.map((read) => (
               <li key={read.id} className="grid grid-cols-1 gap-1">
                 {editingId === read.id ? (
-                  <PastReadForm
+                  <PastPlaythroughForm
                     read={read}
                     onDone={() => setEditingId(null)}
                   />
@@ -96,7 +96,7 @@ export function ReadHistoryCard({
                         >
                           <Pencil className="size-3.5" />
                         </Button>
-                        <DeleteReadButton readId={read.id} />
+                        <DeletePlaythroughButton playthroughId={read.id} />
                       </span>
                     </div>
                     {read.note && (
@@ -126,7 +126,7 @@ export function ReadHistoryCard({
             Read this before? Record a past read
           </summary>
           <div className="pt-3">
-            <PastReadForm gameId={game.id} />
+            <PastPlaythroughForm gameId={game.id} />
           </div>
         </details>
       </CardContent>
@@ -135,16 +135,16 @@ export function ReadHistoryCard({
 }
 
 /** Add form (pass `gameId`) or inline edit form (pass `read` + `onDone`). */
-function PastReadForm({
+function PastPlaythroughForm({
   gameId,
   read,
   onDone,
 }: {
   gameId?: string;
-  read?: Read;
+  read?: Playthrough;
   onDone?: () => void;
 }) {
-  const action = read ? updatePastRead.bind(null, read.id) : addPastRead;
+  const action = read ? updatePastPlaythrough.bind(null, read.id) : addPastPlaythrough;
   const [state, formAction, pending] = useActionState(action, {});
   const { timeZone } = usePreferences();
   const startId = useId();
@@ -241,7 +241,7 @@ function PastReadForm({
 
 /** Archives the current pass and restarts the game; inline confirm since it
  *  changes status and dates in one click. */
-function ReadAgainButton({ gameId }: { gameId: string }) {
+function PlayAgainButton({ gameId }: { gameId: string }) {
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -264,7 +264,7 @@ function ReadAgainButton({ gameId }: { gameId: string }) {
         type="button"
         size="sm"
         disabled={pending}
-        onClick={() => startTransition(() => readAgain(gameId))}
+        onClick={() => startTransition(() => playAgain(gameId))}
       >
         {pending ? "Starting…" : "Start re-read"}
       </Button>
@@ -283,7 +283,7 @@ function ReadAgainButton({ gameId }: { gameId: string }) {
 }
 
 /** Trash icon that expands to an inline confirm, same as quotes. */
-function DeleteReadButton({ readId }: { readId: string }) {
+function DeletePlaythroughButton({ playthroughId }: { playthroughId: string }) {
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -307,7 +307,7 @@ function DeleteReadButton({ readId }: { readId: string }) {
         variant="destructive"
         size="sm"
         disabled={pending}
-        onClick={() => startTransition(() => deletePastRead(readId))}
+        onClick={() => startTransition(() => deletePastPlaythrough(playthroughId))}
       >
         {pending ? "Deleting…" : "Delete read"}
       </Button>

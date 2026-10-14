@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ReadingStatus, type Prisma } from "@prisma/client";
+import { PlayStatus, type Prisma } from "@prisma/client";
 import { LibraryBig, Plus } from "lucide-react";
 import { auth } from "@/auth";
 import { BULK_MAX_IDS } from "@/lib/bulk";
@@ -166,11 +166,11 @@ export default async function GamesPage({
     }),
     // The span of years anything was finished in, for "Finished in".
     prisma.game.aggregate({
-      where: { userId, status: ReadingStatus.READ },
+      where: { userId, status: PlayStatus.COMPLETED },
       _min: { dateFinished: true },
       _max: { dateFinished: true },
     }),
-    prisma.read.aggregate({
+    prisma.playthrough.aggregate({
       where: { game: { userId } },
       _min: { dateFinished: true },
       _max: { dateFinished: true },
@@ -260,7 +260,7 @@ export default async function GamesPage({
   if (sliced && values.group === "series") {
     const members = await prisma.game.findMany({
       where: { userId, seriesName: { not: null } },
-      select: { seriesName: true, seriesNumber: true, status: true, timesRead: true },
+      select: { seriesName: true, seriesNumber: true, status: true, timesCompleted: true },
     });
     const bySeries = new Map<string, typeof members>();
     for (const m of members) {

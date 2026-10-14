@@ -3,10 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
-import { GameFormat, ReadingStatus } from "@prisma/client";
+import { GameFormat, PlayStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { gameSchema, readingSchema } from "@/lib/validation";
+import { gameSchema, playSchema } from "@/lib/validation";
 import { deleteCachedCover } from "@/lib/covers";
 import { localizeCoverAfterResponse } from "@/lib/cover-localize";
 import { getPreferences } from "@/lib/current-user";
@@ -14,12 +14,12 @@ import { requireUserId } from "@/lib/actions/helpers";
 import type { ActionState } from "@/lib/actions/helpers";
 import { calendarDay, dayKey, endOfZonedDay, zonedDayStart } from "@/lib/dates";
 import { currentPassEntries } from "@/lib/progress";
-import { anchorMoment } from "@/lib/reading-log";
-import { settleReadingState } from "@/lib/reading-state";
+import { anchorMoment } from "@/lib/play-log";
+import { settlePlayState } from "@/lib/play-state";
 import { buildSearchText, foldForSearch } from "@/lib/utils";
 import { AFTER_ADD } from "@/lib/preferences";
 
-const statusField = z.nativeEnum(ReadingStatus).catch(ReadingStatus.WANT_TO_READ);
+const statusField = z.nativeEnum(PlayStatus).catch(PlayStatus.WANT_TO_PLAY);
 
 /** Create a game from the add form (manual or import-prefilled). */
 export async function createGame(
@@ -37,11 +37,11 @@ export async function createGame(
   // Started and Current page for Currently Reading. Same checks as the
   // reading card (no dates in the future, none backwards).
   const status = statusField.parse(formData.get("status"));
-  const readingParsed = readingSchema.safeParse({ ...fields, status });
-  if (!readingParsed.success) {
-    return { error: readingParsed.error.issues[0]?.message ?? "Invalid input" };
+  const playParsed = playSchema.safeParse({ ...fields, status });
+  if (!playParsed.success) {
+    return { error: playParsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  const r = readingParsed.data;
+  const r = playParsed.data;
   const prefs = await getPreferences();
   // Which submit button was pressed; a form without one follows Preferences.
   const afterAdd = z.enum(AFTER_ADD).catch(prefs.afterAdd).parse(formData.get("afterAdd"));
@@ -51,18 +51,18 @@ export async function createGame(
   // date, Read means today unless the reader said they don't remember (or
   // chose undated finishes in Preferences).
   const now = new Date();
-  const reading = settleReadingState(
+  const reading = settlePlayState(
     null,
     {
       status,
-      dateStarted: status === ReadingStatus.READING ? (r.dateStarted ?? null) : null,
+      dateStarted: status === PlayStatus.PLAYING ? (r.dateStarted ?? null) : null,
       dateFinished:
-        status === ReadingStatus.READ && !r.finishedUnknown ? (r.dateFinished ?? null) : null,
+        status === PlayStatus.COMPLETED && !r.finishedUnknown ? (r.dateFinished ?? null) : null,
       currentPage: r.currentPage ?? null,
     },
     0,
     now,
-    { undatedFinish: r.finishedUnknown || prefs.addedAsReadFinished === "undated" },
+    { undatedFinish: r.finishedUnknown || prefs.addedAsCompletedFinished === "undated" },
   );
 
   const data = parsed.data;
@@ -96,7 +96,7 @@ export async function createGame(
       rating: r.rating || null, // 0 = unrated
       dateStarted: reading.dateStarted,
       dateFinished: reading.dateFinished,
-      timesRead: reading.timesRead,
+      timesCompleted: reading.timesCompleted,
       currentPage: reading.currentPage,
       searchText: buildSearchText(data.title, data.authors, data.seriesName),
       // A game added mid-read starts its log at the page given: one entry
@@ -189,7 +189,7 @@ export async function updateGame(
 }
 
 /** Update personal reading data (status, rating, review, dates, re-reads). */
-export async function updateReading(
+export async function updatePlay(
   gameId: string,
   _prev: ActionState,
   formData: FormData,
@@ -203,12 +203,12 @@ export async function updateReading(
       currentPage: true,
       pageCount: true,
       dateStarted: true,
-      _count: { select: { reads: true } },
+      _count: { select: { playthroughs: true } },
     },
   });
   if (!existing) return { error: "Game not found" };
 
-  const parsed = readingSchema.safeParse(Object.fromEntries(formData));
+  const parsed = playSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
@@ -216,9 +216,9 @@ export async function updateReading(
   const prefs = await getPreferences();
 
   // Fills in "finished today" / "started today" when the dates were left
-  // empty, derives timesRead, and drops the page once the game is finished
+  // empty, derives timesCompleted, and drops the page once the game is finished
   // or reshelved. Shared with createGame and bulk edit.
-  const { dateStarted, dateFinished, timesRead, currentPage } = settleReadingState(
+  const { dateStarted, dateFinished, timesCompleted, currentPage } = settlePlayState(
     existing.status,
     {
       status: data.status,
@@ -228,9 +228,9 @@ export async function updateReading(
       // has no page box then, and sends back the page it was rendered with,
       // which a log since (in another tab, say) has left behind.
       currentPage:
-        existing.status === ReadingStatus.READING ? existing.currentPage : (data.currentPage ?? null),
+        existing.status === PlayStatus.PLAYING ? existing.currentPage : (data.currentPage ?? null),
     },
-    existing._count.reads,
+    existing._count.playthroughs,
     new Date(),
     { undatedFinish: data.finishedUnknown },
   );
@@ -241,7 +241,7 @@ export async function updateReading(
     return { error: `Page ${currentPage} is past the end of the game (${existing.pageCount} pages)` };
   }
 
-  // The game update and its automatic reading-log entries land together —
+  // The game update and its automatic play-log entries land together —
   // a page-0 anchor without the page change it anchors (or vice versa)
   // would corrupt the pass bookkeeping.
   await prisma.$transaction(async (tx) => {
@@ -254,7 +254,7 @@ export async function updateReading(
         reviewSearchText: foldForSearch(data.review ?? ""),
         dateStarted,
         dateFinished,
-        timesRead,
+        timesCompleted,
         currentPage,
       },
     });
@@ -273,7 +273,7 @@ export async function updateReading(
   revalidatePath("/stats");
   return {
     success: true,
-    finished: existing.status !== ReadingStatus.READ && data.status === ReadingStatus.READ,
+    finished: existing.status !== PlayStatus.COMPLETED && data.status === PlayStatus.COMPLETED,
   };
 }
 
@@ -285,19 +285,19 @@ export async function updateReading(
  * preceded by a page-0 anchor at the pass start — "page 74" logged into a
  * fresh game credits 74 pages, while a lone entry with no predecessor (like
  * the anchors the upgrade migration seeds from mid-read games) credits none.
- * Re-read passes get their anchor from readAgain (see lib/actions/reads.ts).
+ * Re-read passes get their anchor from playAgain (see lib/actions/playthroughs.ts).
  */
 async function logProgress(
   db: Prisma.TransactionClient,
   gameId: string,
   prev: {
-    status: ReadingStatus;
+    status: PlayStatus;
     currentPage: number | null;
     pageCount: number | null;
     dateStarted: Date | null;
   },
   next: {
-    status: ReadingStatus;
+    status: PlayStatus;
     currentPage: number | null;
     dateStarted: Date | null;
     dateFinished: Date | null;
@@ -323,8 +323,8 @@ async function logProgress(
   const anchor = pass[0]?.page === 0 ? pass[0] : null;
   if (
     anchor &&
-    next.status === ReadingStatus.READING &&
-    prev.status === ReadingStatus.READING &&
+    next.status === PlayStatus.PLAYING &&
+    prev.status === PlayStatus.PLAYING &&
     next.dateStarted &&
     next.dateStarted.getTime() !== prev.dateStarted?.getTime() &&
     next.dateStarted < anchor.date
@@ -352,9 +352,9 @@ async function logProgress(
   // fact shouldn't credit every page of it to one day. Nor does an undated
   // finish: there is no day to credit the last pages to.
   if (
-    next.status === ReadingStatus.READ &&
+    next.status === PlayStatus.COMPLETED &&
     next.dateFinished != null &&
-    prev.status !== ReadingStatus.READ &&
+    prev.status !== PlayStatus.COMPLETED &&
     prev.pageCount != null &&
     last != null &&
     last.page < prev.pageCount

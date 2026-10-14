@@ -1,4 +1,4 @@
-/* The reading room (components/reading-room.tsx).
+/* The reading room (components/game-room.tsx).
 
    Paints: every rectangle of the pixel art (room-art.tsx) carries a class
    `rp-<paint>`, coloured here from a palette of --room-* colours. The

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BookCheck, BookOpenText, FileText, LibraryBig, Star } from "lucide-react";
 import { redirect } from "next/navigation";
-import { ReadingStatus } from "@prisma/client";
+import { PlayStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getPreferences } from "@/lib/current-user";
@@ -10,7 +10,7 @@ import { FORMAT_LABELS, formatNumber } from "@/lib/display";
 import { goalPace, goalProgress, splitGoals, yearClock } from "@/lib/goals";
 import { dailyPageTotalsForUser } from "@/lib/progress-query";
 import {
-  gamesReadAllTime,
+  gamesCompletedAllTime,
   buildPasses,
   countWindow,
   goalRuleLine,
@@ -28,7 +28,7 @@ import {
 } from "@/lib/stats-period";
 import { loadStatsInputs } from "@/lib/stats-query";
 import { GoalCard } from "@/components/goal-card";
-import { ReadingHeatmap } from "@/components/reading-heatmap";
+import { PlayHeatmap } from "@/components/play-heatmap";
 import { Bar, StatCard } from "@/components/stat-blocks";
 import { StatsPeriodNav } from "@/components/stats-period-nav";
 import { Stars } from "@/components/stars";
@@ -68,7 +68,7 @@ export default async function StatsPage({
     // Games, past reads and the log by game and day: what lib/stats-count.ts
     // turns into passes, by the "What counts" preferences.
     loadStatsInputs(userId, prefs.timeZone),
-    prisma.readingGoal.findMany({
+    prisma.playGoal.findMany({
       where: { userId },
       orderBy: { year: "desc" },
     }),
@@ -93,7 +93,7 @@ export default async function StatsPage({
 
   const randomQuote = randomQuotes[0] ?? null;
   const { games } = inputs;
-  const reading = games.filter((b) => b.status === ReadingStatus.READING);
+  const reading = games.filter((b) => b.status === PlayStatus.PLAYING);
 
   // Every pass through every game, counted all time and in the period.
   const passes = buildPasses(inputs, prefs, prefs.timeZone);
@@ -104,12 +104,12 @@ export default async function StatsPage({
 
   // Games read: all time it's the games on the Read shelf, each once. In a
   // period it's finishes, re-reads included, so it says "Games finished".
-  const readAllTime = gamesReadAllTime(games, prefs);
+  const completedAllTime = gamesCompletedAllTime(games, prefs);
   const notes = ruleNotes(
     prefs,
     period === "all"
-      ? { putDown: readAllTime.putDown }
-      : { rereads: totals.rereads, putDown: totals.putDown },
+      ? { putDown: completedAllTime.putDown }
+      : { replays: totals.replays, putDown: totals.putDown },
     fmt,
   );
   const gamesLabel =
@@ -171,7 +171,7 @@ export default async function StatsPage({
     : period === "all"
       ? null
       : "every game in the library";
-  const nothingRead = period === "all" ? "Nothing read yet." : "Nothing in this period.";
+  const nothingCompleted = period === "all" ? "Nothing read yet." : "Nothing in this period.";
 
   // Genre/tag breakdown, top 10.
   const tagCounts = new Map<string, number>();
@@ -202,7 +202,7 @@ export default async function StatsPage({
         <div className={`grid grid-cols-2 gap-4 max-lg:[&>:last-child:nth-child(odd)]:col-span-2 ${ratings ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
           <StatCard label="Games in library" icon={LibraryBig}>{fmt(games.length)}</StatCard>
           <StatCard label={`${gamesLabel} · ${words}`} icon={BookCheck} note={notes.games.join(" · ")}>
-            {fmt(period === "all" ? readAllTime.games : totals.games)}
+            {fmt(period === "all" ? completedAllTime.games : totals.games)}
           </StatCard>
           <StatCard label="Currently reading" icon={BookOpenText}>{fmt(reading.length)}</StatCard>
           <StatCard
@@ -285,7 +285,7 @@ export default async function StatsPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ReadingHeatmap totals={pageTotals} prefs={prefs} />
+            <PlayHeatmap totals={pageTotals} prefs={prefs} />
           </CardContent>
         </Card>
       )}
@@ -336,7 +336,7 @@ export default async function StatsPage({
               {topTags.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   {byPeriod && breakdownGames.length === 0
-                    ? nothingRead
+                    ? nothingCompleted
                     : "Tag your games to see the breakdown."}
                 </p>
               ) : (
@@ -364,7 +364,7 @@ export default async function StatsPage({
               ))}
               {formatCounts.size === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  {byPeriod ? nothingRead : "No games yet."}
+                  {byPeriod ? nothingCompleted : "No games yet."}
                 </p>
               )}
             </CardContent>

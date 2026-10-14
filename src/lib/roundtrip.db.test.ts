@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import JSZip from "jszip";
-import { GameOwnership, PrismaClient, ReadingStatus } from "@prisma/client";
+import { GameOwnership, PrismaClient, PlayStatus } from "@prisma/client";
 
 /**
  * Export a library, restore it into an empty account, and check that what
@@ -56,7 +56,7 @@ describe("export -> import round trip", () => {
     const shelf = await prisma.shelf.create({
       data: { userId: sourceUserId, name: "Sanderson" },
     });
-    await prisma.readingGoal.create({
+    await prisma.playGoal.create({
       data: { userId: sourceUserId, year: 2026, target: 24 },
     });
 
@@ -75,18 +75,18 @@ describe("export -> import round trip", () => {
         ownership: GameOwnership.OWNED,
         seriesName: "Mistborn",
         seriesNumber: 1,
-        status: ReadingStatus.READ,
+        status: PlayStatus.COMPLETED,
         rating: 9,
         review: "Superb.",
         dateStarted: new Date("2026-01-01T00:00:00.000Z"),
         dateFinished: new Date("2026-01-20T00:00:00.000Z"),
-        timesRead: 2,
+        timesCompleted: 2,
         searchText: "the final empire brandon sanderson mistborn",
         shelves: { connect: { id: shelf.id } },
         quotes: {
           create: [{ text: "There's always another secret.", page: 500, note: "!" }],
         },
-        reads: {
+        playthroughs: {
           create: [
             { dateFinished: new Date("2019-06-01T00:00:00.000Z"), rating: 8, note: "Read aloud" },
           ],
@@ -121,7 +121,7 @@ describe("export -> import round trip", () => {
       gamesInvalid: 0,
       shelvesCreated: 1,
       quotesRestored: 1,
-      readsRestored: 1,
+      playthroughsRestored: 1,
       progressRestored: 2,
       loansRestored: 2,
       goalsRestored: 1,
@@ -129,7 +129,7 @@ describe("export -> import round trip", () => {
 
     const restored = await prisma.game.findFirstOrThrow({
       where: { userId: targetUserId },
-      include: { shelves: true, quotes: true, reads: true, progress: true, loans: true },
+      include: { shelves: true, quotes: true, playthroughs: true, progress: true, loans: true },
     });
 
     // Bibliographic data
@@ -146,21 +146,21 @@ describe("export -> import round trip", () => {
     expect(restored.ownership).toBe(GameOwnership.OWNED);
 
     // Personal reading data
-    expect(restored.status).toBe(ReadingStatus.READ);
+    expect(restored.status).toBe(PlayStatus.COMPLETED);
     expect(restored.rating).toBe(9);
     expect(restored.review).toBe("Superb.");
     // Rebuilt, so review search finds a restored review.
     expect(restored.reviewSearchText).toBe("superb.");
     expect(restored.dateFinished?.toISOString()).toBe("2026-01-20T00:00:00.000Z");
-    expect(restored.timesRead).toBe(2);
+    expect(restored.timesCompleted).toBe(2);
 
     // Relations
     expect(restored.shelves.map((s) => s.name)).toEqual(["Sanderson"]);
     expect(restored.quotes[0].text).toBe("There's always another secret.");
     expect(restored.quotes[0].page).toBe(500);
-    expect(restored.reads).toHaveLength(1);
-    expect(restored.reads[0].rating).toBe(8);
-    expect(restored.reads[0].note).toBe("Read aloud");
+    expect(restored.playthroughs).toHaveLength(1);
+    expect(restored.playthroughs[0].rating).toBe(8);
+    expect(restored.playthroughs[0].note).toBe("Read aloud");
     expect(restored.progress.map((p) => p.page).sort((a, b) => a - b)).toEqual([0, 250]);
 
     // Lending survives, including which loan is still open.
@@ -168,7 +168,7 @@ describe("export -> import round trip", () => {
     const stillOut = restored.loans.filter((l) => l.returnedAt === null);
     expect(stillOut.map((l) => l.borrower)).toEqual(["Ola"]);
 
-    const goal = await prisma.readingGoal.findFirstOrThrow({
+    const goal = await prisma.playGoal.findFirstOrThrow({
       where: { userId: targetUserId, year: 2026 },
     });
     expect(goal.target).toBe(24);
@@ -243,7 +243,7 @@ describe("export -> import round trip", () => {
       data: {
         userId: sourceUserId,
         name: "Next up",
-        query: "shelf=WANT_TO_READ&group=none&sort=createdAt&dir=desc",
+        query: "shelf=WANT_TO_PLAY&group=none&sort=createdAt&dir=desc",
       },
     });
     await prisma.savedView.create({
@@ -266,13 +266,13 @@ describe("export -> import round trip", () => {
         },
       },
     });
-    await prisma.readingGoal.create({
+    await prisma.playGoal.create({
       data: {
         userId: sourceUserId,
         year: 2026,
         target: 9000,
         unit: "PAGES",
-        countRereads: false,
+        countReplays: false,
       },
     });
     // The new account has already been visited once, which saved its zone.
@@ -282,9 +282,9 @@ describe("export -> import round trip", () => {
     });
 
     const payload = await exportLibrary();
-    // An older MyGames reads every readingGoals entry as a game count.
-    expect(payload.readingGoals).toEqual([]);
-    expect(payload.pageGoals).toEqual([{ year: 2026, target: 9000, countRereads: false }]);
+    // An older MyGames reads every playGoals entry as a game count.
+    expect(payload.playGoals).toEqual([]);
+    expect(payload.pageGoals).toEqual([{ year: 2026, target: 9000, countReplays: false }]);
 
     const summary = await importLibrary(targetUserId, payload);
     expect(summary).toMatchObject({
@@ -310,8 +310,8 @@ describe("export -> import round trip", () => {
       defaultViewId: nextUp?.id,
     });
 
-    const goal = await prisma.readingGoal.findFirstOrThrow({ where: { userId: targetUserId } });
-    expect(goal).toMatchObject({ target: 9000, unit: "PAGES", countRereads: false });
+    const goal = await prisma.playGoal.findFirstOrThrow({ where: { userId: targetUserId } });
+    expect(goal).toMatchObject({ target: 9000, unit: "PAGES", countReplays: false });
   });
 
   it("keeps the shelf and saved-view order by name", async () => {

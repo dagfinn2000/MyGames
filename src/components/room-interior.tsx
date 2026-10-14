@@ -10,7 +10,7 @@ import { Rects, type Art } from "@/components/room-art";
 import { ceilingSample, floorSample, styleFloor, stylePaper, wallSample } from "@/components/room-shells";
 import { Row, Swatches, Tiles } from "@/components/decorate-controls";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { decorData, type RoomDecor } from "@/components/reading-room";
+import { decorData, type RoomDecor } from "@/components/game-room";
 import { ROOM_LABELS, type RoomKind } from "@/lib/room";
 import {
   COLOUR_LABELS,

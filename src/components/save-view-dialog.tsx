@@ -75,7 +75,7 @@ export function SaveViewDialog({ query }: { query: string }) {
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Unread fantasy"
+            placeholder="Unplayed fantasy"
             maxLength={SAVED_VIEW_NAME_MAX}
             autoFocus
             aria-label="View name"

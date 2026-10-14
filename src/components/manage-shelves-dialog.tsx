@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ReadingStatus } from "@prisma/client";
+import { PlayStatus } from "@prisma/client";
 import { ArrowDown, ArrowUp, Eye, EyeOff, Pencil, Settings2, Trash2 } from "lucide-react";
 import { savePreferences } from "@/lib/actions/preferences";
 import { deleteShelf, renameShelf } from "@/lib/actions/shelves";
@@ -22,7 +22,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-const STATUSES = Object.values(ReadingStatus);
+const STATUSES = Object.values(PlayStatus);
 
 /**
  * Shelf housekeeping behind the "Manage shelves" chip: rename a shelf
@@ -58,7 +58,7 @@ export function ManageShelvesDialog({
   // preferences each time it opens.
   const [order, setOrder] = useState<string[]>([]);
   const [hidden, setHidden] = useState<string[]>([]);
-  const [hiddenTabs, setHiddenTabs] = useState<ReadingStatus[]>([]);
+  const [hiddenTabs, setHiddenTabs] = useState<PlayStatus[]>([]);
   const [gone, setGone] = useState<string[]>([]);
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -141,7 +141,7 @@ export function ManageShelvesDialog({
     });
   }
 
-  function toggleTab(status: ReadingStatus) {
+  function toggleTab(status: PlayStatus) {
     const shown = !hiddenTabs.includes(status);
     if (shown && shownTabs.length === 1) return;
     const next = shown ? [...hiddenTabs, status] : hiddenTabs.filter((s) => s !== status);

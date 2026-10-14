@@ -18,7 +18,7 @@ import { parsePreferences } from "@/lib/preferences";
  *
  * The JSON inside is still the version-1 export format — quotes, reads,
  * progress, loans, settings, saved views and pages goals are additive
- * fields (as are a goal's `countRereads`, a game's `lengthMinutes` and a
+ * fields (as are a goal's `countReplays`, a game's `lengthMinutes` and a
  * past read's `note`), and `owned` is still written
  * alongside the newer `ownership` — so unzipping and feeding `library.json`
  * to an older instance keeps working.
@@ -34,7 +34,7 @@ export async function GET() {
   }
   const userId = session.user.id;
 
-  const [games, shelves, readingGoals, user, savedViews] = await Promise.all([
+  const [games, shelves, playGoals, user, savedViews] = await Promise.all([
     prisma.game.findMany({
       where: { userId },
       orderBy: { createdAt: "asc" },
@@ -44,7 +44,7 @@ export async function GET() {
           select: { text: true, page: true, note: true, createdAt: true },
           orderBy: { createdAt: "asc" },
         },
-        reads: {
+        playthroughs: {
           select: {
             dateStarted: true,
             dateFinished: true,
@@ -75,10 +75,10 @@ export async function GET() {
       orderBy: { name: "asc" },
       select: { id: true, name: true, createdAt: true },
     }),
-    prisma.readingGoal.findMany({
+    prisma.playGoal.findMany({
       where: { userId },
       orderBy: { year: "asc" },
-      select: { year: true, target: true, unit: true, countRereads: true },
+      select: { year: true, target: true, unit: true, countReplays: true },
     }),
     prisma.user.findUnique({
       where: { id: userId },
@@ -107,11 +107,11 @@ export async function GET() {
     counts: { games: games.length, shelves: shelves.length },
     shelves: shelves.map(({ id: _id, ...shelf }) => shelf),
     // Pages goals get a list of their own: an older MyGames reads every
-    // entry of readingGoals as a number of games.
-    readingGoals: readingGoals
+    // entry of playGoals as a number of games.
+    playGoals: playGoals
       .filter((g) => g.unit === "GAMES")
       .map(({ unit: _unit, ...goal }) => goal),
-    pageGoals: readingGoals
+    pageGoals: playGoals
       .filter((g) => g.unit === "PAGES")
       .map(({ unit: _unit, ...goal }) => goal),
     // The account's own settings: theme, library view and Preferences. A

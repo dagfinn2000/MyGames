@@ -1,12 +1,12 @@
-import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
 import { calendarDay, dayKey, keyToUtcDate } from "@/lib/dates";
 import type { DateFormat, NumberFormat } from "@/lib/preferences";
 
-export const STATUS_LABELS: Record<ReadingStatus, string> = {
-  WANT_TO_READ: "Want to Read",
-  READING: "Currently Reading",
-  READ: "Read",
-  DNF: "Did Not Finish",
+export const STATUS_LABELS: Record<PlayStatus, string> = {
+  WANT_TO_PLAY: "Want to Read",
+  PLAYING: "Currently Reading",
+  COMPLETED: "Read",
+  DROPPED: "Did Not Finish",
 };
 
 export const FORMAT_LABELS: Record<GameFormat, string> = {
@@ -32,13 +32,13 @@ export const OWNERSHIP_BADGE_LABELS: Record<GameOwnership, string> = {
 };
 
 /** Badge tint per reading status (light + dark variants). */
-export const STATUS_BADGE_CLASS: Record<ReadingStatus, string> = {
-  WANT_TO_READ:
+export const STATUS_BADGE_CLASS: Record<PlayStatus, string> = {
+  WANT_TO_PLAY:
     "status-badge bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200 border-transparent",
-  READING:
+  PLAYING:
     "status-badge bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 border-transparent",
-  READ: "status-badge bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200 border-transparent",
-  DNF: "status-badge bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-200 border-transparent",
+  COMPLETED: "status-badge bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200 border-transparent",
+  DROPPED: "status-badge bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-200 border-transparent",
 };
 
 /** What a date or number formatter needs from Preferences. Optional

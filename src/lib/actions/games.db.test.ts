@@ -2,11 +2,11 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { PrismaClient, ReadingStatus } from "@prisma/client";
+import { PrismaClient, PlayStatus } from "@prisma/client";
 
 /**
  * The game form actions against a real database: createGame, updateGame,
- * updateReading (and the reading log it writes through logProgress), and
+ * updatePlay (and the reading log it writes through logProgress), and
  * deleteGame's cover cleanup.
  *
  * The reading log is the part most worth pinning down. Stats count pages as
@@ -52,7 +52,7 @@ vi.mock("@/lib/covers", async (importOriginal) => ({
   cacheCoverImage: (url: string, gameId: string) => cacheCoverImage(url, gameId),
 }));
 
-const { createGame, updateGame, updateReading, deleteGame } = await import(
+const { createGame, updateGame, updatePlay, deleteGame } = await import(
   "@/lib/actions/games"
 );
 const { logPage } = await import("@/lib/actions/progress");
@@ -154,33 +154,33 @@ function progressOf(gameId: string) {
 describe("createGame", () => {
   it("saves the game for the signed-in user and opens it", async () => {
     const url = await redirectOf(
-      createGame({}, form({ ...gameFields, seriesName: "Hainish Cycle", status: "READING" })),
+      createGame({}, form({ ...gameFields, seriesName: "Hainish Cycle", status: "PLAYING" })),
     );
 
     const game = await prisma.game.findFirstOrThrow({ where: { userId } });
     expect(url).toBe(`/games/${game.id}`);
     expect(game.authors).toEqual(["Ursula K. Le Guin"]);
-    expect(game.status).toBe(ReadingStatus.READING);
+    expect(game.status).toBe(PlayStatus.PLAYING);
     expect(game.searchText).toBe("the left hand of darkness ursula k. le guin hainish cycle");
   });
 
   it("dates and counts a game added straight onto Read", async () => {
-    // It used to land with no finish date and timesRead 0: in "Games read"
+    // It used to land with no finish date and timesCompleted 0: in "Games read"
     // but missing from the year it was read and from the goal.
-    await redirectOf(createGame({}, form({ ...gameFields, status: "READ" })));
+    await redirectOf(createGame({}, form({ ...gameFields, status: "COMPLETED" })));
 
     const game = await prisma.game.findFirstOrThrow({ where: { userId } });
     expect(game.dateFinished?.toDateString()).toBe(new Date().toDateString());
-    expect(game.timesRead).toBe(1);
+    expect(game.timesCompleted).toBe(1);
   });
 
   it("starts a game added as Currently Reading today", async () => {
-    await redirectOf(createGame({}, form({ ...gameFields, status: "READING" })));
+    await redirectOf(createGame({}, form({ ...gameFields, status: "PLAYING" })));
 
     const game = await prisma.game.findFirstOrThrow({ where: { userId } });
     expect(game.dateStarted?.toDateString()).toBe(new Date().toDateString());
     expect(game.dateFinished).toBeNull();
-    expect(game.timesRead).toBe(0);
+    expect(game.timesCompleted).toBe(0);
   });
 
   it("saves a blank series number as none, not #0", async () => {
@@ -227,13 +227,13 @@ describe("createGame", () => {
 
   it("keeps the finish date picked for a game added as Read, and its rating", async () => {
     await redirectOf(
-      createGame({}, form({ ...gameFields, status: "READ", dateFinished: "2019-06-14", rating: "8" })),
+      createGame({}, form({ ...gameFields, status: "COMPLETED", dateFinished: "2019-06-14", rating: "8" })),
     );
 
     const game = await prisma.game.findFirstOrThrow({ where: { userId } });
     expect(game.dateFinished?.toISOString().slice(0, 10)).toBe("2019-06-14");
     expect(game.rating).toBe(8);
-    expect(game.timesRead).toBe(1);
+    expect(game.timesCompleted).toBe(1);
   });
 
   it("leaves a game added as Read undated when the reader doesn't remember", async () => {
@@ -242,25 +242,25 @@ describe("createGame", () => {
     await redirectOf(
       createGame(
         {},
-        form({ ...gameFields, status: "READ", finishedUnknown: "on", dateFinished: "2019-06-14" }),
+        form({ ...gameFields, status: "COMPLETED", finishedUnknown: "on", dateFinished: "2019-06-14" }),
       ),
     );
 
     const game = await prisma.game.findFirstOrThrow({ where: { userId } });
     expect(game.dateFinished).toBeNull();
-    expect(game.timesRead).toBe(1);
+    expect(game.timesCompleted).toBe(1);
   });
 
   it("follows the undated preference when no date is given", async () => {
     await prisma.user.update({
       where: { id: userId },
-      data: { preferences: { addedAsReadFinished: "undated" } },
+      data: { preferences: { addedAsCompletedFinished: "undated" } },
     });
-    await redirectOf(createGame({}, form({ ...gameFields, status: "READ" })));
+    await redirectOf(createGame({}, form({ ...gameFields, status: "COMPLETED" })));
     expect((await prisma.game.findFirstOrThrow({ where: { userId } })).dateFinished).toBeNull();
 
     // A date picked anyway is kept.
-    await redirectOf(createGame({}, form({ ...gameFields, status: "READ", dateFinished: "2020-01-02" })));
+    await redirectOf(createGame({}, form({ ...gameFields, status: "COMPLETED", dateFinished: "2020-01-02" })));
     const dated = await prisma.game.findFirstOrThrow({ where: { userId, dateFinished: { not: null } } });
     expect(dated.dateFinished?.toISOString().slice(0, 10)).toBe("2020-01-02");
   });
@@ -271,7 +271,7 @@ describe("createGame", () => {
     await redirectOf(
       createGame(
         {},
-        form({ ...gameFields, pageCount: "208", status: "READING", dateStarted: "2026-10-08", currentPage: "64" }),
+        form({ ...gameFields, pageCount: "208", status: "PLAYING", dateStarted: "2026-10-08", currentPage: "64" }),
       ),
     );
 
@@ -296,7 +296,7 @@ describe("createGame", () => {
     await redirectOf(
       createGame(
         {},
-        form({ ...gameFields, pageCount: "300", status: "READING", dateStarted: "2026-10-12", currentPage: "50" }),
+        form({ ...gameFields, pageCount: "300", status: "PLAYING", dateStarted: "2026-10-12", currentPage: "50" }),
       ),
     );
     const game = await prisma.game.findFirstOrThrow({ where: { userId } });
@@ -311,7 +311,7 @@ describe("createGame", () => {
   });
 
   it("logs nothing for a game added as Currently Reading on page 0", async () => {
-    await redirectOf(createGame({}, form({ ...gameFields, status: "READING", currentPage: "" })));
+    await redirectOf(createGame({}, form({ ...gameFields, status: "PLAYING", currentPage: "" })));
     const game = await prisma.game.findFirstOrThrow({ where: { userId } });
     expect(await progressOf(game.id)).toHaveLength(0);
   });
@@ -319,12 +319,12 @@ describe("createGame", () => {
   it("refuses a page past the end or a finish date in the future, and saves nothing", async () => {
     const pastEnd = await createGame(
       {},
-      form({ ...gameFields, pageCount: "208", status: "READING", currentPage: "900" }),
+      form({ ...gameFields, pageCount: "208", status: "PLAYING", currentPage: "900" }),
     );
     expect(pastEnd.error).toBe("Page 900 is past the end of the game (208 pages)");
 
     const future = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
-    const early = await createGame({}, form({ ...gameFields, status: "READ", dateFinished: future }));
+    const early = await createGame({}, form({ ...gameFields, status: "COMPLETED", dateFinished: future }));
     expect(early.error).toBe("Finish date is in the future");
 
     expect(await prisma.game.count({ where: { userId } })).toBe(0);
@@ -435,36 +435,36 @@ describe("updateGame", () => {
   });
 });
 
-describe("updateReading and review search", () => {
+describe("updatePlay and review search", () => {
   it("keeps the folded copy search reads in step with the review", async () => {
-    const bk = await makeGame({ status: ReadingStatus.READ });
-    await updateReading(bk.id, {}, form({ status: "READ", review: "Better than ÉMILE Brontë" }));
+    const bk = await makeGame({ status: PlayStatus.COMPLETED });
+    await updatePlay(bk.id, {}, form({ status: "COMPLETED", review: "Better than ÉMILE Brontë" }));
     let row = await prisma.game.findUniqueOrThrow({ where: { id: bk.id } });
     expect(row.reviewSearchText).toBe("better than emile bronte");
 
-    await updateReading(bk.id, {}, form({ status: "READ", review: "" }));
+    await updatePlay(bk.id, {}, form({ status: "COMPLETED", review: "" }));
     row = await prisma.game.findUniqueOrThrow({ where: { id: bk.id } });
     expect(row.reviewSearchText).toBe("");
   });
 });
 
-describe("updateReading and the reading log", () => {
+describe("updatePlay and the reading log", () => {
   it("anchors the first progress update at page 0", async () => {
     const started = "2026-03-01";
-    const bk = await makeGame({ status: ReadingStatus.WANT_TO_READ });
+    const bk = await makeGame({ status: PlayStatus.WANT_TO_PLAY });
 
-    await updateReading(bk.id, {}, form({ status: "READING", dateStarted: started, currentPage: "74" }));
+    await updatePlay(bk.id, {}, form({ status: "PLAYING", dateStarted: started, currentPage: "74" }));
     const log = await progressOf(bk.id);
     expect(log.map((e) => e.page)).toEqual([0, 74]);
     expect(log[0].date.toISOString().slice(0, 10)).toBe(started);
 
     // Then each change, from a stopped game's page box.
-    await updateReading(bk.id, {}, form({ status: "DNF", dateStarted: started, currentPage: "74" }));
-    await updateReading(bk.id, {}, form({ status: "DNF", dateStarted: started, currentPage: "120" }));
+    await updatePlay(bk.id, {}, form({ status: "DROPPED", dateStarted: started, currentPage: "74" }));
+    await updatePlay(bk.id, {}, form({ status: "DROPPED", dateStarted: started, currentPage: "120" }));
     expect((await progressOf(bk.id)).map((e) => e.page)).toEqual([0, 74, 120]);
 
     // Saving without a page change logs nothing new.
-    await updateReading(bk.id, {}, form({ status: "DNF", dateStarted: started, currentPage: "120" }));
+    await updatePlay(bk.id, {}, form({ status: "DROPPED", dateStarted: started, currentPage: "120" }));
     expect((await progressOf(bk.id)).map((e) => e.page)).toEqual([0, 74, 120]);
   });
 
@@ -473,7 +473,7 @@ describe("updateReading and the reading log", () => {
     // and sends the page it was rendered with, here from before a log made
     // in another tab.
     const bk = await makeGame({
-      status: ReadingStatus.READING,
+      status: PlayStatus.PLAYING,
       dateStarted: new Date("2026-03-01T00:00:00Z"),
       currentPage: 150,
     });
@@ -484,10 +484,10 @@ describe("updateReading and the reading log", () => {
       ],
     });
 
-    const saved = await updateReading(
+    const saved = await updatePlay(
       bk.id,
       {},
-      form({ status: "READING", dateStarted: "2026-03-01", currentPage: "120", rating: "8" }),
+      form({ status: "PLAYING", dateStarted: "2026-03-01", currentPage: "120", rating: "8" }),
     );
     expect(saved.success).toBe(true);
     let after = await prisma.game.findUniqueOrThrow({ where: { id: bk.id } });
@@ -496,7 +496,7 @@ describe("updateReading and the reading log", () => {
     expect((await progressOf(bk.id)).map((e) => e.page)).toEqual([0, 150]);
 
     // Nor when it's stopped from the card.
-    await updateReading(bk.id, {}, form({ status: "DNF", dateStarted: "2026-03-01", currentPage: "120" }));
+    await updatePlay(bk.id, {}, form({ status: "DROPPED", dateStarted: "2026-03-01", currentPage: "120" }));
     after = await prisma.game.findUniqueOrThrow({ where: { id: bk.id } });
     expect(after.currentPage).toBe(150);
     expect((await progressOf(bk.id)).map((e) => e.page)).toEqual([0, 150]);
@@ -506,7 +506,7 @@ describe("updateReading and the reading log", () => {
     await setZone("Europe/Oslo");
     clockAt("2026-10-12T10:00:00.000Z");
     const bk = await makeGame({
-      status: ReadingStatus.READING,
+      status: PlayStatus.PLAYING,
       dateStarted: new Date("2026-10-05T00:00:00Z"),
       currentPage: 120,
     });
@@ -521,11 +521,11 @@ describe("updateReading and the reading log", () => {
     const anchorDate = async () =>
       (await progressOf(bk.id)).filter((e) => e.page === 0).at(-1)!.date.toISOString();
 
-    await updateReading(bk.id, {}, form({ status: "READING", dateStarted: "2026-10-02" }));
+    await updatePlay(bk.id, {}, form({ status: "PLAYING", dateStarted: "2026-10-02" }));
     expect(await anchorDate()).toBe("2026-10-02T00:00:00.000Z");
     expect(await logPage(bk.id, { page: 60, day: "2026-10-03" })).toMatchObject({ ok: true });
 
-    await updateReading(bk.id, {}, form({ status: "READING", dateStarted: "2026-09-15" }));
+    await updatePlay(bk.id, {}, form({ status: "PLAYING", dateStarted: "2026-09-15" }));
     expect(await anchorDate()).toBe("2026-09-20T12:00:00.001Z");
     expect((await progressOf(bk.id)).map((e) => e.page)).toEqual([0, 300, 0, 60, 120]);
   });
@@ -535,8 +535,8 @@ describe("updateReading and the reading log", () => {
     // still be ahead of the moment the first page is logged. Tomorrow's
     // date (allowed, a day's slack) stands in for that here.
     const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
-    const bk = await makeGame({ status: ReadingStatus.WANT_TO_READ });
-    await updateReading(bk.id, {}, form({ status: "READING", dateStarted: tomorrow, currentPage: "30" }));
+    const bk = await makeGame({ status: PlayStatus.WANT_TO_PLAY });
+    await updatePlay(bk.id, {}, form({ status: "PLAYING", dateStarted: tomorrow, currentPage: "30" }));
 
     const log = await progressOf(bk.id);
     expect(log.map((e) => e.page)).toEqual([0, 30]);
@@ -544,21 +544,21 @@ describe("updateReading and the reading log", () => {
   });
 
   it("finishing a tracked game closes the log at the last page", async () => {
-    const bk = await makeGame({ status: ReadingStatus.WANT_TO_READ });
-    await updateReading(bk.id, {}, form({ status: "READING", currentPage: "120" }));
-    await updateReading(bk.id, {}, form({ status: "READ" }));
+    const bk = await makeGame({ status: PlayStatus.WANT_TO_PLAY });
+    await updatePlay(bk.id, {}, form({ status: "PLAYING", currentPage: "120" }));
+    await updatePlay(bk.id, {}, form({ status: "COMPLETED" }));
 
     const after = await prisma.game.findUniqueOrThrow({ where: { id: bk.id } });
     expect(after.currentPage).toBeNull();
-    expect(after.timesRead).toBe(1);
+    expect(after.timesCompleted).toBe(1);
     const log = await progressOf(bk.id);
     expect(log.map((e) => e.page)).toEqual([0, 120, 300]);
     expect(log[2].date.getTime()).toBe(after.dateFinished?.getTime());
   });
 
   it("finishing an untracked game logs nothing and fills in today", async () => {
-    const bk = await makeGame({ status: ReadingStatus.WANT_TO_READ });
-    await updateReading(bk.id, {}, form({ status: "READ" }));
+    const bk = await makeGame({ status: PlayStatus.WANT_TO_PLAY });
+    await updatePlay(bk.id, {}, form({ status: "COMPLETED" }));
 
     const after = await prisma.game.findUniqueOrThrow({ where: { id: bk.id } });
     expect(after.dateFinished?.toDateString()).toBe(new Date().toDateString());
@@ -566,8 +566,8 @@ describe("updateReading and the reading log", () => {
   });
 
   it("keeps an undated Read game undated when it is saved again", async () => {
-    const bk = await makeGame({ status: ReadingStatus.READ, timesRead: 1 });
-    await updateReading(bk.id, {}, form({ status: "READ", rating: "8" }));
+    const bk = await makeGame({ status: PlayStatus.COMPLETED, timesCompleted: 1 });
+    await updatePlay(bk.id, {}, form({ status: "COMPLETED", rating: "8" }));
 
     const after = await prisma.game.findUniqueOrThrow({ where: { id: bk.id } });
     expect(after.dateFinished).toBeNull();
@@ -580,7 +580,7 @@ describe("updateReading and the reading log", () => {
     await setZone("America/New_York");
     clockAt("2026-10-12T15:00:00.000Z");
     const bk = await makeGame({
-      status: ReadingStatus.READING,
+      status: PlayStatus.PLAYING,
       dateStarted: new Date("2026-10-05T00:00:00Z"),
       currentPage: 120,
     });
@@ -590,75 +590,75 @@ describe("updateReading and the reading log", () => {
         { gameId: bk.id, page: 120, date: new Date("2026-10-08T16:00:00Z") },
       ],
     });
-    await updateReading(
+    await updatePlay(
       bk.id,
       {},
-      form({ status: "READ", dateStarted: "2026-10-05", dateFinished: "2026-10-11" }),
+      form({ status: "COMPLETED", dateStarted: "2026-10-05", dateFinished: "2026-10-11" }),
     );
     // The last moment of the 11th in New York.
     expect((await progressOf(bk.id)).at(-1)?.date.toISOString()).toBe("2026-10-12T03:59:59.999Z");
   });
 
   it("finishing with Don't remember leaves no date and no closing log entry", async () => {
-    const bk = await makeGame({ status: ReadingStatus.WANT_TO_READ });
-    await updateReading(bk.id, {}, form({ status: "READING", currentPage: "120" }));
-    await updateReading(bk.id, {}, form({ status: "READ", finishedUnknown: "on" }));
+    const bk = await makeGame({ status: PlayStatus.WANT_TO_PLAY });
+    await updatePlay(bk.id, {}, form({ status: "PLAYING", currentPage: "120" }));
+    await updatePlay(bk.id, {}, form({ status: "COMPLETED", finishedUnknown: "on" }));
 
     const after = await prisma.game.findUniqueOrThrow({ where: { id: bk.id } });
     expect(after.dateFinished).toBeNull();
-    expect(after.timesRead).toBe(1);
+    expect(after.timesCompleted).toBe(1);
     expect((await progressOf(bk.id)).map((e) => e.page)).toEqual([0, 120]);
   });
 
-  it("counts archived reads plus the current one in timesRead", async () => {
-    const bk = await makeGame({ status: ReadingStatus.READING });
-    await prisma.read.createMany({ data: [{ gameId: bk.id }, { gameId: bk.id }] });
+  it("counts archived reads plus the current one in timesCompleted", async () => {
+    const bk = await makeGame({ status: PlayStatus.PLAYING });
+    await prisma.playthrough.createMany({ data: [{ gameId: bk.id }, { gameId: bk.id }] });
 
-    await updateReading(bk.id, {}, form({ status: "READ" }));
-    expect((await prisma.game.findUniqueOrThrow({ where: { id: bk.id } })).timesRead).toBe(3);
+    await updatePlay(bk.id, {}, form({ status: "COMPLETED" }));
+    expect((await prisma.game.findUniqueOrThrow({ where: { id: bk.id } })).timesCompleted).toBe(3);
 
-    await updateReading(bk.id, {}, form({ status: "READING" }));
-    expect((await prisma.game.findUniqueOrThrow({ where: { id: bk.id } })).timesRead).toBe(2);
+    await updatePlay(bk.id, {}, form({ status: "PLAYING" }));
+    expect((await prisma.game.findUniqueOrThrow({ where: { id: bk.id } })).timesCompleted).toBe(2);
   });
 
-  it("keeps the page for DNF and clears it when reshelved", async () => {
-    const bk = await makeGame({ status: ReadingStatus.WANT_TO_READ });
-    await updateReading(bk.id, {}, form({ status: "DNF", currentPage: "218" }));
+  it("keeps the page for DROPPED and clears it when reshelved", async () => {
+    const bk = await makeGame({ status: PlayStatus.WANT_TO_PLAY });
+    await updatePlay(bk.id, {}, form({ status: "DROPPED", currentPage: "218" }));
     expect((await prisma.game.findUniqueOrThrow({ where: { id: bk.id } })).currentPage).toBe(218);
 
-    await updateReading(bk.id, {}, form({ status: "WANT_TO_READ", currentPage: "218" }));
+    await updatePlay(bk.id, {}, form({ status: "WANT_TO_PLAY", currentPage: "218" }));
     expect((await prisma.game.findUniqueOrThrow({ where: { id: bk.id } })).currentPage).toBeNull();
   });
 
   it("refuses a page past the end of the game, and logs nothing", async () => {
-    const bk = await makeGame({ status: ReadingStatus.WANT_TO_READ, pageCount: 220 });
-    const result = await updateReading(bk.id, {}, form({ status: "READING", currentPage: "9999" }));
+    const bk = await makeGame({ status: PlayStatus.WANT_TO_PLAY, pageCount: 220 });
+    const result = await updatePlay(bk.id, {}, form({ status: "PLAYING", currentPage: "9999" }));
 
     expect(result.error).toBe("Page 9999 is past the end of the game (220 pages)");
     expect((await prisma.game.findUniqueOrThrow({ where: { id: bk.id } })).currentPage).toBeNull();
     expect(await progressOf(bk.id)).toHaveLength(0);
 
     // The last page itself is fine.
-    expect((await updateReading(bk.id, {}, form({ status: "READING", currentPage: "220" }))).success).toBe(true);
+    expect((await updatePlay(bk.id, {}, form({ status: "PLAYING", currentPage: "220" }))).success).toBe(true);
   });
 
   it("refuses a finish date before the start date", async () => {
-    const bk = await makeGame({ status: ReadingStatus.READING });
-    const result = await updateReading(
+    const bk = await makeGame({ status: PlayStatus.PLAYING });
+    const result = await updatePlay(
       bk.id,
       {},
-      form({ status: "READ", dateStarted: "2026-10-05", dateFinished: "2026-10-01" }),
+      form({ status: "COMPLETED", dateStarted: "2026-10-05", dateFinished: "2026-10-01" }),
     );
 
     expect(result.error).toBe("Finish date is before the start date");
     expect((await prisma.game.findUniqueOrThrow({ where: { id: bk.id } })).status).toBe(
-      ReadingStatus.READING,
+      PlayStatus.PLAYING,
     );
   });
 
   it("starting a game from Want to Read fills in today as the start date", async () => {
-    const bk = await makeGame({ status: ReadingStatus.WANT_TO_READ });
-    await updateReading(bk.id, {}, form({ status: "READING", dateStarted: "", currentPage: "40" }));
+    const bk = await makeGame({ status: PlayStatus.WANT_TO_PLAY });
+    await updatePlay(bk.id, {}, form({ status: "PLAYING", dateStarted: "", currentPage: "40" }));
 
     const after = await prisma.game.findUniqueOrThrow({ where: { id: bk.id } });
     expect(after.dateStarted?.toDateString()).toBe(new Date().toDateString());
@@ -666,21 +666,21 @@ describe("updateReading and the reading log", () => {
   });
 
   it("says when a save finished the game, and only then", async () => {
-    const bk = await makeGame({ status: ReadingStatus.READING });
-    expect((await updateReading(bk.id, {}, form({ status: "READ" }))).finished).toBe(true);
+    const bk = await makeGame({ status: PlayStatus.PLAYING });
+    expect((await updatePlay(bk.id, {}, form({ status: "COMPLETED" }))).finished).toBe(true);
     // Saving it again (a new rating, say) isn't finishing it again.
-    expect((await updateReading(bk.id, {}, form({ status: "READ", rating: "8" }))).finished).toBe(
+    expect((await updatePlay(bk.id, {}, form({ status: "COMPLETED", rating: "8" }))).finished).toBe(
       false,
     );
   });
 
   it("refuses another account's game", async () => {
-    const bk = await makeGame({ status: ReadingStatus.READING }, otherUserId);
-    const result = await updateReading(bk.id, {}, form({ status: "READ" }));
+    const bk = await makeGame({ status: PlayStatus.PLAYING }, otherUserId);
+    const result = await updatePlay(bk.id, {}, form({ status: "COMPLETED" }));
 
     expect(result.error).toBe("Game not found");
     expect((await prisma.game.findUniqueOrThrow({ where: { id: bk.id } })).status).toBe(
-      ReadingStatus.READING,
+      PlayStatus.PLAYING,
     );
   });
 });

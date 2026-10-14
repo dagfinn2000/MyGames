@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
+import type { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { spendMetadataBudget } from "@/lib/api-guard";
 import { getPreferences } from "@/lib/current-user";
@@ -16,7 +16,7 @@ const gameSelect = {
   coverUrl: true,
   status: true,
   rating: true,
-  timesRead: true,
+  timesCompleted: true,
   format: true,
   ownership: true,
 } as const;
@@ -29,9 +29,9 @@ export interface LibraryCheckResult {
     title: string;
     authors: string[];
     coverUrl: string | null;
-    status: ReadingStatus;
+    status: PlayStatus;
     rating: number | null;
-    timesRead: number;
+    timesCompleted: number;
     format: GameFormat;
     ownership: GameOwnership;
   };

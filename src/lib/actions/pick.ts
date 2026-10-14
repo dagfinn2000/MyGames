@@ -1,6 +1,6 @@
 "use server";
 
-import { ReadingStatus } from "@prisma/client";
+import { PlayStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUserId } from "@/lib/actions/helpers";
@@ -43,7 +43,7 @@ export async function pickRandomGame(
       ownership: true,
       seriesName: true,
       seriesNumber: true,
-      timesRead: true,
+      timesCompleted: true,
     },
   });
   if (games.length === 0) return { reason: "none" };
@@ -69,7 +69,7 @@ export async function pickRandomGame(
     const names = [
       ...new Set(
         rows.flatMap((b) =>
-          b.status === ReadingStatus.WANT_TO_READ && b.seriesName && b.seriesNumber !== null
+          b.status === PlayStatus.WANT_TO_PLAY && b.seriesName && b.seriesNumber !== null
             ? [b.seriesName]
             : [],
         ),
@@ -88,7 +88,7 @@ export async function pickRandomGame(
               }
             : { seriesName: { not: null } }),
         },
-        select: { seriesName: true, seriesNumber: true, status: true, timesRead: true },
+        select: { seriesName: true, seriesNumber: true, status: true, timesCompleted: true },
       });
     }
   }

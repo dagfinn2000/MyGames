@@ -56,7 +56,7 @@ export function shiftDayKey(key: string, days: number): string {
  * Dates typed into a date field ("Finished: 12 May") are saved as midnight
  * UTC and mean that day wherever you are, so they read back in UTC — read in
  * New York they would otherwise show the 11th. Anything else is a moment in
- * time (a "finished today" stamp, a reading-log entry) and falls on whatever
+ * time (a "finished today" stamp, a play-log entry) and falls on whatever
  * day it was in the reader's zone.
  */
 export function calendarDay(d: Date, timeZone?: string): string {

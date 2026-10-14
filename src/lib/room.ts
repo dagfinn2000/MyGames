@@ -1,8 +1,8 @@
-import { GameOwnership, ReadingStatus } from "@prisma/client";
+import { GameOwnership, PlayStatus } from "@prisma/client";
 import { hash } from "@/lib/cover-art";
 
 /**
- * The reading room (components/reading-room.tsx): the library drawn as a
+ * The reading room (components/game-room.tsx): the library drawn as a
  * little pixel-art house, one spine per game, that grows a bookcase at a
  * time and a floor at a time as games are added. This file is the layout,
  * kept free of React so it can be tested: how big each spine is, which
@@ -44,7 +44,7 @@ export interface RoomGame {
   coverUrl: string | null;
   pageCount: number | null;
   currentPage: number | null;
-  status: ReadingStatus;
+  status: PlayStatus;
   ownership: GameOwnership;
   /** Who has it, while it is lent out. */
   lentTo: string | null;

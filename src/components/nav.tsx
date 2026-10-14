@@ -46,7 +46,7 @@ export async function Nav() {
           <span className="hidden lg:inline">Library</span>
         </NavLink>
         {!hidden.has("reading") && (
-          <NavLink href="/reading" title="Now reading">
+          <NavLink href="/playing" title="Now reading">
             <BookOpenText data-slot="icon" />
             <span className="hidden lg:inline">Now reading</span>
           </NavLink>

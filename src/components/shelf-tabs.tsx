@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ReadingStatus } from "@prisma/client";
+import type { PlayStatus } from "@prisma/client";
 import { STATUS_LABELS } from "@/lib/display";
 import { statusTabsToShow } from "@/lib/library-order";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,7 @@ export function ShelfTabs({
   /** Current query params, so switching shelves keeps filters. */
   searchParams: Record<string, string>;
   /** Status tabs left out (Preferences > Library). */
-  hidden?: ReadingStatus[];
+  hidden?: PlayStatus[];
 }) {
   const tabs = [
     { key: "all", label: "All" },

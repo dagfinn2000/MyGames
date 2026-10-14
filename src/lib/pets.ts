@@ -2,7 +2,7 @@
  * Animals in the reading room: a pet who trots after the avatar and curls
  * up at its feet while it reads, and the coats of the house's cats and of
  * the dog in its basket. The pictures are in components/pet-art.ts; the
- * coats are colours, in reading-room.css.
+ * coats are colours, in game-room.css.
  */
 
 export const PETS = ["none", "cat", "dog", "rabbit", "hedgehog", "fox", "dragon"] as const;

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ReadingStatus } from "@prisma/client";
+import { PlayStatus } from "@prisma/client";
 import { BookOpenText } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -9,7 +9,7 @@ import { formatWeekdayDay } from "@/lib/display";
 import { upNext } from "@/lib/up-next";
 import { GameCover } from "@/components/game-card";
 import { GameLink } from "@/components/game-link";
-import { NowReading } from "@/components/now-reading";
+import { NowPlaying } from "@/components/now-playing";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
@@ -22,15 +22,15 @@ const UP_NEXT = 10;
  * telling the app where you are doesn't mean opening each game. Under them,
  * the Want to Read games that are up next.
  */
-export default async function NowReadingPage() {
+export default async function NowPlayingPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login"); // revoked session (see auth.ts)
   const userId = session.user.id;
   const prefs = await getPreferences();
 
-  const [reading, wantToRead, seriesGames] = await Promise.all([
+  const [reading, wantToPlay, seriesGames] = await Promise.all([
     prisma.game.findMany({
-      where: { userId, status: ReadingStatus.READING },
+      where: { userId, status: PlayStatus.PLAYING },
       select: {
         id: true,
         title: true,
@@ -50,14 +50,14 @@ export default async function NowReadingPage() {
       },
     }),
     prisma.game.findMany({
-      where: { userId, status: ReadingStatus.WANT_TO_READ },
+      where: { userId, status: PlayStatus.WANT_TO_PLAY },
       select: {
         id: true,
         title: true,
         authors: true,
         coverUrl: true,
         status: true,
-        timesRead: true,
+        timesCompleted: true,
         seriesName: true,
         seriesNumber: true,
       },
@@ -66,7 +66,7 @@ export default async function NowReadingPage() {
     // For "next in the series": every game that has a series.
     prisma.game.findMany({
       where: { userId, seriesName: { not: null } },
-      select: { seriesName: true, seriesNumber: true, status: true, timesRead: true },
+      select: { seriesName: true, seriesNumber: true, status: true, timesCompleted: true },
     }),
   ]);
 
@@ -76,7 +76,7 @@ export default async function NowReadingPage() {
     (b.progress[b.progress.length - 1]?.date ?? b.dateStarted)?.getTime() ?? 0;
   reading.sort((a, b) => lastTouched(b) - lastTouched(a) || a.title.localeCompare(b.title));
 
-  const next = upNext(wantToRead, seriesGames, UP_NEXT);
+  const next = upNext(wantToPlay, seriesGames, UP_NEXT);
 
   return (
     <div className="grid gap-6">
@@ -85,7 +85,7 @@ export default async function NowReadingPage() {
         <span className="text-sm text-muted-foreground">{formatWeekdayDay(new Date(), prefs)}</span>
       </div>
 
-      <NowReading
+      <NowPlaying
         games={reading}
         empty={
           <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-4 py-12 text-center">
@@ -109,7 +109,7 @@ export default async function NowReadingPage() {
           <div className="flex flex-wrap items-baseline justify-between gap-x-3">
             <h2 className="text-sm font-medium text-muted-foreground">Up next</h2>
             <Link
-              href="/games?shelf=WANT_TO_READ"
+              href="/games?shelf=WANT_TO_PLAY"
               className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
             >
               All Want to Read

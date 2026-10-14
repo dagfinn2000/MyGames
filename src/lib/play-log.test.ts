@@ -16,7 +16,7 @@ import {
   resolveLogDay,
   subjectDay,
   undoMoveSchema,
-} from "@/lib/reading-log";
+} from "@/lib/play-log";
 
 const OSLO = "Europe/Oslo";
 
@@ -280,9 +280,9 @@ describe("schemas", () => {
   });
 
   it("checks an undo", () => {
-    const ok = { from: "READ", finishedAt: "2026-10-12T08:00:00.000Z", page: 200 };
+    const ok = { from: "COMPLETED", finishedAt: "2026-10-12T08:00:00.000Z", page: 200 };
     expect(undoMoveSchema.safeParse(ok).success).toBe(true);
-    expect(undoMoveSchema.safeParse({ ...ok, from: "WANT_TO_READ" }).success).toBe(false);
+    expect(undoMoveSchema.safeParse({ ...ok, from: "WANT_TO_PLAY" }).success).toBe(false);
     expect(undoMoveSchema.safeParse({ ...ok, finishedAt: "last Tuesday" }).success).toBe(false);
     expect(undoMoveSchema.safeParse({ ...ok, page: 0 }).success).toBe(false);
   });

@@ -1,4 +1,4 @@
-import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
 import { z } from "zod";
 
 /**
@@ -83,7 +83,7 @@ function oneTarget(
 export const bulkSchema = z
   .object({
     ...targetFields,
-    status: z.nativeEnum(ReadingStatus).optional(),
+    status: z.nativeEnum(PlayStatus).optional(),
     format: z.nativeEnum(GameFormat).optional(),
     ownership: z.nativeEnum(GameOwnership).optional(),
     addShelfId: z.string().max(64).optional(),

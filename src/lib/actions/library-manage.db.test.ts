@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { GameFormat, GameOwnership, PrismaClient, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, PrismaClient, PlayStatus } from "@prisma/client";
 
 /**
  * Library housekeeping against a real database: renaming and merging
@@ -120,7 +120,7 @@ describe("renameShelf", () => {
     const source = await makeShelf("Sci fi");
     const target = await makeShelf("Sci-fi");
     const view = await prisma.savedView.create({
-      data: { userId, name: "Sci-fi unread", query: `shelf=WANT_TO_READ&shelfId=${source.id}&group=none&sort=title&dir=asc` },
+      data: { userId, name: "Sci-fi unplayed", query: `shelf=WANT_TO_PLAY&shelfId=${source.id}&group=none&sort=title&dir=asc` },
     });
     const other = await prisma.savedView.create({
       data: { userId, name: "All", query: "group=none&sort=title&dir=asc" },
@@ -130,7 +130,7 @@ describe("renameShelf", () => {
 
     const after = await prisma.savedView.findUniqueOrThrow({ where: { id: view.id } });
     expect(new URLSearchParams(after.query).get("shelfId")).toBe(target.id);
-    expect(new URLSearchParams(after.query).get("shelf")).toBe("WANT_TO_READ");
+    expect(new URLSearchParams(after.query).get("shelf")).toBe("WANT_TO_PLAY");
     expect((await prisma.savedView.findUniqueOrThrow({ where: { id: other.id } })).query).toBe(
       other.query,
     );
@@ -165,7 +165,7 @@ describe("renameView", () => {
   }
 
   it("renames a view", async () => {
-    const view = await makeView("Unread");
+    const view = await makeView("Unplayed");
     expect(await renameView(view.id, " To read ")).toEqual({});
     expect((await prisma.savedView.findUniqueOrThrow({ where: { id: view.id } })).name).toBe(
       "To read",
@@ -173,12 +173,12 @@ describe("renameView", () => {
   });
 
   it("refuses another view's name, but not the view's own", async () => {
-    const view = await makeView("Unread");
+    const view = await makeView("Unplayed");
     await makeView("Favourites");
     expect(await renameView(view.id, "Favourites")).toEqual({
       error: "You already have a view called “Favourites”.",
     });
-    expect(await renameView(view.id, "Unread")).toEqual({});
+    expect(await renameView(view.id, "Unplayed")).toEqual({});
   });
 
   it("refuses another account's view and a bad id", async () => {
@@ -274,39 +274,39 @@ describe("bulkUpdateGames, more fields", () => {
     await makeGame();
 
     expect(
-      await bulkUpdateGames({ matching: { shelfId: theirShelf.id }, status: ReadingStatus.DNF }),
+      await bulkUpdateGames({ matching: { shelfId: theirShelf.id }, status: PlayStatus.DROPPED }),
     ).toEqual({ error: "No matching games" });
     expect((await prisma.game.findUniqueOrThrow({ where: { id: theirGame.id } })).status).toBe(
-      ReadingStatus.WANT_TO_READ,
+      PlayStatus.WANT_TO_PLAY,
     );
   });
 
   it("dates and counts every matching game moved to Read", async () => {
     const games = await Promise.all([
-      makeGame({ status: ReadingStatus.READING, tags: ["club"] }),
-      makeGame({ status: ReadingStatus.WANT_TO_READ, tags: ["club"] }),
+      makeGame({ status: PlayStatus.PLAYING, tags: ["club"] }),
+      makeGame({ status: PlayStatus.WANT_TO_PLAY, tags: ["club"] }),
     ]);
 
-    const res = await bulkUpdateGames({ matching: { tag: "club" }, status: ReadingStatus.READ });
+    const res = await bulkUpdateGames({ matching: { tag: "club" }, status: PlayStatus.COMPLETED });
     expect(res).toEqual({ count: 2 });
 
     for (const bk of games) {
       const after = await prisma.game.findUniqueOrThrow({ where: { id: bk.id } });
-      expect(after.status).toBe(ReadingStatus.READ);
+      expect(after.status).toBe(PlayStatus.COMPLETED);
       expect(after.dateFinished).not.toBeNull();
-      expect(after.timesRead).toBe(1);
+      expect(after.timesCompleted).toBe(1);
     }
   });
 
   it("takes 2,000 ids, and explains 2,001 instead of 'Invalid input'", async () => {
     const bk = await makeGame();
     const ids = [bk.id, ...Array.from({ length: 1999 }, (_, i) => `missing${i}`)];
-    expect(await bulkUpdateGames({ gameIds: ids, status: ReadingStatus.READ })).toEqual({
+    expect(await bulkUpdateGames({ gameIds: ids, status: PlayStatus.COMPLETED })).toEqual({
       count: 1,
     });
 
     expect(
-      await bulkUpdateGames({ gameIds: [...ids, "one-more"], status: ReadingStatus.DNF }),
+      await bulkUpdateGames({ gameIds: [...ids, "one-more"], status: PlayStatus.DROPPED }),
     ).toEqual({
       error: "That's more than 2,000 games. Use “Select all games that match” instead.",
     });
@@ -317,14 +317,14 @@ describe("bulkDeleteGames", () => {
   it("deletes the selection with its history, and nothing else", async () => {
     const [gone, kept] = await Promise.all([makeGame(), makeGame()]);
     const theirs = await makeGame({}, otherUserId);
-    await prisma.read.create({ data: { gameId: gone.id } });
+    await prisma.playthrough.create({ data: { gameId: gone.id } });
     await prisma.quote.create({ data: { gameId: gone.id, text: "A line" } });
     await prisma.loan.create({ data: { gameId: gone.id, borrower: "Sam" } });
 
     expect(await bulkDeleteGames({ gameIds: [gone.id, theirs.id] })).toEqual({ count: 1 });
 
     expect(await prisma.game.findUnique({ where: { id: gone.id } })).toBeNull();
-    expect(await prisma.read.count({ where: { gameId: gone.id } })).toBe(0);
+    expect(await prisma.playthrough.count({ where: { gameId: gone.id } })).toBe(0);
     expect(await prisma.quote.count({ where: { gameId: gone.id } })).toBe(0);
     expect(await prisma.loan.count({ where: { gameId: gone.id } })).toBe(0);
     expect(await prisma.game.findUnique({ where: { id: kept.id } })).not.toBeNull();

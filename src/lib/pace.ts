@@ -1,4 +1,4 @@
-import { ReadingStatus } from "@prisma/client";
+import { PlayStatus } from "@prisma/client";
 import { calendarDay, dayKey, keyToUtcDate, shiftDayKey } from "@/lib/dates";
 import { formatDate, type FormatPrefs } from "@/lib/display";
 import type { PaceFrom } from "@/lib/preferences";
@@ -123,7 +123,7 @@ function windowSuffix(from: PaceFrom): string {
   return from === "read" ? "" : `, last ${WINDOW_DAYS[from]} days`;
 }
 
-function nothingRead(from: Exclude<PaceFrom, "read">): string {
+function nothingCompleted(from: Exclude<PaceFrom, "read">): string {
   return `No reading in the last ${WINDOW_DAYS[from]} days`;
 }
 
@@ -147,18 +147,18 @@ export function chartPaceText({
   from,
   now,
   prefs,
-}: PaceInput & { status: ReadingStatus }): string | null {
-  if (status === ReadingStatus.READ) {
+}: PaceInput & { status: PlayStatus }): string | null {
+  if (status === PlayStatus.COMPLETED) {
     const pace = pagesPerDay(pass, "read", now, prefs.timeZone);
     if (!pace) return null;
     const days = Math.max(Math.round(spanDays(pass)), 1);
     return `${paceAmount(pace, info)} over ${days} ${days === 1 ? "day" : "days"}`;
   }
-  if (status !== ReadingStatus.READING) return null;
+  if (status !== PlayStatus.PLAYING) return null;
 
   const pace = pagesPerDay(pass, from, now, prefs.timeZone);
   if (pace === null) return null;
-  if (pace === 0 && from !== "read") return nothingRead(from);
+  if (pace === 0 && from !== "read") return nothingCompleted(from);
   const last = pass[pass.length - 1];
   const f = forecast(last.page, info.pageCount, pace, from, last.date, now);
   let text = `${paceAmount(pace, info)}${windowSuffix(from)}`;
@@ -172,10 +172,10 @@ export function chartPaceText({
 
 /** The pace line on a Now reading row: "about 18 pages a day, last 7 days ·
  *  11 days left". */
-export function nowReadingPaceText({ pass, info, from, now, prefs }: PaceInput): string {
+export function nowPlayingPaceText({ pass, info, from, now, prefs }: PaceInput): string {
   const pace = pagesPerDay(pass, from, now, prefs.timeZone);
   if (pace === null) return "No pace yet. Log a page or two.";
-  if (pace === 0 && from !== "read") return nothingRead(from);
+  if (pace === 0 && from !== "read") return nothingCompleted(from);
   const last = pass[pass.length - 1];
   const f = forecast(last.page, info.pageCount, pace, from, last.date, now);
   let text = `${paceAmount(pace, info)}${windowSuffix(from)}`;

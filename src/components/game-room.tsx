@@ -1,6 +1,6 @@
 "use client";
 
-import "./reading-room.css";
+import "./game-room.css";
 import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type {
   RoomCeiling,
@@ -13,7 +13,7 @@ import type {
   RoomWalls,
   RoomWood,
 } from "@/lib/room-styles";
-import { ReadingStatus } from "@prisma/client";
+import { PlayStatus } from "@prisma/client";
 import { GameLink } from "@/components/game-link";
 import {
   BOOKEND,
@@ -106,7 +106,7 @@ const GROUND = 6;
 /** The room the chimney's smoke needs over the top of the chimney. */
 const SMOKE = 20;
 const STOREY = BEAM + ROOM_HEIGHT;
-/** Half the label's widest (15rem in reading-room.css). */
+/** Half the label's widest (15rem in game-room.css). */
 const TIP_HALF_WIDTH = 120;
 
 /** Screen pixels to a dot: whole numbers only, so the art stays crisp. */
@@ -345,7 +345,7 @@ function awayReason(game: RoomGame): string | null {
 
 function statusLine(game: RoomGame): string {
   const parts: string[] = [STATUS_LABELS[game.status]];
-  if (game.status === ReadingStatus.READING && game.currentPage && game.pageCount) {
+  if (game.status === PlayStatus.PLAYING && game.currentPage && game.pageCount) {
     parts[0] += `, page ${game.currentPage} of ${game.pageCount}`;
   }
   const away = awayReason(game);
@@ -427,7 +427,7 @@ const floorName = (fromGround: number) => FLOOR_NAMES[fromGround] ?? `floor ${fr
  * It is drawn in the browser only: how many bookcases fit side by side
  * depends on the width it has.
  */
-export function ReadingRoom({
+export function GameRoom({
   games,
   decor = PLAIN_DECOR,
   arrangement = NO_ARRANGEMENT,
@@ -483,7 +483,7 @@ export function ReadingRoom({
   useEffect(() => {
     if (layout) onPlan?.(layout.plan);
   }, [layout, onPlan]);
-  const reading = games.findIndex((b) => b.status === ReadingStatus.READING && isOnShelf(b));
+  const reading = games.findIndex((b) => b.status === PlayStatus.PLAYING && isOnShelf(b));
   const figure = useAvatar(avatar, pet);
 
   // Which floors have come near the screen: their covers get read.
@@ -1040,7 +1040,7 @@ const Bookcase = memo(function Bookcase({
                     data-flight-cover=""
                     data-pattern={spine.pattern}
                     data-away={isOnShelf(game) ? undefined : ""}
-                    data-reading={game.status === ReadingStatus.READING ? "" : undefined}
+                    data-reading={game.status === PlayStatus.PLAYING ? "" : undefined}
                     tabIndex={i === current ? 0 : -1}
                     aria-label={spineLabel(game)}
                     onFocus={() => onCurrent(i)}
@@ -1326,7 +1326,7 @@ function Furniture({
 // ── Previews for Decorate ────────────────────────────────────────────────
 
 /** The data attributes that colour a scene (or a preview) in `decor`'s
- *  style and colours (reading-room.css). */
+ *  style and colours (game-room.css). */
 export function decorData(decor: RoomDecor): Record<string, string | undefined> {
   const pick = (value: string) => (value === "style" ? undefined : value);
   return {

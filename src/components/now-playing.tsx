@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { undoMoveFromReading } from "@/lib/actions/progress";
-import { nowReadingPaceText } from "@/lib/pace";
+import { undoMoveFromPlaying } from "@/lib/actions/progress";
+import { nowPlayingPaceText } from "@/lib/pace";
 import { currentPassEntries } from "@/lib/progress";
 import { progressFigure, unitFor } from "@/lib/progress-units";
-import type { UndoMove } from "@/lib/reading-log";
+import type { UndoMove } from "@/lib/play-log";
 import { usePreferences } from "@/components/preferences-provider";
 import { GameCover } from "@/components/game-card";
 import { GameLink } from "@/components/game-link";
@@ -15,14 +15,14 @@ import { QuickLog, type MovedResult, type QuickLogGame } from "@/components/quic
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-export interface NowReadingGame extends QuickLogGame, LogGame {
+export interface NowPlayingGame extends QuickLogGame, LogGame {
   authors: string[];
   coverUrl: string | null;
   progress: { id: string; page: number; date: Date }[];
 }
 
 interface Moved {
-  game: NowReadingGame;
+  game: NowPlayingGame;
   message: string;
   undo: UndoMove;
 }
@@ -37,11 +37,11 @@ interface Moved {
  * Read or Did Not Finish leaves the page's list, so its row stays here in
  * place as a line with Undo until the visit ends.
  */
-export function NowReading({
+export function NowPlaying({
   games,
   empty,
 }: {
-  games: NowReadingGame[];
+  games: NowPlayingGame[];
   /** Shown when nothing is being read (and nothing was just moved). */
   empty: React.ReactNode;
 }) {
@@ -67,7 +67,7 @@ export function NowReading({
         if (game) {
           return (
             <li key={id}>
-              <NowReadingRow
+              <NowPlayingRow
                 game={game}
                 autoFocus={focusId === id}
                 onMoved={(result) =>
@@ -89,19 +89,19 @@ export function NowReading({
   );
 }
 
-function NowReadingRow({
+function NowPlayingRow({
   game,
   autoFocus,
   onMoved,
 }: {
-  game: NowReadingGame;
+  game: NowPlayingGame;
   autoFocus: boolean;
   onMoved: (result: MovedResult) => void;
 }) {
   const prefs = usePreferences();
   const info = unitFor(game, prefs);
   const pass = currentPassEntries(game.progress, game.dateStarted, prefs.timeZone);
-  const pace = nowReadingPaceText({ pass, info, from: prefs.paceFrom, now: new Date(), prefs });
+  const pace = nowPlayingPaceText({ pass, info, from: prefs.paceFrom, now: new Date(), prefs });
   const pct =
     game.currentPage != null && game.pageCount
       ? Math.min((game.currentPage / game.pageCount) * 100, 100)
@@ -177,7 +177,7 @@ function MovedRow({ moved, onUndone }: { moved: Moved; onUndone: () => void }) {
         disabled={pending}
         onClick={() =>
           startTransition(async () => {
-            const result = await undoMoveFromReading(moved.game.id, moved.undo);
+            const result = await undoMoveFromPlaying(moved.game.id, moved.undo);
             if (result.error) setError(result.error);
             else onUndone();
           })

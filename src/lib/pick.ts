@@ -1,4 +1,4 @@
-import { GameOwnership, ReadingStatus } from "@prisma/client";
+import { GameOwnership, PlayStatus } from "@prisma/client";
 import { STATUS_LABELS } from "@/lib/display";
 import { isNextInSeries, seriesKey, type SeriesMember } from "@/lib/series";
 
@@ -27,7 +27,7 @@ export interface SeriesRow extends SeriesMember {
 
 export interface PickRules {
   /** The status tab, or null for All (and custom shelves without one). */
-  tab: ReadingStatus | null;
+  tab: PlayStatus | null;
   /** Preferences: Only games I have. */
   onlyHave: boolean;
   /** Preferences: Only the next game in a series. */
@@ -38,8 +38,8 @@ export interface PickRules {
 export type PickResult = { id: string } | { reason: "none" | "settings" };
 
 /** The status tab a `shelf` param names, if any. */
-export function tabStatus(shelf: string | undefined): ReadingStatus | null {
-  return Object.values(ReadingStatus).find((s) => s === shelf) ?? null;
+export function tabStatus(shelf: string | undefined): PlayStatus | null {
+  return Object.values(PlayStatus).find((s) => s === shelf) ?? null;
 }
 
 /** Yours or borrowed, and on hand: not wishlist, given away or lent out. */
@@ -68,15 +68,15 @@ export function pickPool(rows: PickRow[], rules: PickRules, series: SeriesRow[] 
     // reading is never held back.
     pool = pool.filter(
       (b) =>
-        b.status !== ReadingStatus.WANT_TO_READ ||
+        b.status !== PlayStatus.WANT_TO_PLAY ||
         !b.seriesName ||
         isNextInSeries<SeriesMember>(b, bySeries.get(seriesKey(b.seriesName)) ?? []),
     );
   }
 
   if (rules.tab === null) {
-    const unread = pool.filter((b) => b.status === ReadingStatus.WANT_TO_READ);
-    if (unread.length > 0) return unread;
+    const unplayed = pool.filter((b) => b.status === PlayStatus.WANT_TO_PLAY);
+    if (unplayed.length > 0) return unplayed;
   }
   return pool;
 }
@@ -95,7 +95,7 @@ function joinList(items: string[]): string {
 
 /** The Pick for me button's tooltip: where it picks from and what it obeys. */
 export function pickButtonTitle(
-  tab: ReadingStatus | null,
+  tab: PlayStatus | null,
   prefs: { pickOnlyHave: boolean; pickNextInSeries: boolean },
 ): string {
   const base = tab

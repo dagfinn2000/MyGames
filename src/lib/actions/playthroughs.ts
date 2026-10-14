@@ -2,29 +2,29 @@
 
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
-import { ReadingStatus } from "@prisma/client";
+import { PlayStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { pastReadSchema } from "@/lib/validation";
+import { pastPlaythroughSchema } from "@/lib/validation";
 import { requireUserId } from "@/lib/actions/helpers";
 import type { ActionState } from "@/lib/actions/helpers";
 
-/** Keep Game.timesRead = archived passes + the current one when finished.
+/** Keep Game.timesCompleted = archived passes + the current one when finished.
  *  Runs on the caller's transaction client so the recount sees (and commits
  *  with) the write that made it necessary. */
-async function syncTimesRead(
+async function syncTimesCompleted(
   db: Prisma.TransactionClient,
   gameId: string,
 ): Promise<void> {
   const game = await db.game.findUnique({
     where: { id: gameId },
-    select: { status: true, _count: { select: { reads: true } } },
+    select: { status: true, _count: { select: { playthroughs: true } } },
   });
   if (!game) return;
   await db.game.update({
     where: { id: gameId },
     data: {
-      timesRead:
-        game._count.reads + (game.status === ReadingStatus.READ ? 1 : 0),
+      timesCompleted:
+        game._count.playthroughs + (game.status === PlayStatus.COMPLETED ? 1 : 0),
     },
   });
 }
@@ -41,24 +41,24 @@ function revalidateGame(gameId: string) {
  * Reading starting today. The overall rating on the game stays yours to keep
  * or change.
  */
-export async function readAgain(gameId: string): Promise<void> {
+export async function playAgain(gameId: string): Promise<void> {
   const userId = await requireUserId();
 
   const game = await prisma.game.findFirst({
     where: { id: gameId, userId },
     select: { status: true, dateStarted: true, dateFinished: true, rating: true },
   });
-  if (!game || game.status !== ReadingStatus.READ) return;
+  if (!game || game.status !== PlayStatus.COMPLETED) return;
 
   const now = new Date();
   // One atomic unit — failing between these writes would strand the game
   // half-archived. The progress entry is the new pass's page-0 anchor at the
   // exact re-read moment: the date form field only keeps day precision, so
   // without it a re-read started on a day with already-logged entries would
-  // blend into the previous pass. timesRead is unchanged throughout: the
+  // blend into the previous pass. timesCompleted is unchanged throughout: the
   // pass moved from "current" to "archived".
   await prisma.$transaction([
-    prisma.read.create({
+    prisma.playthrough.create({
       data: {
         gameId,
         dateStarted: game.dateStarted,
@@ -69,7 +69,7 @@ export async function readAgain(gameId: string): Promise<void> {
     prisma.game.update({
       where: { id: gameId },
       data: {
-        status: ReadingStatus.READING,
+        status: PlayStatus.PLAYING,
         dateStarted: now,
         dateFinished: null,
         currentPage: null,
@@ -84,7 +84,7 @@ export async function readAgain(gameId: string): Promise<void> {
 }
 
 /** Record a read from before the app (the form carries the gameId). */
-export async function addPastRead(
+export async function addPastPlaythrough(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
@@ -98,14 +98,14 @@ export async function addPastRead(
   });
   if (!game) return { error: "Game not found" };
 
-  const parsed = pastReadSchema.safeParse(Object.fromEntries(formData));
+  const parsed = pastPlaythroughSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
   const data = parsed.data;
 
   await prisma.$transaction(async (tx) => {
-    await tx.read.create({
+    await tx.playthrough.create({
       data: {
         gameId,
         dateStarted: data.dateStarted ?? null,
@@ -114,7 +114,7 @@ export async function addPastRead(
         note: data.note ?? null,
       },
     });
-    await syncTimesRead(tx, gameId);
+    await syncTimesCompleted(tx, gameId);
   });
 
   revalidateGame(gameId);
@@ -122,27 +122,27 @@ export async function addPastRead(
 }
 
 /** Edit a past read (ownership checked through the game). */
-export async function updatePastRead(
-  readId: string,
+export async function updatePastPlaythrough(
+  playthroughId: string,
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   const userId = await requireUserId();
 
-  const existing = await prisma.read.findFirst({
-    where: { id: readId, game: { userId } },
+  const existing = await prisma.playthrough.findFirst({
+    where: { id: playthroughId, game: { userId } },
     select: { gameId: true },
   });
   if (!existing) return { error: "Read not found" };
 
-  const parsed = pastReadSchema.safeParse(Object.fromEntries(formData));
+  const parsed = pastPlaythroughSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
   const data = parsed.data;
 
-  await prisma.read.update({
-    where: { id: readId },
+  await prisma.playthrough.update({
+    where: { id: playthroughId },
     data: {
       dateStarted: data.dateStarted ?? null,
       dateFinished: data.dateFinished ?? null,
@@ -158,18 +158,18 @@ export async function updatePastRead(
 }
 
 /** Delete a past read (ownership checked through the game). */
-export async function deletePastRead(readId: string): Promise<void> {
+export async function deletePastPlaythrough(playthroughId: string): Promise<void> {
   const userId = await requireUserId();
 
-  const existing = await prisma.read.findFirst({
-    where: { id: readId, game: { userId } },
+  const existing = await prisma.playthrough.findFirst({
+    where: { id: playthroughId, game: { userId } },
     select: { gameId: true },
   });
   if (!existing) return;
 
   await prisma.$transaction(async (tx) => {
-    await tx.read.delete({ where: { id: readId } });
-    await syncTimesRead(tx, existing.gameId);
+    await tx.playthrough.delete({ where: { id: playthroughId } });
+    await syncTimesCompleted(tx, existing.gameId);
   });
 
   revalidateGame(existing.gameId);

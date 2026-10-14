@@ -43,7 +43,7 @@ const PET_SPEED = 19;
 /** How long it stands about between walks, in ms. */
 const REST = [2500, 6500];
 
-/** A walking sprite: its two frames swap while it walks (reading-room.css). */
+/** A walking sprite: its two frames swap while it walks (game-room.css). */
 function Strider({ stand, stride }: { stand: Art; stride: Art }) {
   return (
     <svg

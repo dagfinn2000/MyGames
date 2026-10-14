@@ -7,7 +7,7 @@
  *
  * A style changes the shell of the house (its roof, outside walls, inside
  * walls, garden and lamps, drawn in components/room-shells.ts) and its
- * palette (components/reading-room.css). The colour choices then repaint
+ * palette (components/game-room.css). The colour choices then repaint
  * one part of whichever style is chosen; "style" keeps the style's own.
  */
 
@@ -169,7 +169,7 @@ export const ROOM_FITTED: Partial<Record<string, RoomOwn>> = {
 };
 
 /** Swatch colours for the pickers. The room itself takes its colours from
- *  reading-room.css, which has a day and a night shade of each. */
+ *  game-room.css, which has a day and a night shade of each. */
 export const WALL_SWATCHES: Record<Exclude<RoomWalls, "style">, string> = {
   cream: "#f1e5cd",
   sage: "#cfdcc4",

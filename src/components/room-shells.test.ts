@@ -18,7 +18,7 @@ import { ROOM_CEILINGS, ROOM_FLOORS, ROOM_PAPERS, ROOM_STYLES, type RoomStyle } 
 
 const STOREY = 144;
 
-/** A house the way the reading room lays one out (reading-room.tsx). */
+/** A house the way the reading room lays one out (game-room.tsx). */
 function house(style: RoomStyle, houseW: number, floorCount: number, yard = 24): HouseGeometry {
   const roofH = roofHeight(style, houseW);
   const chimneyX = yard + 5 + 21;

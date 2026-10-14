@@ -3,7 +3,7 @@ import {
   currentPassEntries,
   dailyPageTotals,
   dayKey,
-  readingStreaks,
+  playStreaks,
 } from "@/lib/progress";
 
 /** Local-noon date — keeps day math away from midnight/DST edges. */
@@ -111,11 +111,11 @@ describe("dailyPageTotals", () => {
   });
 });
 
-describe("readingStreaks", () => {
+describe("playStreaks", () => {
   const keys = (...days: string[]) => new Set(days);
 
   it("counts a run ending today as the current streak", () => {
-    const { current, longest } = readingStreaks(
+    const { current, longest } = playStreaks(
       keys("2026-01-01", "2026-01-02", "2026-01-03"),
       day(2026, 1, 3),
     );
@@ -124,7 +124,7 @@ describe("readingStreaks", () => {
   });
 
   it("does not break the streak on an unlogged today", () => {
-    const { current } = readingStreaks(
+    const { current } = playStreaks(
       keys("2026-01-01", "2026-01-02", "2026-01-03"),
       day(2026, 1, 4), // today not logged yet — day isn't over
     );
@@ -132,7 +132,7 @@ describe("readingStreaks", () => {
   });
 
   it("ends the current streak after a full missed day", () => {
-    const { current, longest } = readingStreaks(
+    const { current, longest } = playStreaks(
       keys("2026-01-01", "2026-01-02", "2026-01-03"),
       day(2026, 1, 5),
     );
@@ -141,7 +141,7 @@ describe("readingStreaks", () => {
   });
 
   it("tracks the longest run across gaps", () => {
-    const { longest } = readingStreaks(
+    const { longest } = playStreaks(
       keys("2026-01-01", "2026-01-03", "2026-01-04", "2026-01-05", "2026-01-08"),
       day(2026, 1, 8),
     );
@@ -149,7 +149,7 @@ describe("readingStreaks", () => {
   });
 
   it("spans month boundaries", () => {
-    const { longest } = readingStreaks(
+    const { longest } = playStreaks(
       keys("2026-01-31", "2026-02-01"),
       day(2026, 2, 1),
     );
@@ -157,7 +157,7 @@ describe("readingStreaks", () => {
   });
 
   it("returns zeros for an empty log", () => {
-    expect(readingStreaks(new Set(), day(2026, 1, 1))).toEqual({
+    expect(playStreaks(new Set(), day(2026, 1, 1))).toEqual({
       current: 0,
       longest: 0,
     });
@@ -166,10 +166,10 @@ describe("readingStreaks", () => {
   it("decides what today is in the reader's zone", () => {
     // 23:30 UTC on 3 January: still the 3rd in New York, where the streak
     // is alive (today isn't over), but already the 4th in Oslo, where the
-    // 3rd went unread.
+    // 3rd went unplayed.
     const now = new Date("2026-01-03T23:30:00Z");
     const days = keys("2026-01-01", "2026-01-02");
-    expect(readingStreaks(days, now, "America/New_York").current).toBe(2);
-    expect(readingStreaks(days, now, "Europe/Oslo").current).toBe(0);
+    expect(playStreaks(days, now, "America/New_York").current).toBe(2);
+    expect(playStreaks(days, now, "Europe/Oslo").current).toBe(0);
   });
 });

@@ -4,7 +4,7 @@ import {
   describePace,
   goalPace,
   goalProgress,
-  markRereads,
+  markReplays,
   splitGoals,
   yearClock,
 } from "@/lib/goals";
@@ -15,18 +15,18 @@ const finish = (gameId: string, date: string, pageCount: number | null = 300) =>
   pageCount,
 });
 
-describe("markRereads", () => {
+describe("markReplays", () => {
   it("marks later finishes of the same game", () => {
-    const marked = markRereads(
+    const marked = markReplays(
       [finish("a", "2026-03-01"), finish("a", "2025-06-01"), finish("b", "2026-01-01")],
       new Set(),
     );
-    expect(marked.map((f) => f.isReread)).toEqual([true, false, false]);
+    expect(marked.map((f) => f.isReplay)).toEqual([true, false, false]);
   });
 
   it("counts an undated earlier read as coming first", () => {
-    const marked = markRereads([finish("a", "2026-03-01")], new Set(["a"]));
-    expect(marked[0].isReread).toBe(true);
+    const marked = markReplays([finish("a", "2026-03-01")], new Set(["a"]));
+    expect(marked[0].isReplay).toBe(true);
   });
 });
 
@@ -34,20 +34,20 @@ describe("goalProgress", () => {
   // What countWindow gives for a year: a first read, a re-read, a game with
   // no page count, and pages logged in a game not finished yet.
   const year = [
-    { isReread: false, games: 1, pages: 300 },
-    { isReread: true, games: 1, pages: 200 },
-    { isReread: false, games: 1, pages: 0 },
-    { isReread: false, games: 0, pages: 120 },
+    { isReplay: false, games: 1, pages: 300 },
+    { isReplay: true, games: 1, pages: 200 },
+    { isReplay: false, games: 1, pages: 0 },
+    { isReplay: false, games: 0, pages: 120 },
   ];
 
   it("counts games, re-reads included by default", () => {
-    expect(goalProgress(year, { unit: "GAMES", countRereads: true })).toBe(3);
-    expect(goalProgress(year, { unit: "GAMES", countRereads: false })).toBe(2);
+    expect(goalProgress(year, { unit: "GAMES", countReplays: true })).toBe(3);
+    expect(goalProgress(year, { unit: "GAMES", countReplays: false })).toBe(2);
   });
 
   it("adds up pages, skipping the re-read when re-reads are left out", () => {
-    expect(goalProgress(year, { unit: "PAGES", countRereads: true })).toBe(620);
-    expect(goalProgress(year, { unit: "PAGES", countRereads: false })).toBe(420);
+    expect(goalProgress(year, { unit: "PAGES", countReplays: true })).toBe(620);
+    expect(goalProgress(year, { unit: "PAGES", countReplays: false })).toBe(420);
   });
 });
 

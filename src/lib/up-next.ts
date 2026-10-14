@@ -1,4 +1,4 @@
-import { ReadingStatus } from "@prisma/client";
+import { PlayStatus } from "@prisma/client";
 import { isDoneInSeries, nextInSeries, seriesKey, type SeriesMember } from "@/lib/series";
 
 export interface UpNextGame extends SeriesMember {
@@ -9,7 +9,7 @@ export interface UpNextGame extends SeriesMember {
  * The Want to Read games for the "Up next" strip on Now reading, at most
  * `limit`. The next game of a series already under way comes first, then
  * the rest in the order given (newest first). A numbered game that isn't
- * its series' next one (an earlier number is still unread, or another copy
+ * its series' next one (an earlier number is still unplayed, or another copy
  * of the same number is read) is left out.
  *
  * Games being read count as under way here: while you're reading #2, #3 is
@@ -17,7 +17,7 @@ export interface UpNextGame extends SeriesMember {
  * lib/series.ts, which treats a game being read as the next one itself.
  */
 export function upNext<T extends UpNextGame>(
-  wantToRead: T[],
+  wantToPlay: T[],
   /** Every game in the library with a series name. */
   seriesGames: UpNextGame[],
   limit: number,
@@ -26,7 +26,7 @@ export function upNext<T extends UpNextGame>(
   for (const b of seriesGames) {
     if (!b.seriesName) continue;
     const key = seriesKey(b.seriesName);
-    const member = b.status === ReadingStatus.READING ? { ...b, status: ReadingStatus.READ } : b;
+    const member = b.status === PlayStatus.PLAYING ? { ...b, status: PlayStatus.COMPLETED } : b;
     const list = bySeries.get(key);
     if (list) list.push(member);
     else bySeries.set(key, [member]);
@@ -34,7 +34,7 @@ export function upNext<T extends UpNextGame>(
 
   const underway: T[] = [];
   const rest: T[] = [];
-  for (const game of wantToRead) {
+  for (const game of wantToPlay) {
     if (game.seriesName == null || game.seriesNumber === null) {
       rest.push(game);
       continue;

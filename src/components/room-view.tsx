@@ -54,10 +54,10 @@ import {
   HangingPreview,
   HousePreview,
   PLAIN_DECOR,
-  ReadingRoom,
+  GameRoom,
   decorData,
   type RoomDecor,
-} from "@/components/reading-room";
+} from "@/components/game-room";
 
 const PREFERENCE: Record<keyof RoomDecor, keyof Preferences> = {
   style: "roomStyle",
@@ -596,7 +596,7 @@ export function RoomView({
         </div>
       )}
 
-      <ReadingRoom
+      <GameRoom
         games={games}
         decor={decor}
         arrangement={arrangement}

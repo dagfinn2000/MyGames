@@ -15,10 +15,10 @@ export const metadata = { title: "Reading room · MyGames" };
 /**
  * The reading room: the whole library as a little pixel-art house, every
  * game a spine on a shelf, filed by author the way a bookshelf is. The
- * house grows with the library (components/reading-room.tsx), and is
+ * house grows with the library (components/game-room.tsx), and is
  * decorated as the reader likes (components/room-view.tsx).
  */
-export default async function ReadingRoomPage() {
+export default async function GameRoomPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login"); // revoked session (see auth.ts)
   const userId = session.user.id;

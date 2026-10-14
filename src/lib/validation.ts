@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
 
 /**
  * What a stored cover URL may be: a local path ("/api/covers/…") or an
@@ -160,7 +160,7 @@ function parseDateOrNull(s: string): Date | null {
  * future. "Future" allows a day's slack, because the form sends a calendar
  * date read as midnight UTC, which is already tomorrow east of UTC.
  */
-function checkReadDates(
+function checkPlayDates(
   d: { dateStarted?: Date | null; dateFinished?: Date | null },
   ctx: z.RefinementCtx,
 ) {
@@ -181,8 +181,8 @@ function checkReadDates(
 }
 
 /** Personal reading data, editable from the game detail page. */
-export const readingSchema = z.object({
-  status: z.nativeEnum(ReadingStatus),
+export const playSchema = z.object({
+  status: z.nativeEnum(PlayStatus),
   /** 1–10 half-star units; empty string/0 clears the rating. */
   rating: z.coerce.number().int().min(0).max(10).nullable().optional().catch(null),
   review: z
@@ -214,12 +214,12 @@ export const readingSchema = z.object({
   /** The "Don't remember" box next to the finish date: a ticked checkbox
    *  sends "on", an unticked one sends nothing. */
   finishedUnknown: z.preprocess((v) => v === "on" || v === "true" || v === true, z.boolean()),
-}).superRefine(checkReadDates);
+}).superRefine(checkPlayDates);
 
 /** A past read of a game (the read-history card). Everything is optional:
  *  "I know I read this in 2019" and a fully undated "read it before" are
  *  both valid entries. */
-export const pastReadSchema = z.object({
+export const pastPlaythroughSchema = z.object({
   dateStarted: z
     .string()
     .transform(parseDateOrNull)
@@ -240,7 +240,7 @@ export const pastReadSchema = z.object({
     .transform((s) => s || null)
     .nullable()
     .optional(),
-}).superRefine(checkReadDates);
+}).superRefine(checkPlayDates);
 
 /** A quote/highlight from the game detail page. Forms submit strings. */
 export const quoteSchema = z.object({
@@ -296,4 +296,4 @@ export const shelfNameSchema = z
   .max(50, "Shelf name must be at most 50 characters");
 
 export type GameInput = z.infer<typeof gameSchema>;
-export type ReadingInput = z.infer<typeof readingSchema>;
+export type PlayInput = z.infer<typeof playSchema>;

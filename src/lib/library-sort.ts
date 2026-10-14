@@ -4,7 +4,7 @@
  * surname sorting, series blocks — are unit-testable.
  */
 
-import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
 import { calendarDay } from "@/lib/dates";
 import { FORMAT_LABELS, OWNERSHIP_LABELS, STATUS_LABELS } from "@/lib/display";
 import type { RatingStyle } from "@/lib/preferences";
@@ -29,7 +29,7 @@ export interface SortableGame {
 
 /** The fields the groupings read on top of those. */
 export interface GroupableGame extends SortableGame {
-  status: ReadingStatus;
+  status: PlayStatus;
   format: GameFormat;
   ownership: GameOwnership;
   tags: string[];
@@ -216,11 +216,11 @@ export function ratingLabel(value: number, style: RatingStyle = "half"): string 
 }
 
 /** Status sections in reading order: what's on the go first. */
-const STATUS_ORDER: ReadingStatus[] = [
-  ReadingStatus.READING,
-  ReadingStatus.WANT_TO_READ,
-  ReadingStatus.READ,
-  ReadingStatus.DNF,
+const STATUS_ORDER: PlayStatus[] = [
+  PlayStatus.PLAYING,
+  PlayStatus.WANT_TO_PLAY,
+  PlayStatus.COMPLETED,
+  PlayStatus.DROPPED,
 ];
 
 /** Ownership sections: the games you have, then the rest. */
@@ -319,7 +319,7 @@ export function groupGames<T extends GroupableGame>(
     const undated: T[] = [];
     const unfinished: T[] = [];
     for (const b of games) {
-      if (b.status !== ReadingStatus.READ) unfinished.push(b);
+      if (b.status !== PlayStatus.COMPLETED) unfinished.push(b);
       else if (!b.dateFinished) undated.push(b);
       else {
         const year = calendarDay(b.dateFinished, opts.timeZone).slice(0, 4);
@@ -467,9 +467,9 @@ export interface SeriesProgress {
 const MAX_SERIES_NUMBER = 10_000;
 
 export function seriesProgress(games: SeriesMember[]): SeriesProgress {
-  const read = games.filter((b) => b.status === ReadingStatus.READ || b.timesRead > 0).length;
+  const read = games.filter((b) => b.status === PlayStatus.COMPLETED || b.timesCompleted > 0).length;
   const reading = games
-    .filter((b) => b.status === ReadingStatus.READING && b.seriesNumber !== null)
+    .filter((b) => b.status === PlayStatus.PLAYING && b.seriesNumber !== null)
     .reduce<number | null>((low, b) => (low === null || b.seriesNumber! < low ? b.seriesNumber! : low), null);
   const next = reading === null ? (nextInSeries(games)?.seriesNumber ?? null) : null;
 

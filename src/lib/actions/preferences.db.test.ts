@@ -20,7 +20,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 const { savePreferences } = await import("@/lib/actions/preferences");
 const { saveLibraryView } = await import("@/lib/actions/library-view");
 const { saveView, deleteView } = await import("@/lib/actions/saved-views");
-const { setReadingGoal } = await import("@/lib/actions/goals");
+const { setPlayGoal } = await import("@/lib/actions/goals");
 
 let userId: string;
 let otherUserId: string;
@@ -103,12 +103,12 @@ describe("saved views", () => {
   });
 
   it("replaces a view saved again under the same name", async () => {
-    const first = await saveView("Next up", "shelf=WANT_TO_READ");
-    const second = await saveView("Next up", "shelf=READING");
+    const first = await saveView("Next up", "shelf=WANT_TO_PLAY");
+    const second = await saveView("Next up", "shelf=PLAYING");
     expect(second.id).toBe(first.id);
     const views = await prisma.savedView.findMany({ where: { userId } });
     expect(views).toHaveLength(1);
-    expect(views[0].query).toContain("shelf=READING");
+    expect(views[0].query).toContain("shelf=PLAYING");
   });
 
   it("refuses an empty name", async () => {
@@ -117,7 +117,7 @@ describe("saved views", () => {
   });
 
   it("opens the plain library again when the default view is deleted", async () => {
-    const { id } = await saveView("Next up", "shelf=WANT_TO_READ");
+    const { id } = await saveView("Next up", "shelf=WANT_TO_PLAY");
     await savePreferences({ defaultViewId: id, dateFormat: "iso" });
 
     await deleteView(id!);
@@ -134,7 +134,7 @@ describe("saved views", () => {
   });
 });
 
-describe("setReadingGoal", () => {
+describe("setPlayGoal", () => {
   function goalForm(fields: Record<string, string>) {
     const fd = new FormData();
     for (const [k, v] of Object.entries(fields)) fd.set(k, v);
@@ -142,16 +142,16 @@ describe("setReadingGoal", () => {
   }
 
   it("saves a pages goal that leaves out re-reads", async () => {
-    await setReadingGoal(goalForm({ year: "2026", target: "8000", unit: "PAGES" }));
-    const goal = await prisma.readingGoal.findFirstOrThrow({ where: { userId } });
-    expect(goal).toMatchObject({ target: 8000, unit: "PAGES", countRereads: false });
+    await setPlayGoal(goalForm({ year: "2026", target: "8000", unit: "PAGES" }));
+    const goal = await prisma.playGoal.findFirstOrThrow({ where: { userId } });
+    expect(goal).toMatchObject({ target: 8000, unit: "PAGES", countReplays: false });
   });
 
   it("falls back to a game count for an unknown unit", async () => {
-    await setReadingGoal(
-      goalForm({ year: "2026", target: "12", unit: "CHAPTERS", countRereads: "on" }),
+    await setPlayGoal(
+      goalForm({ year: "2026", target: "12", unit: "CHAPTERS", countReplays: "on" }),
     );
-    const goal = await prisma.readingGoal.findFirstOrThrow({ where: { userId } });
-    expect(goal).toMatchObject({ target: 12, unit: "GAMES", countRereads: true });
+    const goal = await prisma.playGoal.findFirstOrThrow({ where: { userId } });
+    expect(goal).toMatchObject({ target: 12, unit: "GAMES", countReplays: true });
   });
 });

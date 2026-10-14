@@ -1,4 +1,4 @@
-import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
 import {
   EXTRAS,
   MOVABLE,
@@ -176,7 +176,7 @@ export const HIDEABLE_STATS = [
 export const IMPORT_TAGS_MODES = ["off", "known", "all"] as const;
 
 /** The finish date a game added as Read gets when none is picked. */
-export const ADDED_AS_READ_FINISHED = ["today", "undated"] as const;
+export const ADDED_AS_COMPLETED_FINISHED = ["today", "undated"] as const;
 
 /** Where the add form goes after saving a game. */
 export const AFTER_ADD = ["open", "another", "library"] as const;
@@ -221,7 +221,7 @@ export const SEARCH_FIELDS = ["tags", "isbn", "review"] as const;
  *  or the pages logged on the day they were read. */
 export const STATS_PAGES_READ = ["finished", "logged"] as const;
 
-/** How a game you stopped reading (DNF) counts: not at all, by the pages
+/** How a game you stopped reading (DROPPED) counts: not at all, by the pages
  *  read before stopping, or as a whole game. */
 export const STATS_STOPPED_GAMES = ["none", "pages", "game"] as const;
 
@@ -284,7 +284,7 @@ export type StartPage = (typeof START_PAGES)[number];
 export type HideableNav = (typeof HIDEABLE_NAV)[number];
 export type HideableStat = (typeof HIDEABLE_STATS)[number];
 export type ImportTagsMode = (typeof IMPORT_TAGS_MODES)[number];
-export type AddedAsReadFinished = (typeof ADDED_AS_READ_FINISHED)[number];
+export type AddedAsCompletedFinished = (typeof ADDED_AS_COMPLETED_FINISHED)[number];
 export type AfterAdd = (typeof AFTER_ADD)[number];
 export type QuickLogSteps = (typeof QUICK_LOG_STEPS)[number];
 export type EbookUnit = (typeof EBOOK_UNITS)[number];
@@ -307,7 +307,7 @@ export type BackupReminder = (typeof BACKUP_REMINDERS)[number];
 export type Preferences = {
   // New games
   newGameFormat: GameFormat;
-  newGameStatus: ReadingStatus;
+  newGameStatus: PlayStatus;
   newGameOwnership: GameOwnership;
   /** Copy the subjects a catalogue returns into the tags field: none, only
    *  ones already used as tags, or all. Replaces the old importTags boolean,
@@ -317,7 +317,7 @@ export type Preferences = {
   tagRenames: TagRename[];
   /** Imported subjects never copied as tags. */
   tagSkips: string[];
-  addedAsReadFinished: AddedAsReadFinished;
+  addedAsCompletedFinished: AddedAsCompletedFinished;
   afterAdd: AfterAdd;
 
   // Dates and numbers
@@ -364,7 +364,7 @@ export type Preferences = {
   /** Pick for me skips wishlist and given-away games (borrowed ones count). */
   pickOnlyHave: boolean;
   /** Pick for me skips a Want to Read game while an earlier game in its
-   *  series is unread. */
+   *  series is unplayed. */
   pickNextInSeries: boolean;
 
   // Reading
@@ -391,7 +391,7 @@ export type Preferences = {
   /** SavedView ids in the order their chips show. */
   savedViewOrder: string[];
   /** Status tabs left out of the library. Never all four. */
-  hiddenStatusTabs: ReadingStatus[];
+  hiddenStatusTabs: PlayStatus[];
 
   // Stats
   statsPagesRead: StatsPagesRead;
@@ -443,12 +443,12 @@ export type Preferences = {
 
 export const DEFAULT_PREFERENCES: Preferences = {
   newGameFormat: GameFormat.PHYSICAL,
-  newGameStatus: ReadingStatus.WANT_TO_READ,
+  newGameStatus: PlayStatus.WANT_TO_PLAY,
   newGameOwnership: GameOwnership.OWNED,
   importTagsMode: "all",
   tagRenames: [],
   tagSkips: [],
-  addedAsReadFinished: "today",
+  addedAsCompletedFinished: "today",
   afterAdd: "open",
   dateFormat: "d-mmm-y",
   numberFormat: "comma",
@@ -701,12 +701,12 @@ export function parsePreferences(raw: unknown): Preferences {
   const catalogues = Array.isArray(obj.catalogues)
     ? pickList(CATALOGUES, obj.catalogues)
     : d.catalogues;
-  const statuses = Object.values(ReadingStatus);
+  const statuses = Object.values(PlayStatus);
   const hiddenStatusTabs = pickList(statuses, obj.hiddenStatusTabs);
 
   return {
     newGameFormat: pick(Object.values(GameFormat), obj.newGameFormat, d.newGameFormat),
-    newGameStatus: pick(Object.values(ReadingStatus), obj.newGameStatus, d.newGameStatus),
+    newGameStatus: pick(Object.values(PlayStatus), obj.newGameStatus, d.newGameStatus),
     newGameOwnership: pick(
       Object.values(GameOwnership),
       obj.newGameOwnership,
@@ -721,10 +721,10 @@ export function parsePreferences(raw: unknown): Preferences {
     ),
     tagRenames: parseTagRenames(obj.tagRenames),
     tagSkips: parseTagSkips(obj.tagSkips),
-    addedAsReadFinished: pick(
-      ADDED_AS_READ_FINISHED,
-      obj.addedAsReadFinished,
-      d.addedAsReadFinished,
+    addedAsCompletedFinished: pick(
+      ADDED_AS_COMPLETED_FINISHED,
+      obj.addedAsCompletedFinished,
+      d.addedAsCompletedFinished,
     ),
     afterAdd: pick(AFTER_ADD, obj.afterAdd, d.afterAdd),
     dateFormat: pick(DATE_FORMATS, obj.dateFormat, d.dateFormat),
@@ -813,7 +813,7 @@ export const START_PAGE_PATHS: Record<StartPage, string> = {
   library: "/games",
   stats: "/stats",
   add: "/games/new",
-  reading: "/reading",
+  reading: "/playing",
 };
 
 /** The zone this server runs in — what reading days used to be counted in,

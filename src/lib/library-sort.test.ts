@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
 import {
   authorSortKey,
   groupGames,
@@ -25,7 +25,7 @@ function game(overrides: Partial<GroupableGame> & { title: string }): GroupableG
     publishedDate: null,
     createdAt: new Date(0),
     updatedAt: new Date(0),
-    status: ReadingStatus.WANT_TO_READ,
+    status: PlayStatus.WANT_TO_PLAY,
     format: GameFormat.PHYSICAL,
     ownership: GameOwnership.OWNED,
     tags: [],
@@ -338,7 +338,7 @@ describe("the newer groupings", () => {
   const read = (title: string, dateFinished?: string) =>
     game({
       title,
-      status: ReadingStatus.READ,
+      status: PlayStatus.COMPLETED,
       dateFinished: dateFinished ? new Date(dateFinished) : null,
     });
 
@@ -353,7 +353,7 @@ describe("the newer groupings", () => {
       // Not Read, so a leftover date doesn't count.
       game({
         title: "Reading",
-        status: ReadingStatus.READING,
+        status: PlayStatus.PLAYING,
         dateFinished: new Date("2024-06-01T10:00:00Z"),
       }),
     ];
@@ -379,9 +379,9 @@ describe("the newer groupings", () => {
   it("files statuses in reading order and drops empty ones", () => {
     const groups = groupGames(
       [
-        game({ title: "Done", status: ReadingStatus.READ }),
-        game({ title: "Now", status: ReadingStatus.READING }),
-        game({ title: "Later", status: ReadingStatus.WANT_TO_READ }),
+        game({ title: "Done", status: PlayStatus.COMPLETED }),
+        game({ title: "Now", status: PlayStatus.PLAYING }),
+        game({ title: "Later", status: PlayStatus.WANT_TO_PLAY }),
       ],
       "status",
     )!;
@@ -548,73 +548,73 @@ describe("sliceGroups", () => {
 });
 
 describe("series progress", () => {
-  const { WANT_TO_READ, READING, READ, DNF } = ReadingStatus;
-  const member = (seriesNumber: number | null, status: ReadingStatus, timesRead = 0) => ({
+  const { WANT_TO_PLAY, PLAYING, COMPLETED, DROPPED } = PlayStatus;
+  const member = (seriesNumber: number | null, status: PlayStatus, timesCompleted = 0) => ({
     seriesNumber,
     status,
-    timesRead,
+    timesCompleted,
   });
 
   it("counts what's read and names what's next", () => {
     const p = seriesProgress([
-      member(1, READ),
-      member(2, READ),
-      member(3, READ),
-      member(4, WANT_TO_READ),
-      member(5, WANT_TO_READ),
+      member(1, COMPLETED),
+      member(2, COMPLETED),
+      member(3, COMPLETED),
+      member(4, WANT_TO_PLAY),
+      member(5, WANT_TO_PLAY),
     ]);
     expect(p).toMatchObject({ total: 5, read: 3, reading: null, next: 4, missing: [] });
     expect(seriesHeading(p, 5)).toEqual({ detail: "5 games · 3 read · next #4" });
   });
 
   it("says which game is being read instead of what's next", () => {
-    const p = seriesProgress([member(1, READ), member(2, READING), member(3, WANT_TO_READ)]);
+    const p = seriesProgress([member(1, COMPLETED), member(2, PLAYING), member(3, WANT_TO_PLAY)]);
     expect(p.reading).toBe(2);
     expect(seriesHeading(p, 3).detail).toBe("3 games · 1 read · reading #2");
   });
 
   it("skips games put down, as Pick for me does", () => {
-    const p = seriesProgress([member(1, READ), member(2, DNF), member(3, WANT_TO_READ)]);
+    const p = seriesProgress([member(1, COMPLETED), member(2, DROPPED), member(3, WANT_TO_PLAY)]);
     expect(p.next).toBe(3);
     expect(p.read).toBe(1);
   });
 
   it("counts a game read before and being re-read as read", () => {
-    const p = seriesProgress([member(1, READING, 1), member(2, READ)]);
+    const p = seriesProgress([member(1, PLAYING, 1), member(2, COMPLETED)]);
     expect(p.read).toBe(2);
     expect(seriesHeading(p, 2).detail).toBe("2 games · all read");
   });
 
   it("lists whole numbers with no game; novellas and prequels fill no gap", () => {
     const p = seriesProgress([
-      member(0, READ),
-      member(1.5, READ),
-      member(2, READ),
-      member(6, WANT_TO_READ),
-      member(null, WANT_TO_READ),
+      member(0, COMPLETED),
+      member(1.5, COMPLETED),
+      member(2, COMPLETED),
+      member(6, WANT_TO_PLAY),
+      member(null, WANT_TO_PLAY),
     ]);
     expect(p.missing).toEqual([1, 3, 4, 5]);
     expect(seriesHeading(p, 5).note).toBe("#1, #3, #4, #5 missing");
   });
 
   it("shortens a long list of gaps", () => {
-    const p = seriesProgress([member(1, READ), member(10, WANT_TO_READ)]);
+    const p = seriesProgress([member(1, COMPLETED), member(10, WANT_TO_PLAY)]);
     expect(seriesHeading(p, 2).note).toBe("#2, #3, #4, #5, #6 and 3 more missing");
   });
 
   it("has no next or gaps for a series without numbers", () => {
-    const p = seriesProgress([member(null, READ), member(null, WANT_TO_READ)]);
+    const p = seriesProgress([member(null, COMPLETED), member(null, WANT_TO_PLAY)]);
     expect(p).toMatchObject({ next: null, reading: null, missing: [] });
     expect(seriesHeading(p, 2)).toEqual({ detail: "2 games · 1 read" });
   });
 
   it("says when the filters on screen show only part of a series", () => {
-    const p = seriesProgress([member(1, READ), member(2, READ), member(3, WANT_TO_READ)]);
+    const p = seriesProgress([member(1, COMPLETED), member(2, COMPLETED), member(3, WANT_TO_PLAY)]);
     expect(seriesHeading(p, 1).detail).toBe("1 of 3 games · 2 read · next #3");
   });
 
   it("prints numbers as stored", () => {
-    const p = seriesProgress([member(1, READ), member(1.5, WANT_TO_READ)]);
+    const p = seriesProgress([member(1, COMPLETED), member(1.5, WANT_TO_PLAY)]);
     expect(seriesHeading(p, 2).detail).toBe("2 games · 1 read · next #1.5");
   });
 });

@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
 import { Check, Dices, SquareCheckBig, X } from "lucide-react";
 import { bulkDeleteGames, bulkUpdateGames } from "@/lib/actions/bulk";
 import { pickRandomGame } from "@/lib/actions/pick";
@@ -247,7 +247,7 @@ export function LibraryView({
     startTransition(async () => {
       const res = await bulkUpdateGames({
         ...target(),
-        status: status === "keep" ? undefined : (status as ReadingStatus),
+        status: status === "keep" ? undefined : (status as PlayStatus),
         format: format === "keep" ? undefined : (format as GameFormat),
         ownership: ownership === "keep" ? undefined : (ownership as GameOwnership),
         addShelfId: shelfAction === "add" ? shelfTarget : undefined,
@@ -517,7 +517,7 @@ export function LibraryView({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="keep">Status: don&apos;t change</SelectItem>
-                {Object.values(ReadingStatus).map((s) => (
+                {Object.values(PlayStatus).map((s) => (
                   <SelectItem key={s} value={s}>
                     {STATUS_LABELS[s]}
                   </SelectItem>

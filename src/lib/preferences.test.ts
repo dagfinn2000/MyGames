@@ -24,13 +24,13 @@ describe("parsePreferences", () => {
       dateFormat: "iso",
       ratingStyle: "ten",
       weekStart: "fortnight", // not a value
-      newGameStatus: "READING",
+      newGameStatus: "PLAYING",
       importTagsMode: "some", // not a value
     });
     expect(prefs.dateFormat).toBe("iso");
     expect(prefs.ratingStyle).toBe("ten");
     expect(prefs.weekStart).toBe("monday");
-    expect(prefs.newGameStatus).toBe("READING");
+    expect(prefs.newGameStatus).toBe("PLAYING");
     expect(prefs.importTagsMode).toBe("all");
   });
 
@@ -89,7 +89,7 @@ describe("parsePreferences: the newer settings", () => {
       importTagsMode: "all",
       tagRenames: [],
       tagSkips: [],
-      addedAsReadFinished: "today",
+      addedAsCompletedFinished: "today",
       afterAdd: "open",
       pickOnlyHave: false,
       pickNextInSeries: false,
@@ -120,7 +120,7 @@ describe("parsePreferences: the newer settings", () => {
 
   it("keeps valid choices and defaults invalid ones", () => {
     const valid = parsePreferences({
-      addedAsReadFinished: "undated",
+      addedAsCompletedFinished: "undated",
       afterAdd: "another",
       quickLogSteps: "5pct",
       ebookUnit: "percent",
@@ -140,7 +140,7 @@ describe("parsePreferences: the newer settings", () => {
       quotesGroupByGame: true,
     });
     expect(valid).toMatchObject({
-      addedAsReadFinished: "undated",
+      addedAsCompletedFinished: "undated",
       afterAdd: "another",
       quickLogSteps: "5pct",
       ebookUnit: "percent",
@@ -188,7 +188,7 @@ describe("parsePreferences: the newer settings", () => {
 
   it("offers Now reading as a start page and a top-bar link", () => {
     expect(START_PAGES).toContain("reading");
-    expect(START_PAGE_PATHS.reading).toBe("/reading");
+    expect(START_PAGE_PATHS.reading).toBe("/playing");
     expect(parsePreferences({ startPage: "reading" }).startPage).toBe("reading");
     expect(parsePreferences({ hiddenNav: ["reading", "quotes"] }).hiddenNav).toEqual([
       "reading",
@@ -233,10 +233,10 @@ describe("parsePreferences: the newer settings", () => {
   });
 
   it("never hides every status tab", () => {
-    expect(parsePreferences({ hiddenStatusTabs: ["DNF", "BOGUS"] }).hiddenStatusTabs).toEqual([
-      "DNF",
+    expect(parsePreferences({ hiddenStatusTabs: ["DROPPED", "BOGUS"] }).hiddenStatusTabs).toEqual([
+      "DROPPED",
     ]);
-    const all = ["WANT_TO_READ", "READING", "READ", "DNF"];
+    const all = ["WANT_TO_PLAY", "PLAYING", "COMPLETED", "DROPPED"];
     expect(parsePreferences({ hiddenStatusTabs: all }).hiddenStatusTabs).toEqual([]);
     expect(cleanPreferencesPatch({ hiddenStatusTabs: all })).toEqual({ hiddenStatusTabs: [] });
   });

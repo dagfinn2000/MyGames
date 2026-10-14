@@ -71,7 +71,7 @@ export function dailyPageTotals(
  * counts toward the current streak when logged, but an unlogged today
  * doesn't break yesterday's streak — the day isn't over yet.
  */
-export function readingStreaks(
+export function playStreaks(
   days: ReadonlySet<string>,
   today: Date = new Date(),
   /** The reader's zone, which decides what "today" is; default the server's. */

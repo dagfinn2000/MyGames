@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 interface Goal {
   target: number;
   unit: GoalUnit;
-  countRereads: boolean;
+  countReplays: boolean;
 }
 
 /**
@@ -43,7 +43,7 @@ export function GoalCard({
   clock: YearClock;
   /** Next year's goal, when one is set, with the link that opens it. */
   nextYear: (Goal & { href: string }) | null;
-  past: (Omit<Goal, "countRereads"> & {
+  past: (Omit<Goal, "countReplays"> & {
     year: number;
     done: number;
     met: boolean;
@@ -114,7 +114,7 @@ export function GoalCard({
               >
                 {describePace(pace, goal.unit, fmt, startsOn)}
               </p>
-              {((clock.when === "current" && !met) || !goal.countRereads) && (
+              {((clock.when === "current" && !met) || !goal.countReplays) && (
                 <p className="mt-1 text-sm text-muted-foreground">
                   {clock.when === "current" && !met && (
                     <>
@@ -122,7 +122,7 @@ export function GoalCard({
                       go.
                     </>
                   )}
-                  {!goal.countRereads && " Re-reads don't count toward this goal."}
+                  {!goal.countReplays && " Re-reads don't count toward this goal."}
                 </p>
               )}
             </div>
@@ -152,7 +152,7 @@ export function GoalCard({
           year={year}
           currentYear={currentYear}
           goal={
-            goal && { target: goal.target, unit: goal.unit, countRereads: goal.countRereads }
+            goal && { target: goal.target, unit: goal.unit, countReplays: goal.countReplays }
           }
         />
         <p className="-mt-2 text-xs text-muted-foreground">

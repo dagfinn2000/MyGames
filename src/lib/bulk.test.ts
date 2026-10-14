@@ -35,20 +35,20 @@ describe("chunk", () => {
 describe("bulkSchema", () => {
   it("takes 2,000 ids and refuses 2,001 with a readable message", () => {
     expect(BULK_MAX_IDS).toBe(2000);
-    expect(bulkSchema.safeParse({ gameIds: ids(2000), status: "READ" }).success).toBe(true);
-    expect(firstError(bulkSchema.safeParse({ gameIds: ids(2001), status: "READ" }))).toBe(
+    expect(bulkSchema.safeParse({ gameIds: ids(2000), status: "COMPLETED" }).success).toBe(true);
+    expect(firstError(bulkSchema.safeParse({ gameIds: ids(2001), status: "COMPLETED" }))).toBe(
       "That's more than 2,000 games. Use “Select all games that match” instead.",
     );
   });
 
   it("wants exactly one of ids or filters", () => {
     const message = "Select some games first.";
-    expect(firstError(bulkSchema.safeParse({ status: "READ" }))).toBe(message);
-    expect(firstError(bulkSchema.safeParse({ gameIds: [], status: "READ" }))).toBe(message);
+    expect(firstError(bulkSchema.safeParse({ status: "COMPLETED" }))).toBe(message);
+    expect(firstError(bulkSchema.safeParse({ gameIds: [], status: "COMPLETED" }))).toBe(message);
     expect(
-      firstError(bulkSchema.safeParse({ gameIds: ["a"], matching: { tag: "x" }, status: "READ" })),
+      firstError(bulkSchema.safeParse({ gameIds: ["a"], matching: { tag: "x" }, status: "COMPLETED" })),
     ).toBe(message);
-    expect(bulkSchema.safeParse({ matching: { tag: "x" }, status: "READ" }).success).toBe(true);
+    expect(bulkSchema.safeParse({ matching: { tag: "x" }, status: "COMPLETED" }).success).toBe(true);
   });
 
   it("names a tag that is both added and removed", () => {
@@ -68,7 +68,7 @@ describe("bulkSchema", () => {
 
   it("explains a search too long to send", () => {
     expect(
-      firstError(bulkSchema.safeParse({ matching: { q: "x".repeat(2001) }, status: "READ" })),
+      firstError(bulkSchema.safeParse({ matching: { q: "x".repeat(2001) }, status: "COMPLETED" })),
     ).toBe("That search is too long to apply to every match.");
   });
 });

@@ -23,7 +23,7 @@ import { serverTimeZone } from "@/lib/preferences";
  *    both the heatmap and the all-time longest streak. The zone is passed in
  *    so the two agree.
  *
- * No date filter: the heatmap shows twelve months, but `readingStreaks`
+ * No date filter: the heatmap shows twelve months, but `playStreaks`
  * derives the longest-ever run from these same keys. Bounding the query to a
  * year would turn an all-time statistic into a rolling one without anything
  * visibly breaking.

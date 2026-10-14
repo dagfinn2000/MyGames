@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
 import { BookOpen } from "lucide-react";
 import type { ActionState } from "@/lib/actions/helpers";
 import type { CatalogueDiffRow, CatalogueValues } from "@/lib/catalogue-values";
@@ -43,7 +43,7 @@ export interface GameFormValues {
   seriesNumber?: string;
   format?: GameFormat;
   ownership?: GameOwnership;
-  status?: ReadingStatus;
+  status?: PlayStatus;
   openLibraryId?: string;
 }
 
@@ -93,7 +93,7 @@ export function GameForm({
   const [coverUrl, setCoverUrl] = useState(initial.coverUrl ?? "");
   // Format, ownership and shelf are controlled, each with a plain hidden
   // input carrying it: the Radix Select's own hidden select reverts to its
-  // mount-time value whenever the form is reset (see reading-card.tsx),
+  // mount-time value whenever the form is reset (see playing-card.tsx),
   // while the trigger keeps showing the reader's choice. Format also
   // decides whether the audiobook length shows (and is sent), and the shelf
   // which reading fields show.
@@ -107,7 +107,7 @@ export function GameForm({
   // Kept on every save (editing used to drop it), and filled in by Look up
   // details when the catalogue knows the work.
   const [openLibraryId, setOpenLibraryId] = useState(initial.openLibraryId ?? "");
-  const [status, setStatus] = useState<ReadingStatus>(initial.status ?? ReadingStatus.WANT_TO_READ);
+  const [status, setStatus] = useState<PlayStatus>(initial.status ?? PlayStatus.WANT_TO_PLAY);
 
   // Each save returns a new state object, so this runs once per game added.
   const reportAdded = useEffectEvent((game: { id: string; title: string }) => onAdded?.(game));
@@ -312,12 +312,12 @@ export function GameForm({
             <div className="grid gap-2">
               <Label htmlFor="status">Shelf</Label>
               <input type="hidden" name="status" value={status} />
-              <Select value={status} onValueChange={(v) => setStatus(v as ReadingStatus)}>
+              <Select value={status} onValueChange={(v) => setStatus(v as PlayStatus)}>
                 <SelectTrigger id="status" className="w-44">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.values(ReadingStatus).map((s) => (
+                  {Object.values(PlayStatus).map((s) => (
                     <SelectItem key={s} value={s}>
                       {STATUS_LABELS[s]}
                     </SelectItem>
@@ -375,16 +375,16 @@ export function GameForm({
  * started and the page reached. Want to Read and Did Not Finish need
  * nothing more.
  */
-function ShelfFields({ status }: { status: ReadingStatus }) {
-  const { addedAsReadFinished, ratingStyle, timeZone } = usePreferences();
+function ShelfFields({ status }: { status: PlayStatus }) {
+  const { addedAsCompletedFinished, ratingStyle, timeZone } = usePreferences();
   const [today] = useState(() => toDateInputValue(new Date(), timeZone));
 
-  if (status === ReadingStatus.READ) {
+  if (status === PlayStatus.COMPLETED) {
     return (
       <div className="flex flex-wrap items-end gap-4">
         <FinishedDateField
-          defaultDate={addedAsReadFinished === "today" ? today : ""}
-          defaultUnknown={addedAsReadFinished === "undated"}
+          defaultDate={addedAsCompletedFinished === "today" ? today : ""}
+          defaultUnknown={addedAsCompletedFinished === "undated"}
         />
         {ratingStyle !== "off" && (
           <div className="grid gap-2">
@@ -395,7 +395,7 @@ function ShelfFields({ status }: { status: ReadingStatus }) {
       </div>
     );
   }
-  if (status === ReadingStatus.READING) {
+  if (status === PlayStatus.PLAYING) {
     return (
       <div className="flex flex-wrap items-end gap-4">
         <div className="grid gap-2">

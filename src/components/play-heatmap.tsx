@@ -2,7 +2,7 @@ import { dayKey, keyToUtcDate, shiftDayKey } from "@/lib/dates";
 import { formatDate, formatNumber } from "@/lib/display";
 import { heatmapLegend, heatmapLevel, heatmapThresholds } from "@/lib/heatmap";
 import type { Preferences } from "@/lib/preferences";
-import { readingStreaks } from "@/lib/progress";
+import { playStreaks } from "@/lib/progress";
 
 /** Cell tint per intensity level (0 = no reading that day). */
 const LEVEL_CLASS = [
@@ -33,7 +33,7 @@ const DAY_LABELS = {
  * calendar itself is laid out on midnight-UTC dates built from day keys, so
  * the server's own zone can't shift a cell.
  */
-export function ReadingHeatmap({
+export function PlayHeatmap({
   totals,
   prefs,
 }: {
@@ -87,9 +87,9 @@ export function ReadingHeatmap({
   // Summary line: days and pages inside the window, streaks over the full log.
   const windowDays = weeks.flat();
   const windowTotals = windowDays.map((d) => totals.get(d.key) ?? 0);
-  const daysRead = windowTotals.filter((p) => p > 0).length;
+  const daysPlayed = windowTotals.filter((p) => p > 0).length;
   const pagesInWindow = windowTotals.reduce((sum, p) => sum + p, 0);
-  const { current, longest } = readingStreaks(
+  const { current, longest } = playStreaks(
     new Set(totals.keys()),
     now,
     prefs.timeZone,
@@ -102,9 +102,9 @@ export function ReadingHeatmap({
     <div className="grid gap-3">
       <p className="text-sm text-muted-foreground">
         <span className="font-medium text-foreground tabular-nums">
-          {daysRead}
+          {daysPlayed}
         </span>{" "}
-        reading {daysRead === 1 ? "day" : "days"} (
+        reading {daysPlayed === 1 ? "day" : "days"} (
         {formatNumber(pagesInWindow, prefs)} pages) in the last year
         {current > 1 && (
           <>

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { ReadingStatus } from "@prisma/client";
+import { PlayStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUserId } from "@/lib/actions/helpers";
 import { calendarDay, dayKey } from "@/lib/dates";
@@ -27,13 +27,13 @@ import {
   type LogPageResult,
   type MoveResult,
   type UndoMove,
-} from "@/lib/reading-log";
-import { settleReadingState } from "@/lib/reading-state";
+} from "@/lib/play-log";
+import { settlePlayState } from "@/lib/play-state";
 
 /**
  * The reading log outside the reading form: quick logging for any day,
  * fixing and deleting entries, and Finished / Stopped from Now reading. The
- * rules for where an entry may go live in lib/reading-log.ts; the form's
+ * rules for where an entry may go live in lib/play-log.ts; the form's
  * own logging is logProgress in actions/games.ts.
  *
  * Every message is written in the game's unit (page, percent or time), as
@@ -45,16 +45,16 @@ import { settleReadingState } from "@/lib/reading-state";
 const LOG_ORDER = [{ date: "asc" as const }, { page: "asc" as const }];
 const LOG_FIELDS = { id: true, page: true, date: true } as const;
 
-function revalidateReading(gameId: string) {
+function revalidatePlaying(gameId: string) {
   revalidatePath(`/games/${gameId}`);
   revalidatePath("/games");
-  revalidatePath("/reading");
+  revalidatePath("/playing");
   revalidatePath("/stats");
 }
 
 /** The reader's preferences with the zone filled in (the same rule as
  *  getPreferences, read straight from the row). */
-async function readerPrefs(userId: string): Promise<Preferences> {
+async function playerPrefs(userId: string): Promise<Preferences> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { preferences: true },
@@ -63,7 +63,7 @@ async function readerPrefs(userId: string): Promise<Preferences> {
   return { ...prefs, timeZone: prefs.timeZone || serverTimeZone() };
 }
 
-const NOT_READING = "Only games you're reading can log pages. Set this one to Currently Reading first.";
+const NOT_PLAYING = "Only games you're reading can log pages. Set this one to Currently Reading first.";
 const FUTURE = "That day hasn't happened yet.";
 const CHANGED = "This game has changed since. Open it to set its status.";
 
@@ -101,12 +101,12 @@ export async function logPage(
     },
   });
   if (!game) return { error: "Game not found" };
-  if (game.status !== ReadingStatus.READING) return { error: NOT_READING };
+  if (game.status !== PlayStatus.PLAYING) return { error: NOT_PLAYING };
   if (game.pageCount != null && page > game.pageCount) {
     return { error: pastTheEnd(page, game.pageCount) };
   }
 
-  const prefs = await readerPrefs(userId);
+  const prefs = await playerPrefs(userId);
   const tz = prefs.timeZone;
   const info = unitFor(game, prefs);
   const [typed] = positionTexts(info, { page, value });
@@ -175,7 +175,7 @@ export async function logPage(
     return { ok: true, message: logged, page, lastPage };
   });
 
-  if (!("error" in result)) revalidateReading(id.data);
+  if (!("error" in result)) revalidatePlaying(id.data);
   return result;
 }
 
@@ -223,7 +223,7 @@ export async function updateProgressEntry(
     return { error: pastTheEnd(page, game.pageCount) };
   }
 
-  const prefs = await readerPrefs(userId);
+  const prefs = await playerPrefs(userId);
   const tz = prefs.timeZone;
   const info = unitFor(game, prefs);
   const now = new Date();
@@ -296,7 +296,7 @@ export async function updateProgressEntry(
     // The game's page follows the newest entry of the read in progress.
     if (
       around.isCurrent &&
-      (game.status === ReadingStatus.READING || game.status === ReadingStatus.DNF)
+      (game.status === PlayStatus.PLAYING || game.status === PlayStatus.DROPPED)
     ) {
       const fresh = await tx.progressEntry.findMany({
         where: { gameId: entry.gameId },
@@ -313,7 +313,7 @@ export async function updateProgressEntry(
     return { message: `Fixed: ${typed} for ${describeDay(calendarDay(at, tz), today, prefs.dateFormat)}.` };
   });
 
-  if (!result.error) revalidateReading(entry.gameId);
+  if (!result.error) revalidatePlaying(entry.gameId);
   return result;
 }
 
@@ -334,7 +334,7 @@ export async function deleteProgressEntry(entryId: string): Promise<{ error?: st
   if (!existing) return { error: "Entry not found" };
   // Without its anchor a read would run on into the one before it.
   if (existing.page === 0) return { error: "The start of a read can't be deleted." };
-  const tz = (await readerPrefs(userId)).timeZone;
+  const tz = (await playerPrefs(userId)).timeZone;
 
   await prisma.$transaction(async (tx) => {
     const all = await tx.progressEntry.findMany({
@@ -347,7 +347,7 @@ export async function deleteProgressEntry(entryId: string): Promise<{ error?: st
     const { status } = existing.game;
     if (
       pass[pass.length - 1]?.id === existing.id &&
-      (status === ReadingStatus.READING || status === ReadingStatus.DNF)
+      (status === PlayStatus.PLAYING || status === PlayStatus.DROPPED)
     ) {
       await tx.game.update({
         where: { id: existing.gameId },
@@ -356,18 +356,18 @@ export async function deleteProgressEntry(entryId: string): Promise<{ error?: st
     }
   });
 
-  revalidateReading(existing.gameId);
+  revalidatePlaying(existing.gameId);
   return {};
 }
 
 /**
  * Finished or Stopped, from Now reading: the same status change as picking
  * Read or Did Not Finish on the reading card, with the same dates, page and
- * read count (settleReadingState). Finishing a tracked read closes its log
+ * read count (settlePlayState). Finishing a tracked read closes its log
  * at the last page, as the reading form does (logProgress in
  * actions/games.ts); Finished always means today.
  */
-export async function moveFromReading(gameId: string, to: "READ" | "DNF"): Promise<MoveResult> {
+export async function moveFromPlaying(gameId: string, to: "COMPLETED" | "DROPPED"): Promise<MoveResult> {
   const userId = await requireUserId();
   const id = idSchema.safeParse(gameId);
   if (!id.success) return { error: "Game not found" };
@@ -385,26 +385,26 @@ export async function moveFromReading(gameId: string, to: "READ" | "DNF"): Promi
       dateFinished: true,
       format: true,
       lengthMinutes: true,
-      _count: { select: { reads: true } },
+      _count: { select: { playthroughs: true } },
     },
   });
   if (!game) return { error: "Game not found" };
-  if (game.status !== ReadingStatus.READING) {
+  if (game.status !== PlayStatus.PLAYING) {
     return { error: "This game isn't in Currently Reading any more." };
   }
 
-  const finishing = target.data === "READ";
-  const next = settleReadingState(
-    ReadingStatus.READING,
+  const finishing = target.data === "COMPLETED";
+  const next = settlePlayState(
+    PlayStatus.PLAYING,
     {
-      status: finishing ? ReadingStatus.READ : ReadingStatus.DNF,
+      status: finishing ? PlayStatus.COMPLETED : PlayStatus.DROPPED,
       dateStarted: game.dateStarted,
       dateFinished: finishing ? null : game.dateFinished,
       currentPage: game.currentPage,
     },
-    game._count.reads,
+    game._count.playthroughs,
   );
-  const prefs = await readerPrefs(userId);
+  const prefs = await playerPrefs(userId);
 
   await prisma.$transaction(async (tx) => {
     await tx.game.update({
@@ -413,7 +413,7 @@ export async function moveFromReading(gameId: string, to: "READ" | "DNF"): Promi
         status: next.status,
         dateStarted: next.dateStarted,
         dateFinished: next.dateFinished,
-        timesRead: next.timesRead,
+        timesCompleted: next.timesCompleted,
         currentPage: next.currentPage,
       },
     });
@@ -433,7 +433,7 @@ export async function moveFromReading(gameId: string, to: "READ" | "DNF"): Promi
     }
   });
 
-  revalidateReading(id.data);
+  revalidatePlaying(id.data);
   const info = unitFor(game, prefs);
   return {
     ok: true,
@@ -457,7 +457,7 @@ export async function moveFromReading(gameId: string, to: "READ" | "DNF"): Promi
  * the move put it (for Read, finished at that same moment), and the only
  * entry removed is the closing one that move wrote.
  */
-export async function undoMoveFromReading(
+export async function undoMoveFromPlaying(
   gameId: string,
   undo: UndoMove,
 ): Promise<{ error?: string }> {
@@ -476,19 +476,19 @@ export async function undoMoveFromReading(
       pageCount: true,
       dateStarted: true,
       dateFinished: true,
-      _count: { select: { reads: true } },
+      _count: { select: { playthroughs: true } },
     },
   });
   if (!game) return { error: "Game not found" };
-  if (game.status !== ReadingStatus[from]) return { error: CHANGED };
-  if (from === "READ" && (!game.dateFinished || game.dateFinished.toISOString() !== finishedAt)) {
+  if (game.status !== PlayStatus[from]) return { error: CHANGED };
+  if (from === "COMPLETED" && (!game.dateFinished || game.dateFinished.toISOString() !== finishedAt)) {
     return { error: CHANGED };
   }
-  const tz = (await readerPrefs(userId)).timeZone;
+  const tz = (await playerPrefs(userId)).timeZone;
 
   await prisma.$transaction(async (tx) => {
     let currentPage = game.currentPage;
-    if (from === "READ") {
+    if (from === "COMPLETED") {
       const all = await tx.progressEntry.findMany({
         where: { gameId: id.data },
         orderBy: LOG_ORDER,
@@ -515,14 +515,14 @@ export async function undoMoveFromReading(
     await tx.game.update({
       where: { id: id.data },
       data: {
-        status: ReadingStatus.READING,
-        dateFinished: from === "READ" ? null : game.dateFinished,
+        status: PlayStatus.PLAYING,
+        dateFinished: from === "COMPLETED" ? null : game.dateFinished,
         currentPage,
-        timesRead: game._count.reads,
+        timesCompleted: game._count.playthroughs,
       },
     });
   });
 
-  revalidateReading(id.data);
+  revalidatePlaying(id.data);
   return {};
 }

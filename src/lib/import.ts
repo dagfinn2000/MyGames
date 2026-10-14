@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { GameFormat, GameOwnership, GoalUnit, Prisma, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, GoalUnit, Prisma, PlayStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { coverFilePath, coversDir } from "@/lib/covers";
@@ -72,7 +72,7 @@ const importedQuoteSchema = z.object({
 });
 
 /** Past reads are additive too (exports without them parse to []). */
-const importedReadSchema = z.object({
+const importedPlaythroughSchema = z.object({
   dateStarted: dateField,
   dateFinished: dateField,
   rating: z.number().int().min(1).max(10).nullable().optional().catch(null),
@@ -122,16 +122,16 @@ const importedGameSchema = z.object({
   seriesName: z.string().trim().max(200).nullable().optional(),
   seriesNumber: z.number().min(0).max(10000).nullable().optional().catch(null),
   openLibraryId: z.string().trim().max(50).nullable().optional(),
-  status: z.nativeEnum(ReadingStatus).catch(ReadingStatus.WANT_TO_READ),
+  status: z.nativeEnum(PlayStatus).catch(PlayStatus.WANT_TO_PLAY),
   rating: z.number().int().min(1).max(10).nullable().optional().catch(null),
   review: z.string().max(20000).nullable().optional(),
   dateStarted: dateField,
   dateFinished: dateField,
-  timesRead: z.number().int().min(0).max(1000).catch(0),
+  timesCompleted: z.number().int().min(0).max(1000).catch(0),
   currentPage: z.number().int().min(0).max(100000).nullable().optional().catch(null),
   shelves: shelfNames,
   quotes: z.array(importedQuoteSchema).catch([]),
-  reads: z.array(importedReadSchema).catch([]),
+  playthroughs: z.array(importedPlaythroughSchema).catch([]),
   progress: z.array(importedProgressSchema).catch([]),
   loans: z.array(importedLoanSchema).catch([]),
   createdAt: dateField,
@@ -141,7 +141,7 @@ const goalSchema = z.object({
   year: z.number().int().min(1900).max(2200),
   target: z.number().int().min(1).max(1_000_000),
   // Additive: goals from older exports count re-reads.
-  countRereads: z.boolean().catch(true),
+  countReplays: z.boolean().catch(true),
 });
 
 /** Shelf or saved-view names in a preference, as exported. */
@@ -155,7 +155,7 @@ const exportPayloadSchema = z.object({
     .catch([])
     .transform((list) => shelfNames.parse(list.map((s) => (s as { name?: unknown } | null)?.name))),
   /** Goals counted in games. */
-  readingGoals: z.array(goalSchema).catch([]),
+  playGoals: z.array(goalSchema).catch([]),
   /** Goals counted in pages. Additive, and kept apart so an older MyGames
    *  doesn't read them as game counts. */
   pageGoals: z.array(goalSchema).catch([]),
@@ -200,7 +200,7 @@ export interface ImportSummary {
   settingsRestored: boolean;
   coversRestored: number;
   quotesRestored: number;
-  readsRestored: number;
+  playthroughsRestored: number;
   progressRestored: number;
   loansRestored: number;
   /** Set when the restore stopped early. Everything counted above did land —
@@ -373,20 +373,20 @@ export async function importLibrary(
 
   // Reading goals: upsert per year, concurrently — they're independent.
   const goals = [
-    ...data.readingGoals.map((g) => ({ ...g, unit: GoalUnit.GAMES })),
+    ...data.playGoals.map((g) => ({ ...g, unit: GoalUnit.GAMES })),
     ...data.pageGoals.map((g) => ({ ...g, unit: GoalUnit.PAGES })),
   ];
   await mapWithConcurrency(goals, IMPORT_CONCURRENCY, (goal) =>
-    prisma.readingGoal.upsert({
+    prisma.playGoal.upsert({
       where: { userId_year: { userId, year: goal.year } },
       create: {
         userId,
         year: goal.year,
         target: goal.target,
         unit: goal.unit,
-        countRereads: goal.countRereads,
+        countReplays: goal.countReplays,
       },
-      update: { target: goal.target, unit: goal.unit, countRereads: goal.countRereads },
+      update: { target: goal.target, unit: goal.unit, countReplays: goal.countReplays },
     }),
   );
 
@@ -467,7 +467,7 @@ export async function importLibrary(
   let gamesCreated = 0;
   let coversRestored = 0;
   let quotesRestored = 0;
-  let readsRestored = 0;
+  let playthroughsRestored = 0;
   let progressRestored = 0;
   let loansRestored = 0;
   let incomplete: ImportSummary["incomplete"];
@@ -478,19 +478,19 @@ export async function importLibrary(
     const cover = await resolveCoverUrl(b.coverUrl, getCoverFile);
 
     // Read history. Older exports have no `reads` — materialize the history
-    // that timesRead implies as undated past reads (the finished pass itself
+    // that timesCompleted implies as undated past reads (the finished pass itself
     // lives on the Game row), exactly like the migration backfill. Either
-    // way timesRead ends up consistent with the restored rows.
-    const isRead = b.status === ReadingStatus.READ;
-    const pastReads: {
+    // way timesCompleted ends up consistent with the restored rows.
+    const isCompleted = b.status === PlayStatus.COMPLETED;
+    const pastPlaythroughs: {
       dateStarted: Date | null;
       dateFinished: Date | null;
       rating: number | null;
       note: string | null;
       createdAt: Date | null;
     }[] =
-      b.reads.length > 0
-        ? b.reads.map((r) => ({
+      b.playthroughs.length > 0
+        ? b.playthroughs.map((r) => ({
             dateStarted: r.dateStarted,
             dateFinished: r.dateFinished,
             rating: r.rating ?? null,
@@ -498,10 +498,10 @@ export async function importLibrary(
             createdAt: r.createdAt,
           }))
         : Array.from(
-            { length: Math.max(b.timesRead - (isRead ? 1 : 0), 0) },
+            { length: Math.max(b.timesCompleted - (isCompleted ? 1 : 0), 0) },
             () => ({ dateStarted: null, dateFinished: null, rating: null, note: null, createdAt: null }),
           );
-    const timesRead = pastReads.length + (isRead ? 1 : 0);
+    const timesCompleted = pastPlaythroughs.length + (isCompleted ? 1 : 0);
 
     await prisma.game.create({
       data: {
@@ -526,7 +526,7 @@ export async function importLibrary(
         reviewSearchText: foldForSearch(b.review ?? ""),
         dateStarted: b.dateStarted,
         dateFinished: b.dateFinished,
-        timesRead,
+        timesCompleted,
         currentPage: b.currentPage ?? null,
         searchText: buildSearchText(b.title, b.authors, b.seriesName),
         // Preserve "date added" ordering from the original library.
@@ -548,8 +548,8 @@ export async function importLibrary(
             ...(q.createdAt && { createdAt: q.createdAt }),
           })),
         },
-        reads: {
-          create: pastReads.map((r) => ({
+        playthroughs: {
+          create: pastPlaythroughs.map((r) => ({
             dateStarted: r.dateStarted,
             dateFinished: r.dateFinished,
             rating: r.rating,
@@ -582,7 +582,7 @@ export async function importLibrary(
     if (cover.restored) coversRestored++;
     gamesCreated++;
     quotesRestored += b.quotes.length;
-    readsRestored += pastReads.length;
+    playthroughsRestored += pastPlaythroughs.length;
     progressRestored += b.progress.filter((e) => e.date != null).length;
     loansRestored += b.loans.length;
   };
@@ -611,7 +611,7 @@ export async function importLibrary(
     settingsRestored,
     coversRestored,
     quotesRestored,
-    readsRestored,
+    playthroughsRestored,
     progressRestored,
     loansRestored,
     ...(incomplete && { incomplete }),

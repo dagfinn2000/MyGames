@@ -1,5 +1,5 @@
 /** Skeleton for Now reading. */
-export default function NowReadingLoading() {
+export default function NowPlayingLoading() {
   return (
     <div className="shimmer grid gap-6">
       <div className="h-8 w-40 rounded bg-muted" />

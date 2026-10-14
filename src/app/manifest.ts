@@ -21,7 +21,7 @@ export default function manifest(): MetadataRoute.Manifest {
       {
         name: "Now reading",
         short_name: "Reading",
-        url: "/reading",
+        url: "/playing",
         icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
       },
       {

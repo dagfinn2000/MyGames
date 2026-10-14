@@ -18,7 +18,7 @@ import { deleteCachedCovers } from "@/lib/covers";
 import { getPreferences } from "@/lib/current-user";
 import { parseFilters } from "@/lib/library-filters";
 import { resolveGameWhere } from "@/lib/library-where";
-import { settleReadingState } from "@/lib/reading-state";
+import { settlePlayState } from "@/lib/play-state";
 
 export interface BulkResult {
   count?: number;
@@ -115,7 +115,7 @@ export async function bulkUpdateGames(input: BulkInput): Promise<BulkResult> {
       dateStarted: true,
       dateFinished: true,
       currentPage: true,
-      _count: { select: { reads: true } },
+      _count: { select: { playthroughs: true } },
     },
   });
   if (owned.length === 0) return { error: "No matching games" };
@@ -147,7 +147,7 @@ export async function bulkUpdateGames(input: BulkInput): Promise<BulkResult> {
   // Games moved to Read with no finish date follow the "Games I add as Read
   // were finished" preference (New games): today, or no date at all.
   const undatedFinish = status
-    ? (await getPreferences()).addedAsReadFinished === "undated"
+    ? (await getPreferences()).addedAsCompletedFinished === "undated"
     : false;
 
   const outcome = await prisma.$transaction(async (tx) => {
@@ -159,7 +159,7 @@ export async function bulkUpdateGames(input: BulkInput): Promise<BulkResult> {
       // in the target status are left alone.
       for (const b of owned) {
         if (b.status === status) continue;
-        const next = settleReadingState(
+        const next = settlePlayState(
           b.status,
           {
             status,
@@ -167,7 +167,7 @@ export async function bulkUpdateGames(input: BulkInput): Promise<BulkResult> {
             dateFinished: b.dateFinished,
             currentPage: b.currentPage,
           },
-          b._count.reads,
+          b._count.playthroughs,
           new Date(),
           { undatedFinish },
         );

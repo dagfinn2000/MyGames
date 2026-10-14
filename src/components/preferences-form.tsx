@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
 import { ArrowDown, ArrowUp, Pencil, Trash2 } from "lucide-react";
 import { savePreferences } from "@/lib/actions/preferences";
 import { deleteView, renameView } from "@/lib/actions/saved-views";
@@ -368,7 +368,7 @@ export function PreferencesForm({
 
   // Saved views in the reader's order, which moving one changes at once.
   const views = orderByIds(savedViews, prefs.savedViewOrder);
-  const shownStatusTabs = Object.values(ReadingStatus).filter(
+  const shownStatusTabs = Object.values(PlayStatus).filter(
     (s) => !prefs.hiddenStatusTabs.includes(s),
   ).length;
 
@@ -394,7 +394,7 @@ export function PreferencesForm({
         <Choice
           label="Status"
           value={prefs.newGameStatus}
-          options={Object.values(ReadingStatus).map((s) => ({ value: s, label: STATUS_LABELS[s] }))}
+          options={Object.values(PlayStatus).map((s) => ({ value: s, label: STATUS_LABELS[s] }))}
           onChange={(v) => update({ newGameStatus: v })}
         />
         <Choice
@@ -409,12 +409,12 @@ export function PreferencesForm({
         <Choice
           label="Games I add as Read were finished"
           hint="Bulk edit's Set status: Read follows this too."
-          value={prefs.addedAsReadFinished}
+          value={prefs.addedAsCompletedFinished}
           options={[
             { value: "today", label: "Today" },
             { value: "undated", label: "No date, unless I pick one" },
           ]}
-          onChange={(v) => update({ addedAsReadFinished: v })}
+          onChange={(v) => update({ addedAsCompletedFinished: v })}
         />
         <Choice
           label="After adding a game"
@@ -609,7 +609,7 @@ export function PreferencesForm({
             <p className="text-sm font-medium">Status tabs to show</p>
             <p className="text-xs text-muted-foreground">The All tab always shows.</p>
           </div>
-          {Object.values(ReadingStatus).map((s) => {
+          {Object.values(PlayStatus).map((s) => {
             const shown = !prefs.hiddenStatusTabs.includes(s);
             return (
               <Toggle
@@ -664,7 +664,7 @@ export function PreferencesForm({
         <p className="text-xs text-muted-foreground">
           Borrowed games count as games you have. Wishlist, given-away and
           lent-out games don&apos;t. A Want to Read game in a series is skipped
-          while an earlier one is still unread.
+          while an earlier one is still unplayed.
         </p>
       </Section>
 
@@ -835,7 +835,7 @@ export function PreferencesForm({
         </div>
       </Section>
 
-      <Section title="Reading room" id="reading-room">
+      <Section title="Reading room" id="game-room">
         <div className="grid gap-1">
           <Toggle
             label="The reading room"

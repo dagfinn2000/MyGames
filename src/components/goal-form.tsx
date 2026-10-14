@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import type { GoalUnit } from "@prisma/client";
-import { setReadingGoal, type GoalFormState } from "@/lib/actions/goals";
+import { setPlayGoal, type GoalFormState } from "@/lib/actions/goals";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,17 +24,17 @@ export function GoalForm({
 }: {
   year: number;
   currentYear: number;
-  goal: { target: number; unit: GoalUnit; countRereads: boolean } | null;
+  goal: { target: number; unit: GoalUnit; countReplays: boolean } | null;
 }) {
   const [state, formAction, pending] = useActionState(
-    (_prev: GoalFormState, formData: FormData) => setReadingGoal(formData),
+    (_prev: GoalFormState, formData: FormData) => setPlayGoal(formData),
     {},
   );
 
   // Remount the fields when the saved goal changes: React resets a form
   // after its action, and the unit Select's hidden native select would go
-  // back to its mount-time value (see reading-card.tsx).
-  const formKey = [goal?.target ?? 0, goal?.unit ?? "", goal?.countRereads ?? ""].join("|");
+  // back to its mount-time value (see playing-card.tsx).
+  const formKey = [goal?.target ?? 0, goal?.unit ?? "", goal?.countReplays ?? ""].join("|");
 
   const message = state.error
     ? state.error
@@ -80,8 +80,8 @@ export function GoalForm({
         <label className="flex h-9 items-center gap-2 text-sm">
           <input
             type="checkbox"
-            name="countRereads"
-            defaultChecked={goal?.countRereads ?? true}
+            name="countReplays"
+            defaultChecked={goal?.countReplays ?? true}
             className="size-4 accent-primary"
           />
           Count re-reads

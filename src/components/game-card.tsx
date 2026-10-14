@@ -1,5 +1,5 @@
 import type { Game } from "@prisma/client";
-import { GameOwnership, ReadingStatus } from "@prisma/client";
+import { GameOwnership, PlayStatus } from "@prisma/client";
 import {
   ArrowLeftRight,
   BookOpen,
@@ -179,8 +179,8 @@ const ALL_DETAILS: CardDetails = {
 };
 
 /** Reading progress as 0–1 while a game is being read, else null. */
-function readingProgress(game: GameCardGame): number | null {
-  return game.status === ReadingStatus.READING && game.currentPage != null && game.pageCount
+function playProgress(game: GameCardGame): number | null {
+  return game.status === PlayStatus.PLAYING && game.currentPage != null && game.pageCount
     ? Math.min(game.currentPage / game.pageCount, 1)
     : null;
 }
@@ -259,7 +259,7 @@ export function GameRow({
    *  GameCover from it. */
   formatPrefs?: FormatPrefs;
 }) {
-  const progress = readingProgress(game);
+  const progress = playProgress(game);
   const facts = rowFacts(game, details, formatPrefs);
   return (
     <GameLink
@@ -315,7 +315,7 @@ export function GameCard({
   /** Small covers: tighter padding, no author line. */
   compact?: boolean;
 }) {
-  const progress = readingProgress(game);
+  const progress = playProgress(game);
 
   return (
     <GameLink
@@ -379,7 +379,7 @@ export function GameCard({
 
 /** "Covers only": the cover and title with no frame, details or badges. */
 export function GameCoverTile({ game, compact = false }: { game: GameCardGame; compact?: boolean }) {
-  const progress = readingProgress(game);
+  const progress = playProgress(game);
   return (
     <GameLink gameId={game.id} className="lift-cover group flex flex-col gap-1.5">
       <GameCover game={game} className="cover-shadow aspect-[2/3] w-full" />

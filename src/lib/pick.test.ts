@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GameOwnership, ReadingStatus } from "@prisma/client";
+import { GameOwnership, PlayStatus } from "@prisma/client";
 import {
   chooseRandom,
   pickButtonTitle,
@@ -9,7 +9,7 @@ import {
   type PickRules,
 } from "@/lib/pick";
 
-const { WANT_TO_READ, READING, READ, DNF } = ReadingStatus;
+const { WANT_TO_PLAY, PLAYING, COMPLETED, DROPPED } = PlayStatus;
 const { OWNED, WISHLIST, BORROWED, GIVEN_AWAY } = GameOwnership;
 
 let n = 0;
@@ -17,11 +17,11 @@ function row(over: Partial<PickRow> = {}): PickRow {
   n += 1;
   return {
     id: `b${n}`,
-    status: WANT_TO_READ,
+    status: WANT_TO_PLAY,
     ownership: OWNED,
     seriesName: null,
     seriesNumber: null,
-    timesRead: 0,
+    timesCompleted: 0,
     lent: false,
     ...over,
   };
@@ -32,8 +32,8 @@ const ids = (rows: PickRow[]) => rows.map((r) => r.id);
 
 describe("tabStatus", () => {
   it("knows the status tabs and nothing else", () => {
-    expect(tabStatus("READ")).toBe(READ);
-    expect(tabStatus("WANT_TO_READ")).toBe(WANT_TO_READ);
+    expect(tabStatus("COMPLETED")).toBe(COMPLETED);
+    expect(tabStatus("WANT_TO_PLAY")).toBe(WANT_TO_PLAY);
     expect(tabStatus("all")).toBeNull();
     expect(tabStatus("")).toBeNull();
     expect(tabStatus("read")).toBeNull();
@@ -44,25 +44,25 @@ describe("tabStatus", () => {
 describe("pickPool tabs", () => {
   it("prefers Want to Read on the All tab", () => {
     const want = row();
-    const read = row({ status: READ });
+    const read = row({ status: COMPLETED });
     expect(pickPool([want, read], ALL)).toEqual([want]);
   });
 
   it("falls back to every game on the All tab when none are Want to Read", () => {
-    const rows = [row({ status: READ }), row({ status: DNF })];
+    const rows = [row({ status: COMPLETED }), row({ status: DROPPED })];
     expect(pickPool(rows, ALL)).toEqual(rows);
   });
 
   it("never swaps a status tab for Want to Read", () => {
     // The bug: on the Read tab the old pick opened a Want to Read game. The
     // tab's own filter decides the rows; the pool must not narrow them.
-    const rows = [row({ status: READ }), row({ status: READ })];
-    expect(pickPool(rows, { ...ALL, tab: READ })).toEqual(rows);
+    const rows = [row({ status: COMPLETED }), row({ status: COMPLETED })];
+    expect(pickPool(rows, { ...ALL, tab: COMPLETED })).toEqual(rows);
   });
 });
 
 describe("pickPool: only games I have", () => {
-  const rules = { ...ALL, tab: READ, onlyHave: true };
+  const rules = { ...ALL, tab: COMPLETED, onlyHave: true };
 
   it("keeps owned and borrowed games, drops wishlist and given away", () => {
     const owned = row({ ownership: OWNED });
@@ -79,19 +79,19 @@ describe("pickPool: only games I have", () => {
   it("applies before the All tab's Want to Read preference", () => {
     // Every Want to Read game is on the wishlist, so the pick falls back to
     // the rest instead of opening one you don't have.
-    const read = row({ status: READ });
+    const read = row({ status: COMPLETED });
     const rows = [row({ ownership: WISHLIST }), read];
     expect(pickPool(rows, { ...ALL, onlyHave: true })).toEqual([read]);
   });
 });
 
 describe("pickPool: only the next game in a series", () => {
-  const rules = { ...ALL, tab: WANT_TO_READ, nextInSeries: true };
+  const rules = { ...ALL, tab: WANT_TO_PLAY, nextInSeries: true };
   const mist = (seriesNumber: number | null, over: Partial<PickRow> = {}) =>
     row({ seriesName: "Mistborn", seriesNumber, ...over });
 
-  it("keeps the next unread game and holds back later ones", () => {
-    const one = mist(1, { status: READ });
+  it("keeps the next unplayed game and holds back later ones", () => {
+    const one = mist(1, { status: COMPLETED });
     const two = mist(2);
     const three = mist(3);
     expect(ids(pickPool([two, three], rules, [one, two, three]))).toEqual([two.id]);
@@ -105,20 +105,20 @@ describe("pickPool: only the next game in a series", () => {
 
   it("never holds back a game that isn't Want to Read", () => {
     const one = mist(1);
-    const reading = mist(3, { status: READING });
-    expect(ids(pickPool([reading], { ...rules, tab: READING }, [one, reading]))).toEqual([
+    const reading = mist(3, { status: PLAYING });
+    expect(ids(pickPool([reading], { ...rules, tab: PLAYING }, [one, reading]))).toEqual([
       reading.id,
     ]);
   });
 
-  it("counts a re-read in progress as read, and a game being read as unread", () => {
-    expect(pickPool([mist(2)], rules, [mist(1, { status: READING, timesRead: 1 })])).toHaveLength(1);
-    expect(pickPool([mist(2)], rules, [mist(1, { status: READING })])).toHaveLength(0);
+  it("counts a re-read in progress as read, and a game being read as unplayed", () => {
+    expect(pickPool([mist(2)], rules, [mist(1, { status: PLAYING, timesCompleted: 1 })])).toHaveLength(1);
+    expect(pickPool([mist(2)], rules, [mist(1, { status: PLAYING })])).toHaveLength(0);
   });
 
   it("counts a number as read when any copy of it is", () => {
     const two = mist(2);
-    const series = [mist(1), mist(1, { status: READ }), two];
+    const series = [mist(1), mist(1, { status: COMPLETED }), two];
     expect(ids(pickPool([two], rules, series))).toEqual([two.id]);
   });
 
@@ -151,7 +151,7 @@ describe("pickPool: only the next game in a series", () => {
   });
 
   it("falls back to other games on the All tab when every Want to Read waits", () => {
-    const read = row({ status: READ });
+    const read = row({ status: COMPLETED });
     const rows = [mist(2), read];
     expect(pickPool(rows, { ...ALL, nextInSeries: true }, [mist(1)])).toEqual([read]);
   });
@@ -176,11 +176,11 @@ describe("pickButtonTitle", () => {
     expect(pickButtonTitle(null, off)).toBe(
       "Open a random game, from Want to Read when there is one (respects your filters)",
     );
-    expect(pickButtonTitle(READ, off)).toBe("Open a random game from Read (respects your filters)");
+    expect(pickButtonTitle(COMPLETED, off)).toBe("Open a random game from Read (respects your filters)");
   });
 
   it("lists the switches that are on", () => {
-    expect(pickButtonTitle(READING, { ...off, pickOnlyHave: true })).toBe(
+    expect(pickButtonTitle(PLAYING, { ...off, pickOnlyHave: true })).toBe(
       "Open a random game from Currently Reading (respects your filters and only games you have)",
     );
     expect(pickButtonTitle(null, { pickOnlyHave: true, pickNextInSeries: true })).toBe(

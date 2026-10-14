@@ -1,5 +1,5 @@
 /** Skeleton for the reading room. */
-export default function ReadingRoomLoading() {
+export default function GameRoomLoading() {
   return (
     <div className="shimmer grid gap-4">
       <div className="h-8 w-44 rounded bg-muted" />

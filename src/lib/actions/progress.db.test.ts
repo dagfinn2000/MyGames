@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { GameFormat, type Prisma, PrismaClient, ReadingStatus } from "@prisma/client";
+import { GameFormat, type Prisma, PrismaClient, PlayStatus } from "@prisma/client";
 import { dailyPageTotals } from "@/lib/progress";
-import type { MoveResult, UndoMove } from "@/lib/reading-log";
+import type { MoveResult, UndoMove } from "@/lib/play-log";
 
 /**
- * The reading-log actions against a real database: quick logging for any
+ * The play-log actions against a real database: quick logging for any
  * day, fixing and deleting entries, and Finished / Stopped with their undo.
  *
  * Stats credit each increase between consecutive entries to the later
@@ -21,7 +21,7 @@ vi.mock("@/auth", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
-const { logPage, updateProgressEntry, deleteProgressEntry, moveFromReading, undoMoveFromReading } =
+const { logPage, updateProgressEntry, deleteProgressEntry, moveFromPlaying, undoMoveFromPlaying } =
   await import("@/lib/actions/progress");
 
 const OSLO = "Europe/Oslo";
@@ -68,7 +68,7 @@ async function makeGame(over: Record<string, unknown> = {}, owner = userId) {
       title: "Jane Eyre",
       searchText: "jane eyre",
       pageCount: 300,
-      status: ReadingStatus.READING,
+      status: PlayStatus.PLAYING,
       dateStarted: at("2026-10-05T00:00:00.000Z"),
       ...over,
     },
@@ -176,7 +176,7 @@ describe("logPage", () => {
   });
 
   it("refuses a game that isn't being read, and another account's game", async () => {
-    const shelved = await makeGame({ status: ReadingStatus.WANT_TO_READ });
+    const shelved = await makeGame({ status: PlayStatus.WANT_TO_PLAY });
     expect(await logPage(shelved.id, { page: 10, day: "today" })).toEqual({
       error: "Only games you're reading can log pages. Set this one to Currently Reading first.",
     });
@@ -431,34 +431,34 @@ describe("deleteProgressEntry", () => {
   });
 });
 
-describe("moveFromReading and undo", () => {
+describe("moveFromPlaying and undo", () => {
   it("finishes today, closes the log and can be undone", async () => {
     const game = await makeGame({ currentPage: 218 });
-    await prisma.read.create({ data: { gameId: game.id } }); // one earlier read
+    await prisma.playthrough.create({ data: { gameId: game.id } }); // one earlier read
     await addEntries(game.id, [[0, "2026-10-05T00:00:00.000Z"], [218, "2026-10-11T18:00:00.000Z"]]);
 
-    const moved = await moveFromReading(game.id, "READ");
+    const moved = await moveFromPlaying(game.id, "COMPLETED");
     expect(moved).toEqual({
       ok: true,
       finished: true,
       message: "Jane Eyre moved to Read. Finished today.",
-      undo: { from: "READ", finishedAt: NOW.toISOString(), page: 218 },
+      undo: { from: "COMPLETED", finishedAt: NOW.toISOString(), page: 218 },
     });
     const done = await gameRow(game.id);
     expect(done).toMatchObject({
-      status: ReadingStatus.READ,
+      status: PlayStatus.COMPLETED,
       dateFinished: NOW,
       currentPage: null,
-      timesRead: 2,
+      timesCompleted: 2,
     });
     expect((await log(game.id)).at(-1)).toEqual([300, NOW.toISOString()]);
 
-    expect(await undoMoveFromReading(game.id, undoOf(moved))).toEqual({});
+    expect(await undoMoveFromPlaying(game.id, undoOf(moved))).toEqual({});
     expect(await gameRow(game.id)).toMatchObject({
-      status: ReadingStatus.READING,
+      status: PlayStatus.PLAYING,
       dateFinished: null,
       currentPage: 218,
-      timesRead: 1,
+      timesCompleted: 1,
     });
     expect(await log(game.id)).toHaveLength(2);
   });
@@ -466,41 +466,41 @@ describe("moveFromReading and undo", () => {
   it("stops at the current page, writing nothing to the log", async () => {
     const game = await makeGame({ currentPage: 218 });
     await addEntries(game.id, [[0, "2026-10-05T00:00:00.000Z"], [218, "2026-10-11T18:00:00.000Z"]]);
-    const moved = await moveFromReading(game.id, "DNF");
+    const moved = await moveFromPlaying(game.id, "DROPPED");
     expect(moved).toMatchObject({
       message: "Jane Eyre moved to Did Not Finish at page 218.",
       finished: false,
-      undo: { from: "DNF", finishedAt: null, page: 218 },
+      undo: { from: "DROPPED", finishedAt: null, page: 218 },
     });
-    expect(await gameRow(game.id)).toMatchObject({ status: ReadingStatus.DNF, currentPage: 218 });
+    expect(await gameRow(game.id)).toMatchObject({ status: PlayStatus.DROPPED, currentPage: 218 });
     expect(await log(game.id)).toHaveLength(2);
-    await undoMoveFromReading(game.id, { from: "DNF", finishedAt: null, page: 218 });
-    expect(await gameRow(game.id)).toMatchObject({ status: ReadingStatus.READING, currentPage: 218 });
+    await undoMoveFromPlaying(game.id, { from: "DROPPED", finishedAt: null, page: 218 });
+    expect(await gameRow(game.id)).toMatchObject({ status: PlayStatus.PLAYING, currentPage: 218 });
   });
 
   it("says nothing about a page it doesn't have", async () => {
     const game = await makeGame();
-    expect(await moveFromReading(game.id, "DNF")).toMatchObject({
+    expect(await moveFromPlaying(game.id, "DROPPED")).toMatchObject({
       message: "Jane Eyre moved to Did Not Finish.",
     });
   });
 
   it("restores an untracked game's page on undo", async () => {
     const game = await makeGame({ currentPage: 120 });
-    const moved = await moveFromReading(game.id, "READ");
+    const moved = await moveFromPlaying(game.id, "COMPLETED");
     expect(await log(game.id)).toEqual([]);
-    await undoMoveFromReading(game.id, undoOf(moved));
+    await undoMoveFromPlaying(game.id, undoOf(moved));
     expect((await gameRow(game.id)).currentPage).toBe(120);
   });
 
   it("refuses a game that isn't being read and another account's game", async () => {
-    const shelved = await makeGame({ status: ReadingStatus.READ });
-    expect(await moveFromReading(shelved.id, "READ")).toEqual({
+    const shelved = await makeGame({ status: PlayStatus.COMPLETED });
+    expect(await moveFromPlaying(shelved.id, "COMPLETED")).toEqual({
       error: "This game isn't in Currently Reading any more.",
     });
     const theirs = await makeGame({}, otherUserId);
-    expect(await moveFromReading(theirs.id, "READ")).toEqual({ error: "Game not found" });
-    expect((await gameRow(theirs.id)).status).toBe(ReadingStatus.READING);
+    expect(await moveFromPlaying(theirs.id, "COMPLETED")).toEqual({ error: "Game not found" });
+    expect((await gameRow(theirs.id)).status).toBe(PlayStatus.PLAYING);
   });
 
   it("won't undo once the game has changed, and never touches an earlier read's entries", async () => {
@@ -511,21 +511,21 @@ describe("moveFromReading and undo", () => {
       [0, "2026-09-01T10:00:00.000Z"],
       [100, "2026-10-10T10:00:00.000Z"],
     ]);
-    const moved = await moveFromReading(game.id, "READ");
-    const undo = (moved as { undo: { from: "READ"; finishedAt: string; page: number } }).undo;
+    const moved = await moveFromPlaying(game.id, "COMPLETED");
+    const undo = (moved as { undo: { from: "COMPLETED"; finishedAt: string; page: number } }).undo;
 
     // A crafted undo aimed at the first read's finish is refused.
     expect(
-      await undoMoveFromReading(game.id, { ...undo, finishedAt: "2026-02-01T00:00:00.000Z" }),
+      await undoMoveFromPlaying(game.id, { ...undo, finishedAt: "2026-02-01T00:00:00.000Z" }),
     ).toEqual({ error: "This game has changed since. Open it to set its status." });
     // So is one after the game was moved on elsewhere.
-    await prisma.game.update({ where: { id: game.id }, data: { status: ReadingStatus.WANT_TO_READ } });
-    expect(await undoMoveFromReading(game.id, undo)).toEqual({
+    await prisma.game.update({ where: { id: game.id }, data: { status: PlayStatus.WANT_TO_PLAY } });
+    expect(await undoMoveFromPlaying(game.id, undo)).toEqual({
       error: "This game has changed since. Open it to set its status.",
     });
-    await prisma.game.update({ where: { id: game.id }, data: { status: ReadingStatus.READ } });
+    await prisma.game.update({ where: { id: game.id }, data: { status: PlayStatus.COMPLETED } });
 
-    expect(await undoMoveFromReading(game.id, undo)).toEqual({});
+    expect(await undoMoveFromPlaying(game.id, undo)).toEqual({});
     expect(await log(game.id)).toEqual([
       [0, "2026-01-05T10:00:00.000Z"],
       [300, "2026-02-01T00:00:00.000Z"],

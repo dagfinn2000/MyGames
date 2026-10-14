@@ -321,10 +321,10 @@ function MatchedGame({
             {OWNERSHIP_BADGE_LABELS[game.ownership]}
           </Badge>
           {game.rating != null && <Stars value={game.rating} />}
-          {game.timesRead > 1 && (
+          {game.timesCompleted > 1 && (
             <Badge variant="outline" className="text-[10px]">
               <Repeat data-slot="icon" className="size-2.5" />
-              {game.timesRead}×
+              {game.timesCompleted}×
             </Badge>
           )}
         </div>

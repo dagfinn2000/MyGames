@@ -1,7 +1,7 @@
 /**
  * The reader's avatar in the reading room, drawn in code like the rest of
  * the room (room-art.tsx): rectangles naming paints, coloured in
- * reading-room.css from the --av-* colours the avatar's element sets from
+ * game-room.css from the --av-* colours the avatar's element sets from
  * its look (lib/avatar.ts).
  *
  * A figure is painted dot by dot in layers (what's behind it, legs, top,

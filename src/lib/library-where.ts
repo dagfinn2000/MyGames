@@ -1,4 +1,4 @@
-import { ReadingStatus, type Prisma } from "@prisma/client";
+import { PlayStatus, type Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { calendarDay } from "@/lib/dates";
 import {
@@ -65,12 +65,12 @@ async function finishedNearNewYear(
 ): Promise<string[]> {
   if (!year) return [];
   const near = { OR: finishedYearRanges(Number(year)).edges.map((r) => ({ dateFinished: r })) };
-  const [games, reads] = await Promise.all([
+  const [games, playthroughs] = await Promise.all([
     prisma.game.findMany({
-      where: { userId, status: ReadingStatus.READ, ...near },
+      where: { userId, status: PlayStatus.COMPLETED, ...near },
       select: { id: true, dateFinished: true },
     }),
-    prisma.read.findMany({
+    prisma.playthrough.findMany({
       where: { game: { userId }, ...near },
       select: { gameId: true, dateFinished: true },
     }),
@@ -79,7 +79,7 @@ async function finishedNearNewYear(
   return [
     ...new Set([
       ...games.filter((b) => inYear(b.dateFinished)).map((b) => b.id),
-      ...reads.filter((r) => inYear(r.dateFinished)).map((r) => r.gameId),
+      ...playthroughs.filter((r) => inYear(r.dateFinished)).map((r) => r.gameId),
     ]),
   ];
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gameSchema, isAllowedCoverUrl, pastReadSchema, readingSchema } from "@/lib/validation";
+import { gameSchema, isAllowedCoverUrl, pastPlaythroughSchema, playSchema } from "@/lib/validation";
 
 const minimalForm = {
   title: "T",
@@ -76,8 +76,8 @@ describe("reading dates", () => {
   const dayAfterTomorrow = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
 
   it("refuses a finish date before the start date", () => {
-    const res = readingSchema.safeParse({
-      status: "READ",
+    const res = playSchema.safeParse({
+      status: "COMPLETED",
       dateStarted: "2026-10-05",
       dateFinished: "2026-10-01",
     });
@@ -86,55 +86,55 @@ describe("reading dates", () => {
   });
 
   it("refuses dates in the future", () => {
-    expect(readingSchema.safeParse({ status: "READ", dateFinished: dayAfterTomorrow }).success).toBe(false);
-    expect(readingSchema.safeParse({ status: "READING", dateStarted: dayAfterTomorrow }).success).toBe(false);
+    expect(playSchema.safeParse({ status: "COMPLETED", dateFinished: dayAfterTomorrow }).success).toBe(false);
+    expect(playSchema.safeParse({ status: "PLAYING", dateStarted: dayAfterTomorrow }).success).toBe(false);
   });
 
   it("accepts the same day for both, and either date alone", () => {
     expect(
-      readingSchema.safeParse({ status: "READ", dateStarted: "2026-10-01", dateFinished: "2026-10-01" }).success,
+      playSchema.safeParse({ status: "COMPLETED", dateStarted: "2026-10-01", dateFinished: "2026-10-01" }).success,
     ).toBe(true);
-    expect(readingSchema.safeParse({ status: "READ", dateFinished: "2019-05-01" }).success).toBe(true);
-    expect(readingSchema.safeParse({ status: "READING", dateStarted: "", dateFinished: "" }).success).toBe(true);
+    expect(playSchema.safeParse({ status: "COMPLETED", dateFinished: "2019-05-01" }).success).toBe(true);
+    expect(playSchema.safeParse({ status: "PLAYING", dateStarted: "", dateFinished: "" }).success).toBe(true);
   });
 
   it("applies the same rules to past reads", () => {
-    expect(pastReadSchema.safeParse({ dateStarted: "2020-02-01", dateFinished: "2020-01-01" }).success).toBe(false);
-    expect(pastReadSchema.safeParse({ dateFinished: "2019-05-01" }).success).toBe(true);
+    expect(pastPlaythroughSchema.safeParse({ dateStarted: "2020-02-01", dateFinished: "2020-01-01" }).success).toBe(false);
+    expect(pastPlaythroughSchema.safeParse({ dateFinished: "2019-05-01" }).success).toBe(true);
   });
 
   it("reads a ticked Don't remember box as true and a missing one as false", () => {
-    expect(readingSchema.parse({ status: "READ", finishedUnknown: "on" }).finishedUnknown).toBe(true);
-    expect(readingSchema.parse({ status: "READ" }).finishedUnknown).toBe(false);
-    expect(readingSchema.parse({ status: "READ", finishedUnknown: "" }).finishedUnknown).toBe(false);
+    expect(playSchema.parse({ status: "COMPLETED", finishedUnknown: "on" }).finishedUnknown).toBe(true);
+    expect(playSchema.parse({ status: "COMPLETED" }).finishedUnknown).toBe(false);
+    expect(playSchema.parse({ status: "COMPLETED", finishedUnknown: "" }).finishedUnknown).toBe(false);
   });
 });
 
-describe("pastReadSchema note", () => {
+describe("pastPlaythroughSchema note", () => {
   it("is trimmed", () => {
-    expect(pastReadSchema.parse({ note: "  Read it aloud to the kids \n" }).note).toBe(
+    expect(pastPlaythroughSchema.parse({ note: "  Read it aloud to the kids \n" }).note).toBe(
       "Read it aloud to the kids",
     );
   });
 
   it("is null when empty or only spaces", () => {
-    expect(pastReadSchema.parse({ note: "" }).note).toBeNull();
-    expect(pastReadSchema.parse({ note: "   \n " }).note).toBeNull();
+    expect(pastPlaythroughSchema.parse({ note: "" }).note).toBeNull();
+    expect(pastPlaythroughSchema.parse({ note: "   \n " }).note).toBeNull();
   });
 
   it("is left undefined when not sent", () => {
-    expect(pastReadSchema.parse({}).note).toBeUndefined();
+    expect(pastPlaythroughSchema.parse({}).note).toBeUndefined();
   });
 
   it("refuses a note over 2000 characters", () => {
-    expect(pastReadSchema.parse({ note: "x".repeat(2000) }).note).toHaveLength(2000);
-    const res = pastReadSchema.safeParse({ note: "x".repeat(2001) });
+    expect(pastPlaythroughSchema.parse({ note: "x".repeat(2000) }).note).toHaveLength(2000);
+    const res = pastPlaythroughSchema.safeParse({ note: "x".repeat(2001) });
     expect(res.success).toBe(false);
     expect(res.error?.issues[0]?.message).toBe("Keep the note to 2000 characters or fewer.");
   });
 
   it("still checks the dates when there is a note", () => {
-    const res = pastReadSchema.safeParse({
+    const res = pastPlaythroughSchema.safeParse({
       dateStarted: "2020-02-01",
       dateFinished: "2020-01-01",
       note: "Second time round",

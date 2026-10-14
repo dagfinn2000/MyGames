@@ -16,7 +16,7 @@ import { getPreferences } from "@/lib/current-user";
 import { dayKey } from "@/lib/dates";
 import { formatDate, formatDayKey, formatNumber } from "@/lib/display";
 import { describePace, goalPace, goalProgress, yearClock } from "@/lib/goals";
-import { readingStreaks } from "@/lib/progress";
+import { playStreaks } from "@/lib/progress";
 import { dailyPageTotalsForUser } from "@/lib/progress-query";
 import { buildPasses, countWindow, ruleNotes, tally } from "@/lib/stats-count";
 import { yearWindow } from "@/lib/stats-period";
@@ -63,11 +63,11 @@ interface Finish {
   dateStarted: Date | null;
   dateFinished: Date;
   rating: number | null;
-  isReread: boolean;
+  isReplay: boolean;
 }
 
 /**
- * The year's wrap-up: everything finished that year — current passes on READ
+ * The year's wrap-up: everything finished that year — current passes on COMPLETED
  * games plus archived re-reads — turned into highlights, distributions, and
  * a top-rated shelf. Linked from the per-year bars on the stats page. What
  * counts follows the reader's "What counts" preferences, as on Stats.
@@ -92,7 +92,7 @@ export default async function YearInReviewPage({
   // stats page uses (lib/stats-count.ts), so the numbers always agree.
   const [inputs, goal, pageTotals] = await Promise.all([
     loadStatsInputs(userId, prefs.timeZone),
-    prisma.readingGoal.findUnique({
+    prisma.playGoal.findUnique({
       where: { userId_year: { userId, year } },
     }),
     // Pages per day, as the reading calendar counts them. No date bound:
@@ -101,7 +101,7 @@ export default async function YearInReviewPage({
   ]);
 
   // Every pass that counts in this year: dated finishes (re-reads tagged,
-  // see markRereads), plus games put down and pages logged when the "What
+  // see markReplays), plus games put down and pages logged when the "What
   // counts" preferences say so.
   const passes = buildPasses(inputs, prefs, prefs.timeZone);
   const counted = countWindow(passes, yearWindow(year), prefs);
@@ -118,7 +118,7 @@ export default async function YearInReviewPage({
       dateStarted: i.pass.dateStarted,
       dateFinished: i.pass.date!,
       rating: i.pass.rating,
-      isReread: i.isReread,
+      isReplay: i.isReplay,
     }));
   finishes.sort((a, b) => a.dateFinished.getTime() - b.dateFinished.getTime());
 
@@ -130,7 +130,7 @@ export default async function YearInReviewPage({
           .filter((i) => i.pass.kind === "stopped" && i.pass.day?.startsWith(`${year}-`))
           .sort((a, b) => (a.pass.day! < b.pass.day! ? -1 : a.pass.day! > b.pass.day! ? 1 : 0));
 
-  // The reading-log rhythm for this year. Day keys are "YYYY-MM-DD", so
+  // The play-log rhythm for this year. Day keys are "YYYY-MM-DD", so
   // slicing by prefix matches the same local-time bucketing the heatmap uses.
   const yearDays = [...pageTotals]
     .filter(([key]) => key.startsWith(`${year}-`))
@@ -150,7 +150,7 @@ export default async function YearInReviewPage({
             {fmt(goalDone)} of {fmt(goal.target)}
           </span>{" "}
           {goal.unit === GoalUnit.PAGES ? "pages" : "games"} toward the {year} goal
-          {!goal.countRereads && " (first reads only)"}.{" "}
+          {!goal.countReplays && " (first reads only)"}.{" "}
           {describePace(pace, goal.unit, fmt, formatDayKey(`${year}-01-01`, prefs.dateFormat))}
           {goalMet && " 🎉"}
         </p>
@@ -264,7 +264,7 @@ export default async function YearInReviewPage({
 
   // Reading-log rhythm for this year: pages per day/month, biggest day, and
   // the longest streak.
-  const readingDays = yearDays.length;
+  const playDays = yearDays.length;
   const pagesLogged = yearDays.reduce((sum, [, pages]) => sum + pages, 0);
   const pagesPerMonth = Array.from({ length: 12 }, () => 0);
   for (const [key, pages] of yearDays) {
@@ -275,7 +275,7 @@ export default async function YearInReviewPage({
     (best, day) => (best === null || day[1] > best[1] ? day : best),
     null,
   );
-  const { longest: longestStreak } = readingStreaks(
+  const { longest: longestStreak } = playStreaks(
     new Set(yearDays.map(([key]) => key)),
     new Date(),
     prefs.timeZone,
@@ -303,7 +303,7 @@ export default async function YearInReviewPage({
         >
           {fmt(totals.pages)}
         </StatCard>
-        <StatCard label="Re-reads" icon={Repeat}>{fmt(totals.rereads)}</StatCard>
+        <StatCard label="Re-reads" icon={Repeat}>{fmt(totals.replays)}</StatCard>
         {ratings && (
           <StatCard label="Average rating" icon={Star}>
             {avgRating == null ? (
@@ -409,7 +409,7 @@ export default async function YearInReviewPage({
             </CardContent>
           </Card>
 
-          {readingDays > 0 && (
+          {playDays > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle>Reading days</CardTitle>
@@ -417,7 +417,7 @@ export default async function YearInReviewPage({
               <CardContent className="grid gap-4">
                 <div className="grid gap-2 text-sm">
                   <Highlight label="Days reading">
-                    <span className="tabular-nums">{readingDays}</span> ·{" "}
+                    <span className="tabular-nums">{playDays}</span> ·{" "}
                     {formatNumber(pagesLogged, prefs)} pages logged
                   </Highlight>
                   {biggestDay && (

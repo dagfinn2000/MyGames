@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PrismaClient, ReadingStatus } from "@prisma/client";
+import { PrismaClient, PlayStatus } from "@prisma/client";
 import { importLibrary } from "@/lib/import";
 
 /**
@@ -28,12 +28,12 @@ function game(over: Record<string, unknown> = {}) {
     tags: ["fantasy"],
     format: "PHYSICAL",
     ownership: "OWNED",
-    status: "READ",
+    status: "COMPLETED",
     rating: 9,
-    timesRead: 1,
+    timesCompleted: 1,
     shelves: [],
     quotes: [],
-    reads: [],
+    playthroughs: [],
     progress: [],
     ...over,
   };
@@ -64,10 +64,10 @@ describe("importLibrary", () => {
       payload([
         game({
           quotes: [{ text: "Life before death.", page: 42, note: "oath" }],
-          reads: [{ dateFinished: "2019-05-01T00:00:00.000Z", rating: 8, note: "Read aloud" }],
+          playthroughs: [{ dateFinished: "2019-05-01T00:00:00.000Z", rating: 8, note: "Read aloud" }],
           lengthMinutes: 1475,
           progress: [{ page: 100, date: "2026-01-02T10:00:00.000Z" }],
-          timesRead: 2,
+          timesCompleted: 2,
         }),
       ]),
     );
@@ -77,22 +77,22 @@ describe("importLibrary", () => {
       gamesSkipped: 0,
       gamesInvalid: 0,
       quotesRestored: 1,
-      readsRestored: 1,
+      playthroughsRestored: 1,
       progressRestored: 1,
     });
 
     const saved = await prisma.game.findFirstOrThrow({
       where: { userId },
-      include: { quotes: true, reads: true, progress: true },
+      include: { quotes: true, playthroughs: true, progress: true },
     });
     expect(saved.title).toBe("The Final Empire");
     expect(saved.quotes[0].text).toBe("Life before death.");
-    expect(saved.reads[0].rating).toBe(8);
-    expect(saved.reads[0].note).toBe("Read aloud");
+    expect(saved.playthroughs[0].rating).toBe(8);
+    expect(saved.playthroughs[0].note).toBe("Read aloud");
     expect(saved.lengthMinutes).toBe(1475);
     expect(saved.progress[0].page).toBe(100);
     // Derived, not trusted from the file: one archived pass + the current one.
-    expect(saved.timesRead).toBe(2);
+    expect(saved.timesCompleted).toBe(2);
   });
 
   it("splits a tag with a comma in it, which the tag filter couldn't hold", async () => {
@@ -221,24 +221,24 @@ describe("importLibrary", () => {
     expect(saved.shelves.map((s) => s.name).sort()).toEqual(["Kept", "Padded"]);
   });
 
-  it("materializes history from timesRead when the export predates `reads`", async () => {
+  it("materializes history from timesCompleted when the export predates `reads`", async () => {
     // Old exports carry only a count. Three reads = the current pass plus two
-    // archived ones, so timesRead stays consistent with the rows created.
-    await importLibrary(userId, payload([game({ timesRead: 3, reads: [] })]));
+    // archived ones, so timesCompleted stays consistent with the rows created.
+    await importLibrary(userId, payload([game({ timesCompleted: 3, playthroughs: [] })]));
 
     const saved = await prisma.game.findFirstOrThrow({
       where: { userId },
-      include: { reads: true },
+      include: { playthroughs: true },
     });
-    expect(saved.reads).toHaveLength(2);
-    expect(saved.timesRead).toBe(3);
+    expect(saved.playthroughs).toHaveLength(2);
+    expect(saved.timesCompleted).toBe(3);
   });
 
   it("upserts reading goals", async () => {
-    await prisma.readingGoal.create({ data: { userId, year: 2026, target: 12 } });
-    await importLibrary(userId, payload([], { readingGoals: [{ year: 2026, target: 24 }] }));
+    await prisma.playGoal.create({ data: { userId, year: 2026, target: 12 } });
+    await importLibrary(userId, payload([], { playGoals: [{ year: 2026, target: 24 }] }));
 
-    const goal = await prisma.readingGoal.findFirstOrThrow({ where: { userId, year: 2026 } });
+    const goal = await prisma.playGoal.findFirstOrThrow({ where: { userId, year: 2026 } });
     expect(goal.target).toBe(24);
   });
 
@@ -470,20 +470,20 @@ describe("importLibrary", () => {
     });
   });
 
-  it("restores a status other than READ without inventing history", async () => {
+  it("restores a status other than COMPLETED without inventing history", async () => {
     await importLibrary(
       userId,
-      payload([game({ status: "READING", currentPage: 120, timesRead: 0, rating: null })]),
+      payload([game({ status: "PLAYING", currentPage: 120, timesCompleted: 0, rating: null })]),
     );
 
     const saved = await prisma.game.findFirstOrThrow({
       where: { userId },
-      include: { reads: true },
+      include: { playthroughs: true },
     });
-    expect(saved.status).toBe(ReadingStatus.READING);
+    expect(saved.status).toBe(PlayStatus.PLAYING);
     expect(saved.currentPage).toBe(120);
-    expect(saved.timesRead).toBe(0);
-    expect(saved.reads).toHaveLength(0);
+    expect(saved.timesCompleted).toBe(0);
+    expect(saved.playthroughs).toHaveLength(0);
   });
 });
 

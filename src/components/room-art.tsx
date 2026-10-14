@@ -1,5 +1,5 @@
 /**
- * The pixel art for the reading room (components/reading-room.tsx): the
+ * The pixel art for the reading room (components/game-room.tsx): the
  * house, the bookcases and the furniture, drawn in code as rows of
  * coloured rectangles, one unit per dot.
  *
@@ -7,7 +7,7 @@
  * grids, one character per dot, and turned into rectangles by `grid`.
  * Big, regular things (the house, a bookcase) are built from rectangles
  * directly. Each rectangle names a paint, not a colour: paints are classes
- * (`rp-wood`, …) whose colours live in reading-room.css, so the whole room
+ * (`rp-wood`, …) whose colours live in game-room.css, so the whole room
  * changes between day (light themes) and night (dark themes) in CSS alone.
  */
 

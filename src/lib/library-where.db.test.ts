@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { GameOwnership, PrismaClient, ReadingStatus, type Prisma } from "@prisma/client";
+import { GameOwnership, PrismaClient, PlayStatus, type Prisma } from "@prisma/client";
 import { parseFilters } from "@/lib/library-filters";
 import { resolveGameWhere } from "@/lib/library-where";
 import type { Preferences } from "@/lib/preferences";
@@ -43,11 +43,11 @@ async function titles(
   return rows.map((r) => r.title);
 }
 
-const READ = ReadingStatus.READ;
+const COMPLETED = PlayStatus.COMPLETED;
 
 describe("Finished in", () => {
   it("files a late-night finish in the reader's own year", async () => {
-    await add("New Year's Eve", { status: READ, dateFinished: new Date("2025-12-31T23:30:00Z") });
+    await add("New Year's Eve", { status: COMPLETED, dateFinished: new Date("2025-12-31T23:30:00Z") });
     const oslo = { searchAlsoIn: [], timeZone: "Europe/Oslo" };
     expect(await titles({ finished: "2026" }, oslo)).toEqual(["New Year's Eve"]);
     expect(await titles({ finished: "2025" }, oslo)).toEqual([]);
@@ -55,42 +55,42 @@ describe("Finished in", () => {
   });
 
   it("keeps a date typed into a field on that day everywhere", async () => {
-    await add("Typed", { status: READ, dateFinished: new Date("2026-01-01T00:00:00Z") });
+    await add("Typed", { status: COMPLETED, dateFinished: new Date("2026-01-01T00:00:00Z") });
     const ny = { searchAlsoIn: [], timeZone: "America/New_York" };
     expect(await titles({ finished: "2026" }, ny)).toEqual(["Typed"]);
     expect(await titles({ finished: "2025" }, ny)).toEqual([]);
   });
 
   it("counts re-reads, but not a date left on a game that isn't Read", async () => {
-    const reread = await add("Re-read", { status: ReadingStatus.READING });
-    await prisma.read.create({ data: { gameId: reread.id, dateFinished: new Date("2024-05-01T00:00:00Z") } });
+    const reread = await add("Re-read", { status: PlayStatus.PLAYING });
+    await prisma.playthrough.create({ data: { gameId: reread.id, dateFinished: new Date("2024-05-01T00:00:00Z") } });
     // Near New Year too, so the edge lookup has to find it.
-    const late = await add("Late re-read", { status: ReadingStatus.WANT_TO_READ });
-    await prisma.read.create({ data: { gameId: late.id, dateFinished: new Date("2024-12-31T20:00:00Z") } });
-    await add("Stale", { status: ReadingStatus.WANT_TO_READ, dateFinished: new Date("2024-05-01T00:00:00Z") });
-    await add("Mid-year", { status: READ, dateFinished: new Date("2024-07-14T18:00:00Z") });
+    const late = await add("Late re-read", { status: PlayStatus.WANT_TO_PLAY });
+    await prisma.playthrough.create({ data: { gameId: late.id, dateFinished: new Date("2024-12-31T20:00:00Z") } });
+    await add("Stale", { status: PlayStatus.WANT_TO_PLAY, dateFinished: new Date("2024-05-01T00:00:00Z") });
+    await add("Mid-year", { status: COMPLETED, dateFinished: new Date("2024-07-14T18:00:00Z") });
 
     expect(await titles({ finished: "2024" })).toEqual(["Late re-read", "Mid-year", "Re-read"]);
     // On the Currently Reading tab, the archived pass still counts.
-    expect(await titles({ finished: "2024", shelf: "READING" })).toEqual(["Re-read"]);
+    expect(await titles({ finished: "2024", shelf: "PLAYING" })).toEqual(["Re-read"]);
   });
 
   it("never finds another reader's games", async () => {
-    await add("Theirs", { status: READ, dateFinished: new Date("2024-01-01T02:00:00Z") }, otherUserId);
+    await add("Theirs", { status: COMPLETED, dateFinished: new Date("2024-01-01T02:00:00Z") }, otherUserId);
     const theirs = await add("Their re-read", {}, otherUserId);
-    await prisma.read.create({ data: { gameId: theirs.id, dateFinished: new Date("2024-12-31T23:00:00Z") } });
+    await prisma.playthrough.create({ data: { gameId: theirs.id, dateFinished: new Date("2024-12-31T23:00:00Z") } });
     expect(await titles({ finished: "2024" })).toEqual([]);
   });
 });
 
 describe("tags, author, rating and missing details", () => {
   beforeEach(async () => {
-    await add("Fantasy classic", { tags: ["fantasy", "classic"], status: READ, rating: 8 });
-    await add("Just fantasy", { tags: ["fantasy"], status: READ });
-    await add("Horror", { tags: ["horror"], status: ReadingStatus.WANT_TO_READ });
+    await add("Fantasy classic", { tags: ["fantasy", "classic"], status: COMPLETED, rating: 8 });
+    await add("Just fantasy", { tags: ["fantasy"], status: COMPLETED });
+    await add("Horror", { tags: ["horror"], status: PlayStatus.WANT_TO_PLAY });
     await add("Untagged", {
       authors: ["Ursula K. Le Guin"],
-      status: ReadingStatus.DNF,
+      status: PlayStatus.DROPPED,
       coverUrl: "",
       pageCount: 0,
       isbn: "",
@@ -112,7 +112,7 @@ describe("tags, author, rating and missing details", () => {
 
   it("lists unrated games that aren't on Want to Read, keeping the tab", async () => {
     expect(await titles({ minRating: "unrated" })).toEqual(["Just fantasy", "Untagged"]);
-    expect(await titles({ minRating: "unrated", shelf: "READ" })).toEqual(["Just fantasy"]);
+    expect(await titles({ minRating: "unrated", shelf: "COMPLETED" })).toEqual(["Just fantasy"]);
   });
 
   it("finds games missing a detail, empty or zero counting as missing", async () => {

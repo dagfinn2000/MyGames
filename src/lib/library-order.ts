@@ -1,4 +1,4 @@
-import { ReadingStatus } from "@prisma/client";
+import { PlayStatus } from "@prisma/client";
 
 /**
  * The reader's own order for shelf chips and saved views, kept in
@@ -45,10 +45,10 @@ export function moveId(ids: readonly string[], id: string, by: -1 | 1): string[]
  * them all reads as hiding none, as it does in Preferences.
  */
 export function statusTabsToShow(
-  hidden: readonly ReadingStatus[],
+  hidden: readonly PlayStatus[],
   current: string,
-): ReadingStatus[] {
-  const all = Object.values(ReadingStatus);
+): PlayStatus[] {
+  const all = Object.values(PlayStatus);
   const shown = all.filter((s) => !hidden.includes(s) || s === current);
   return shown.length > 0 ? shown : all;
 }

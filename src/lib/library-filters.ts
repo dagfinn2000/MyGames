@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
 import { isbnVariants, looksLikeIsbn, normalizeIsbn } from "@/lib/isbn";
 import type { SearchField } from "@/lib/preferences";
 import { searchTerms } from "@/lib/utils";
@@ -11,7 +11,7 @@ import { searchTerms } from "@/lib/utils";
  * lose all but one.
  */
 export interface LibraryFilters {
-  /** The status tab: one ReadingStatus, or "all". */
+  /** The status tab: one PlayStatus, or "all". */
   shelf: string;
   shelfId: string;
   q: string;
@@ -189,7 +189,7 @@ export function buildGameWhere(
   filters: LibraryFilters,
   ctx: WhereContext = {},
 ): Prisma.GameWhereInput {
-  const shelf = Object.values(ReadingStatus).find((s) => s === filters.shelf);
+  const shelf = Object.values(PlayStatus).find((s) => s === filters.shelf);
   const format = Object.values(GameFormat).find((f) => f === filters.format);
   // The URL keeps the `owned` param name so existing bookmarks and shared
   // links still work; its values just grew beyond owned/wishlist.
@@ -225,7 +225,7 @@ export function buildGameWhere(
   if (filters.minRating === "unrated") {
     // Want to Read games are unrated by nature; they'd bury the ones that
     // were read and never rated.
-    and.push({ rating: null }, { status: { not: ReadingStatus.WANT_TO_READ } });
+    and.push({ rating: null }, { status: { not: PlayStatus.WANT_TO_PLAY } });
   }
 
   if (filters.missing === "cover") and.push({ OR: [{ coverUrl: null }, { coverUrl: "" }] });
@@ -240,8 +240,8 @@ export function buildGameWhere(
     const edgeIds = ctx.finishedEdgeIds ?? [];
     and.push({
       OR: [
-        { status: ReadingStatus.READ, dateFinished: sure },
-        { reads: { some: { dateFinished: sure } } },
+        { status: PlayStatus.COMPLETED, dateFinished: sure },
+        { playthroughs: { some: { dateFinished: sure } } },
         ...(edgeIds.length > 0 ? [{ id: { in: edgeIds } }] : []),
       ],
     });

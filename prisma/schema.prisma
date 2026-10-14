@@ -17,11 +17,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum ReadingStatus {
-  WANT_TO_READ
-  READING
-  READ
-  DNF // did not finish
+enum PlayStatus {
+  WANT_TO_PLAY
+  PLAYING
+  COMPLETED
+  DROPPED // did not finish
 }
 
 enum GameFormat {
@@ -76,11 +76,11 @@ model User {
   createdAt    DateTime      @default(now())
   games        Game[]
   shelves      Shelf[]
-  readingGoals ReadingGoal[]
+  playGoals PlayGoal[]
   savedViews   SavedView[]
 }
 
-/// A library view saved under a name ("Unread fantasy"): the filters, sort
+/// A library view saved under a name ("Unplayed fantasy"): the filters, sort
 /// and grouping exactly as they appear in the /games address. Shown as chips
 /// above the library; Preferences can make one the view the library opens on.
 model SavedView {
@@ -104,7 +104,7 @@ enum GoalUnit {
 /// A yearly reading goal ("24 games in 2026", or "8,000 pages"). Progress is
 /// derived from the games finished in that year (see lib/goals.ts); hitting
 /// the target earns a gold medal on the stats page.
-model ReadingGoal {
+model PlayGoal {
   id           String   @id @default(cuid())
   userId       String
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -114,7 +114,7 @@ model ReadingGoal {
   unit         GoalUnit @default(GAMES)
   /// Whether finishing a game again counts. False = only games finished for
   /// the first time that year.
-  countRereads Boolean  @default(true)
+  countReplays Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -166,14 +166,14 @@ model Game {
   openLibraryId String?
 
   // --- personal reading data ---
-  status       ReadingStatus @default(WANT_TO_READ)
+  status       PlayStatus @default(WANT_TO_PLAY)
   /// 1–10 in half-star units: 7 = 3.5 stars. Null = unrated.
   rating       Int?
   review       String?
   dateStarted  DateTime?
   dateFinished DateTime?
-  timesRead    Int           @default(0)
-  /// Where you are in the game right now. Kept for READING and DNF
+  timesCompleted    Int           @default(0)
+  /// Where you are in the game right now. Kept for PLAYING and DROPPED
   /// ("stopped at p. 218"); cleared when the game is finished or reshelved.
   currentPage  Int?
 
@@ -186,7 +186,7 @@ model Game {
   reviewSearchText String @default("")
 
   quotes   Quote[]
-  reads    Read[]
+  playthroughs Playthrough[]
   progress ProgressEntry[]
   loans    Loan[]
 
@@ -209,9 +209,9 @@ model Game {
 
 /// A *past* completed pass through a game. The Game row itself always holds
 /// the latest read (status, dates, rating), so re-reading archives the
-/// previous pass here. `timesRead` on Game is kept in sync as
-/// `reads.count + (status == READ ? 1 : 0)` — see lib/actions/reads.ts.
-model Read {
+/// previous pass here. `timesCompleted` on Game is kept in sync as
+/// `reads.count + (status == COMPLETED ? 1 : 0)` — see lib/actions/playthroughs.ts.
+model Playthrough {
   id     String @id @default(cuid())
   gameId String
   game   Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
@@ -240,7 +240,7 @@ model Read {
 /// which is what makes anchors work: the upgrade migration seeds mid-read
 /// games with their current position, and each new reading pass starts with
 /// a page-0 anchor at the pass start (see logProgress in lib/actions/games.ts
-/// and readAgain in lib/actions/reads.ts; the latest page-0 entry is the
+/// and playAgain in lib/actions/playthroughs.ts; the latest page-0 entry is the
 /// pass boundary — see currentPassEntries in lib/progress.ts).
 model ProgressEntry {
   id     String @id @default(cuid())

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { GameFormat, ReadingStatus } from "@prisma/client";
+import { GameFormat, PlayStatus } from "@prisma/client";
 import {
   DAY_MS,
   chartPaceText,
   forecast,
-  nowReadingPaceText,
+  nowPlayingPaceText,
   paceAmount,
   pagesPerDay,
 } from "@/lib/pace";
@@ -122,61 +122,61 @@ describe("chartPaceText", () => {
 
   it("gives the pace and finish date while reading", () => {
     expect(
-      chartPaceText({ status: ReadingStatus.READING, pass, info: pages(600), from: "read", now, prefs }),
+      chartPaceText({ status: PlayStatus.PLAYING, pass, info: pages(600), from: "read", now, prefs }),
     ).toBe("about 30 pages a day · on pace to finish 21 Oct 2026");
   });
 
   it("names the window and says when nothing was read in it", () => {
-    const text = chartPaceText({ status: ReadingStatus.READING, pass, info: pages(600), from: "7d", now, prefs });
+    const text = chartPaceText({ status: PlayStatus.PLAYING, pass, info: pages(600), from: "7d", now, prefs });
     expect(text).toMatch(/^about 43 pages a day, last 7 days · on pace to finish /);
     const old = [p(0, "2026-08-01T10:00:00Z"), p(100, "2026-08-10T10:00:00Z")];
     expect(
-      chartPaceText({ status: ReadingStatus.READING, pass: old, info: pages(600), from: "7d", now, prefs }),
+      chartPaceText({ status: PlayStatus.PLAYING, pass: old, info: pages(600), from: "7d", now, prefs }),
     ).toBe("No reading in the last 7 days");
   });
 
   it("says more than a year rather than nothing", () => {
     const slow = [p(0, "2026-01-01T10:00:00Z"), p(10, "2026-10-11T10:00:00Z")];
     expect(
-      chartPaceText({ status: ReadingStatus.READING, pass: slow, info: pages(900), from: "read", now, prefs }),
+      chartPaceText({ status: PlayStatus.PLAYING, pass: slow, info: pages(900), from: "read", now, prefs }),
     ).toBe("about 0.1 pages a day · more than a year to go at this pace");
   });
 
   it("leaves out the forecast without a page count", () => {
     expect(
-      chartPaceText({ status: ReadingStatus.READING, pass, info: pages(null), from: "read", now, prefs }),
+      chartPaceText({ status: PlayStatus.PLAYING, pass, info: pages(null), from: "read", now, prefs }),
     ).toBe("about 30 pages a day");
   });
 
   it("always uses the whole read for a finished game", () => {
     expect(
-      chartPaceText({ status: ReadingStatus.READ, pass, info: pages(300), from: "7d", now, prefs }),
+      chartPaceText({ status: PlayStatus.COMPLETED, pass, info: pages(300), from: "7d", now, prefs }),
     ).toBe("about 30 pages a day over 10 days");
     const oneDay = [p(0, "2026-10-11T08:00:00Z"), p(300, "2026-10-11T20:00:00Z")];
     expect(
-      chartPaceText({ status: ReadingStatus.READ, pass: oneDay, info: pages(300), from: "read", now, prefs }),
+      chartPaceText({ status: PlayStatus.COMPLETED, pass: oneDay, info: pages(300), from: "read", now, prefs }),
     ).toBe("about 300 pages a day over 1 day");
   });
 });
 
-describe("nowReadingPaceText", () => {
+describe("nowPlayingPaceText", () => {
   it("counts the days left", () => {
     const pass = [p(0, "2026-10-01T10:00:00Z"), p(300, "2026-10-11T10:00:00Z")];
-    expect(nowReadingPaceText({ pass, info: pages(630), from: "read", now, prefs })).toBe(
+    expect(nowPlayingPaceText({ pass, info: pages(630), from: "read", now, prefs })).toBe(
       "about 30 pages a day · 11 days left",
     );
-    expect(nowReadingPaceText({ pass, info: pages(320), from: "read", now, prefs })).toBe(
+    expect(nowPlayingPaceText({ pass, info: pages(320), from: "read", now, prefs })).toBe(
       "about 30 pages a day · 1 day left",
     );
   });
 
   it("says over a year, and asks for entries when there's no pace", () => {
     const slow = [p(0, "2026-01-01T10:00:00Z"), p(10, "2026-10-11T10:00:00Z")];
-    expect(nowReadingPaceText({ pass: slow, info: pages(900), from: "read", now, prefs })).toBe(
+    expect(nowPlayingPaceText({ pass: slow, info: pages(900), from: "read", now, prefs })).toBe(
       "about 0.1 pages a day · over a year left",
     );
     expect(
-      nowReadingPaceText({ pass: [p(0, "2026-10-11T10:00:00Z")], info: pages(300), from: "read", now, prefs }),
+      nowPlayingPaceText({ pass: [p(0, "2026-10-11T10:00:00Z")], info: pages(300), from: "read", now, prefs }),
     ).toBe("No pace yet. Log a page or two.");
   });
 });

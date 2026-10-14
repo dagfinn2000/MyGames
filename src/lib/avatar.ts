@@ -1,7 +1,7 @@
 /**
  * The reader's avatar in the reading room (Decorate › Avatar on the Room
  * page): how they look. Kept free of React so Preferences can check the
- * choices. components/avatar-art.ts draws them, and reading-room.tsx has
+ * choices. components/avatar-art.ts draws them, and game-room.tsx has
  * them walk about the house, or sit in the armchair with the game they're
  * reading.
  */

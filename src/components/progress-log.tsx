@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import type { GameFormat, ProgressEntry } from "@prisma/client";
-import { ReadingStatus } from "@prisma/client";
+import { PlayStatus } from "@prisma/client";
 import { Pencil, Trash2, X } from "lucide-react";
 import { deleteProgressEntry, updateProgressEntry } from "@/lib/actions/progress";
 import { calendarDay, dayKey } from "@/lib/dates";
@@ -16,7 +16,7 @@ import {
   unitFor,
   type UnitInfo,
 } from "@/lib/progress-units";
-import { subjectDay } from "@/lib/reading-log";
+import { subjectDay } from "@/lib/play-log";
 import { usePreferences } from "@/components/preferences-provider";
 import { ProgressField, ProgressNotes, unitLabel } from "@/components/progress-input";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,7 @@ export function ProgressChart({
   info,
 }: {
   entries: Pick<ProgressEntry, "page" | "date">[];
-  status: ReadingStatus;
+  status: PlayStatus;
   info: UnitInfo;
 }) {
   const prefs = usePreferences();
@@ -99,7 +99,7 @@ export function ProgressChart({
 /** What the log needs to know about its game. */
 export interface LogGame {
   id: string;
-  status: ReadingStatus;
+  status: PlayStatus;
   format: GameFormat;
   pageCount: number | null;
   lengthMinutes: number | null;

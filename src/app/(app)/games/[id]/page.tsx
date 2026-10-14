@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ReadingStatus } from "@prisma/client";
+import { PlayStatus } from "@prisma/client";
 import { Library, Pencil, Repeat } from "lucide-react";
 import { GameFormat } from "@prisma/client";
 import { auth } from "@/auth";
@@ -29,8 +29,8 @@ import { FindItAt } from "@/components/find-it-at";
 import { QuotesCard } from "@/components/quotes-card";
 import { LendingCard } from "@/components/lending-card";
 import { showsLendingCard } from "@/lib/loans";
-import { ReadHistoryCard } from "@/components/read-history-card";
-import { ReadingCard } from "@/components/reading-card";
+import { PlaythroughHistoryCard } from "@/components/playthrough-history-card";
+import { PlayingCard } from "@/components/playing-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -69,7 +69,7 @@ export default async function GameDetailPage({
         orderBy: [{ page: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
       },
       // Oldest pass first; undated reads are presumed oldest.
-      reads: {
+      playthroughs: {
         orderBy: [
           { dateFinished: { sort: "asc", nulls: "first" } },
           { createdAt: "asc" },
@@ -120,8 +120,8 @@ export default async function GameDetailPage({
         memberIds={game.shelves.map((s) => s.id)}
       />
     ),
-    reading: <ReadingCard game={game} progress={game.progress} />,
-    history: <ReadHistoryCard game={game} reads={game.reads} />,
+    reading: <PlayingCard game={game} progress={game.progress} />,
+    history: <PlaythroughHistoryCard game={game} playthroughs={game.playthroughs} />,
     // A wishlist copy with no loan history has nothing to show.
     lending: showsLendingCard(game.ownership, game.loans.length) ? (
       <LendingCard gameId={game.id} ownership={game.ownership} loans={game.loans} />
@@ -129,8 +129,8 @@ export default async function GameDetailPage({
     quotes: <QuotesCard gameId={game.id} quotes={game.quotes} />,
   };
   const arranged = arrangeGameCards(prefs, {
-    reading: game.status === ReadingStatus.READING || !!game.review?.trim(),
-    history: game.reads.length > 0,
+    reading: game.status === PlayStatus.PLAYING || !!game.review?.trim(),
+    history: game.playthroughs.length > 0,
     lending: game.loans.some((l) => l.returnedAt === null),
     quotes: game.quotes.length > 0,
   });
@@ -196,10 +196,10 @@ export default async function GameDetailPage({
             <Badge variant="outline">
               {OWNERSHIP_BADGE_LABELS[game.ownership]}
             </Badge>
-            {game.timesRead > 1 && (
+            {game.timesCompleted > 1 && (
               <Badge variant="outline">
                 <Repeat data-slot="icon" className="size-3" />
-                Read {game.timesRead}×
+                Read {game.timesCompleted}×
               </Badge>
             )}
             {game.tags.map((tag) =>

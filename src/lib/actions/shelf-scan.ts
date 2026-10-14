@@ -13,7 +13,7 @@ import { isbnVariants, looksLikeIsbn, normalizeIsbn } from "@/lib/isbn";
 import { findGameByIsbn, findGameByTitle } from "@/lib/library-match";
 import { CataloguesUnreachableError, getGameDetails, searchGames } from "@/lib/metadata";
 import { METADATA_LOOKUPS_PER_MINUTE } from "@/lib/rate-limit";
-import { settleReadingState } from "@/lib/reading-state";
+import { settlePlayState } from "@/lib/play-state";
 import { tagImportFor } from "@/lib/user-tags";
 import { buildSearchText } from "@/lib/utils";
 import { gameSchema, isAllowedCoverUrl } from "@/lib/validation";
@@ -128,12 +128,12 @@ export async function scanAddGame(
   if (!game.success) return answer({ kind: "error", message: "Couldn't add this game" });
   const data = game.data;
 
-  const reading = settleReadingState(
+  const reading = settlePlayState(
     null,
     { status: prefs.newGameStatus, dateStarted: null, dateFinished: null, currentPage: null },
     0,
     new Date(),
-    { undatedFinish: prefs.addedAsReadFinished === "undated" },
+    { undatedFinish: prefs.addedAsCompletedFinished === "undated" },
   );
 
   const created = await prisma.game.create({
@@ -153,7 +153,7 @@ export async function scanAddGame(
       status: reading.status,
       dateStarted: reading.dateStarted,
       dateFinished: reading.dateFinished,
-      timesRead: reading.timesRead,
+      timesCompleted: reading.timesCompleted,
       searchText: buildSearchText(data.title, data.authors),
     },
     select: { id: true, title: true, authors: true, coverUrl: true },

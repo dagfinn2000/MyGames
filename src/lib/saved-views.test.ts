@@ -4,8 +4,8 @@ import { canonicalViewQuery, canonicalViewQueryFromString } from "@/lib/saved-vi
 describe("canonicalViewQuery", () => {
   it("keeps filters in a fixed order with the view last", () => {
     expect(
-      canonicalViewQuery({ sort: "title", tag: "fantasy", shelf: "READ", dir: "asc" }),
-    ).toBe("shelf=READ&tag=fantasy&group=none&sort=title&dir=asc");
+      canonicalViewQuery({ sort: "title", tag: "fantasy", shelf: "COMPLETED", dir: "asc" }),
+    ).toBe("shelf=COMPLETED&tag=fantasy&group=none&sort=title&dir=asc");
   });
 
   it("leaves out defaults and parameters the library doesn't know", () => {

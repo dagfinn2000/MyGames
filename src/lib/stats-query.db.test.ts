@@ -20,17 +20,17 @@ const at = (iso: string) => new Date(iso);
 
 const games = [
   // A normal run, with times that fall on different days east and west.
-  { id: "sq-a", status: "READ" as const, dateStarted: null },
+  { id: "sq-a", status: "COMPLETED" as const, dateStarted: null },
   // Overlapping days with a backwards correction.
-  { id: "sq-b", status: "READING" as const, dateStarted: null },
+  { id: "sq-b", status: "PLAYING" as const, dateStarted: null },
   // A lone entry: credits nothing.
-  { id: "sq-c", status: "READING" as const, dateStarted: null },
+  { id: "sq-c", status: "PLAYING" as const, dateStarted: null },
   // Read, then read again from a page-0 anchor on the same day.
-  { id: "sq-d", status: "READING" as const, dateStarted: at("2026-03-02T21:00:00Z") },
+  { id: "sq-d", status: "PLAYING" as const, dateStarted: at("2026-03-02T21:00:00Z") },
   // No anchor: the current pass starts at the start date.
-  { id: "sq-f", status: "READING" as const, dateStarted: at("2026-04-10T00:00:00Z") },
+  { id: "sq-f", status: "PLAYING" as const, dateStarted: at("2026-04-10T00:00:00Z") },
   // Stopped.
-  { id: "sq-e", status: "DNF" as const, dateStarted: null },
+  { id: "sq-e", status: "DROPPED" as const, dateStarted: null },
 ];
 
 const entries: { gameId: string; page: number; date: Date }[] = [
@@ -78,11 +78,11 @@ beforeAll(async () => {
     });
   }
   await prisma.progressEntry.createMany({ data: entries });
-  await prisma.read.create({ data: { gameId: "sq-a", dateFinished: at("2025-05-01T00:00:00Z") } });
+  await prisma.playthrough.create({ data: { gameId: "sq-a", dateFinished: at("2025-05-01T00:00:00Z") } });
 
   // Someone else's reading, which must never show up.
   await prisma.game.create({
-    data: { id: "sq-other", userId: OTHER, title: "theirs", searchText: "theirs", status: "DNF" },
+    data: { id: "sq-other", userId: OTHER, title: "theirs", searchText: "theirs", status: "DROPPED" },
   });
   await prisma.progressEntry.createMany({
     data: [
@@ -90,7 +90,7 @@ beforeAll(async () => {
       { gameId: "sq-other", page: 500, date: at("2026-03-02T20:00:00Z") },
     ],
   });
-  await prisma.read.create({ data: { gameId: "sq-other", dateFinished: at("2025-01-01T00:00:00Z") } });
+  await prisma.playthrough.create({ data: { gameId: "sq-other", dateFinished: at("2025-01-01T00:00:00Z") } });
 });
 
 afterAll(async () => {
@@ -171,7 +171,7 @@ describe("loadStatsInputs", () => {
   it("loads only the reader's games and reads", async () => {
     const inputs = await loadStatsInputs(USER, "UTC");
     expect(inputs.games.map((b) => b.id).sort()).toEqual(games.map((b) => b.id).sort());
-    expect(inputs.reads).toEqual([
+    expect(inputs.playthroughs).toEqual([
       { gameId: "sq-a", dateStarted: null, dateFinished: at("2025-05-01T00:00:00Z"), rating: null },
     ]);
     expect(inputs.logDays.some((r) => r.gameId === "sq-other")).toBe(false);

@@ -58,7 +58,7 @@ export const editEntrySchema = z.object({
   value: typedValue,
 });
 
-export const moveTargetSchema = z.enum(["READ", "DNF"]);
+export const moveTargetSchema = z.enum(["COMPLETED", "DROPPED"]);
 
 /**
  * What the client hands back to undo Finished or Stopped. It only names the

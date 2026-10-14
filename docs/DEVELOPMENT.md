@@ -87,11 +87,11 @@ src/
 │                      library check, cover upload and serving,
 │                      backup export and import
 ├─ components/         UI components (shadcn/ui primitives in components/ui);
-│                      reading-room.tsx, room-art.tsx, room-shells.ts,
+│                      game-room.tsx, room-art.tsx, room-shells.ts,
 │                      room-rooms.tsx (the added rooms' furniture) and
 │                      room-extras.tsx (the furniture catalogue) draw the
 │                      reading room, with its colours in
-│                      reading-room.css; room-view.tsx is its Decorate panel;
+│                      game-room.css; room-view.tsx is its Decorate panel;
 │                      avatar-art.ts draws the reader's avatar,
 │                      room-avatar.tsx walks it about and avatar-maker.tsx
 │                      is its maker
@@ -133,7 +133,7 @@ src/
 - **Reading data lives on the Game row.** Each game belongs to one user, so
   a separate "reading entry" table would add nothing. The Game row holds the
   latest read; earlier reads are archived in the `Read` table, and
-  `timesRead` is worked out from both.
+  `timesCompleted` is worked out from both.
 - **Ratings are stored as whole numbers from 1 to 10**, in half stars. `7`
   shows as 3.5 stars, or as 7/10 for someone who rates out of 10. Changing
   the rating style only changes how ratings look and are entered, never the
@@ -173,7 +173,7 @@ src/
 - **The reading room is drawn in code**, with no image files. Its pixel art
   is rectangles ([room-art.tsx](../src/components/room-art.tsx)), each
   naming a paint whose colour lives in
-  [reading-room.css](../src/components/reading-room.css), which has a day
+  [game-room.css](../src/components/game-room.css), which has a day
   palette for light themes and a night one for dark themes. Spine colours
   are read from the covers in the browser as each floor scrolls into view,
   and kept in localStorage by cover address, which changes whenever the
@@ -205,7 +205,7 @@ src/
   off.
 - **Typed dates and moments are read differently.** A date typed into a date
   field is stored as midnight UTC and means that day everywhere. Anything
-  else, like "finished today" or a reading-log entry, is a moment, and
+  else, like "finished today" or a play-log entry, is a moment, and
   counts on the day it was in the reader's time zone. `calendarDay` in
   [dates.ts](../src/lib/dates.ts) applies the rule. The time zone is taken
   from the browser on the first visit and can be changed in Preferences.

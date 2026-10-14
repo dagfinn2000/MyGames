@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { GameFormat, GameOwnership, PrismaClient, ReadingStatus, type Prisma } from "@prisma/client";
+import { GameFormat, GameOwnership, PrismaClient, PlayStatus, type Prisma } from "@prisma/client";
 import type { GameDetails, GameMetadata } from "@/lib/metadata/types";
 
 /**
@@ -106,7 +106,7 @@ describe("scanAddGame", () => {
     await setPrefs({
       newGameFormat: "EBOOK",
       newGameOwnership: "WISHLIST",
-      newGameStatus: "WANT_TO_READ",
+      newGameStatus: "WANT_TO_PLAY",
     });
     const res = await scanAddGame(SCANNED);
 
@@ -119,7 +119,7 @@ describe("scanAddGame", () => {
       isbn: SCANNED,
       format: GameFormat.EBOOK,
       ownership: GameOwnership.WISHLIST,
-      status: ReadingStatus.WANT_TO_READ,
+      status: PlayStatus.WANT_TO_PLAY,
       pageCount: 310,
       openLibraryId: "OL27482W",
       searchText: "the hobbit j.r.r. tolkien",
@@ -143,14 +143,14 @@ describe("scanAddGame", () => {
   });
 
   it("follows the finish-date preference for a game added as Read", async () => {
-    await setPrefs({ newGameStatus: "READ", addedAsReadFinished: "undated" });
+    await setPrefs({ newGameStatus: "COMPLETED", addedAsCompletedFinished: "undated" });
     await scanAddGame(SCANNED);
     let game = await prisma.game.findFirstOrThrow({ where: { userId } });
     expect(game.dateFinished).toBeNull();
-    expect(game.timesRead).toBe(1);
+    expect(game.timesCompleted).toBe(1);
 
     await prisma.game.deleteMany({ where: { userId } });
-    await setPrefs({ newGameStatus: "READ", addedAsReadFinished: "today" });
+    await setPrefs({ newGameStatus: "COMPLETED", addedAsCompletedFinished: "today" });
     await scanAddGame(SCANNED);
     game = await prisma.game.findFirstOrThrow({ where: { userId } });
     expect(game.dateFinished?.toDateString()).toBe(new Date().toDateString());

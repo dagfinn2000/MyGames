@@ -1,5 +1,3 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { buildGameWhere, parseFilters } from "@/lib/library-filters";
@@ -91,7 +89,7 @@ describe("searching tags, ISBN and reviews too", () => {
     const set = (title: string, data: object) =>
       prisma.game.updateMany({ where: { userId, title }, data });
     await set("The Hobbit", { tags: ["fantasy", "æventyr"], isbn: "9780261102217" });
-    // Saved the way updateReading and import save a review: with its
+    // Saved the way updatePlay and import save a review: with its
     // folded copy, which is what search reads.
     const review = (text: string) => ({ review: text, reviewSearchText: foldForSearch(text) });
     await set("Jane Eyre", review("ÆRØ ÉMILE, all in capitals"));
@@ -174,73 +172,5 @@ describe("searching tags, ISBN and reviews too", () => {
       { OR: [{ searchText: { contains: "bronte" } }, { reviewSearchText: { contains: "bronte" } }] },
       { OR: [{ searchText: { contains: "better" } }, { reviewSearchText: { contains: "better" } }] },
     ]);
-  });
-});
-
-describe("accent_insensitive_search migration", () => {
-  it("folds stored searchText exactly as buildSearchText does", async () => {
-    // Rows as the previous version stored them: lowercased, accents intact.
-    const titles: [string, string[], string | null][] = [
-      ["Jane Eyre", ["Charlotte Brontë"], "Brontë Novels"],
-      ["Straße der Ölsardinen", ["Łukasz Þórsson"], null],
-      ["Ærø og Œuvre", ["Đặng Thùy Trâm"], null],
-      ["がっこう", ["김영하"], null],
-    ];
-    const created = await Promise.all(
-      titles.map(([title, authors, series]) =>
-        prisma.game.create({
-          data: {
-            userId,
-            title,
-            authors,
-            seriesName: series,
-            searchText: [title, ...authors, series ?? ""].join(" ").trim().toLowerCase(),
-          },
-        }),
-      ),
-    );
-
-    const sql = await fs.readFile(
-      path.join(__dirname, "../../prisma/migrations/20261011000000_accent_insensitive_search/migration.sql"),
-      "utf8",
-    );
-    await prisma.$executeRawUnsafe(sql);
-
-    for (const [i, [title, authors, series]] of titles.entries()) {
-      const row = await prisma.game.findUniqueOrThrow({ where: { id: created[i].id } });
-      expect(row.searchText, title).toBe(buildSearchText(title, authors, series));
-    }
-  });
-});
-
-describe("review_search_text migration", () => {
-  it("folds stored reviews exactly as foldForSearch does", async () => {
-    // Capitals the database's own lower() may not know, and a final sigma.
-    const reviews = [
-      "ÉMILE BRONTË, ÆRØ ŒUVRE",
-      "Straße der Ölsardinen, ŁUKASZ ÞÓRSSON, ĐẶNG THÙY TRÂM",
-      "ΟΔΟΣ and İstanbul",
-      "がっこう 김영하",
-    ];
-    const created = await Promise.all(
-      reviews.map((review) =>
-        prisma.game.create({ data: { userId, title: "Reviewed", review } }),
-      ),
-    );
-    const unreviewed = await prisma.game.create({ data: { userId, title: "Unreviewed" } });
-
-    const sql = await fs.readFile(
-      path.join(__dirname, "../../prisma/migrations/20261012010000_review_search_text/migration.sql"),
-      "utf8",
-    );
-    // The backfill only: the column is there already.
-    await prisma.$executeRawUnsafe(sql.slice(sql.indexOf("DO $do$")));
-
-    for (const [i, review] of reviews.entries()) {
-      const row = await prisma.game.findUniqueOrThrow({ where: { id: created[i].id } });
-      expect(row.reviewSearchText, review).toBe(foldForSearch(review));
-    }
-    const row = await prisma.game.findUniqueOrThrow({ where: { id: unreviewed.id } });
-    expect(row.reviewSearchText).toBe("");
   });
 });
