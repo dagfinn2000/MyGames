@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   bestPageCount,
-  catalogueBookValues,
+  catalogueGameValues,
   diffAgainstForm,
   type CatalogueValues,
 } from "@/lib/catalogue-values";
-import type { BookMetadata } from "@/lib/metadata/types";
+import type { GameMetadata } from "@/lib/metadata/types";
 import type { TagImportSettings } from "@/lib/tag-rules";
 
 const all: TagImportSettings = { mode: "all", rules: { renames: [], skips: [] }, knownTags: [] };
 
-function row(over: Partial<BookMetadata> = {}): BookMetadata {
+function row(over: Partial<GameMetadata> = {}): GameMetadata {
   return {
     title: "The Hobbit",
     authors: ["J.R.R. Tolkien"],
@@ -50,29 +50,29 @@ describe("bestPageCount", () => {
   });
 });
 
-describe("catalogueBookValues", () => {
+describe("catalogueGameValues", () => {
   it("falls back to the details' work id for a row without one", () => {
-    const v = catalogueBookValues(row({ source: "nb", openLibraryId: null }), { openLibraryId: "OL1W" }, all);
+    const v = catalogueGameValues(row({ source: "nb", openLibraryId: null }), { openLibraryId: "OL1W" }, all);
     expect(v.openLibraryId).toBe("OL1W");
   });
 
   it("uses the scanned ISBN over the row's", () => {
-    expect(catalogueBookValues(row(), null, all, "978-82-05-53010-2").isbn).toBe("9788205530102");
-    expect(catalogueBookValues(row(), null, all, "hobbit").isbn).toBe("9780261103344");
+    expect(catalogueGameValues(row(), null, all, "978-82-05-53010-2").isbn).toBe("9788205530102");
+    expect(catalogueGameValues(row(), null, all, "hobbit").isbn).toBe("9780261103344");
   });
 
   it("runs the subjects through the tag settings", () => {
-    const v = catalogueBookValues(row({ tags: ["Fantasy"] }), { tags: ["Fiction, General"] }, {
+    const v = catalogueGameValues(row({ tags: ["Fantasy"] }), { tags: ["Fiction, General"] }, {
       ...all,
       rules: { renames: [], skips: ["general"] },
     });
     expect(v.tags).toBe("fantasy, fiction");
-    expect(catalogueBookValues(row({ tags: ["Fantasy"] }), null, { ...all, mode: "off" }).tags).toBe("");
+    expect(catalogueGameValues(row({ tags: ["Fantasy"] }), null, { ...all, mode: "off" }).tags).toBe("");
   });
 });
 
 describe("diffAgainstForm", () => {
-  const catalogue = catalogueBookValues(row({ tags: ["fantasy"] }), { description: "A hobbit." }, all);
+  const catalogue = catalogueGameValues(row({ tags: ["fantasy"] }), { description: "A hobbit." }, all);
 
   it("offers empty fields ticked and different ones unticked", () => {
     const rows = diffAgainstForm(
@@ -107,7 +107,7 @@ describe("diffAgainstForm", () => {
   it("offers only new tags, and the cover and Open Library id only when empty", () => {
     const rows = diffAgainstForm(
       { ...empty, tags: "Classic, fantasy", coverUrl: "/api/covers/a.jpg", openLibraryId: "OL9W" },
-      catalogueBookValues(row({ tags: ["fantasy", "adventure"] }), null, all),
+      catalogueGameValues(row({ tags: ["fantasy", "adventure"] }), null, all),
     );
     const tags = rows.find((r) => r.field === "tags");
     expect(tags).toMatchObject({ value: "adventure", checked: false });

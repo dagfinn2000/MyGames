@@ -1,7 +1,7 @@
 import { coverArt } from "@/lib/cover-art";
 
 /**
- * The colour of a book's spine in the reading room: the main colour of its
+ * The colour of a game's spine in the reading room: the main colour of its
  * cover, as a real spine usually carries on the cover's background.
  *
  * The room draws the cover small on a canvas and hands the pixels here.
@@ -58,7 +58,7 @@ function clampLightness(r: number, g: number, b: number): string {
   return `#${hex(r)}${hex(g)}${hex(b)}`;
 }
 
-/** The spine of a book without a cover image: its drawn cover's colour
+/** The spine of a game without a cover image: its drawn cover's colour
  *  (lib/cover-art.ts), a shade lighter so it reads on a dark shelf. */
 export function drawnSpineColour(title: string): string {
   const art = coverArt(title);

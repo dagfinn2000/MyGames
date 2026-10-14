@@ -1,4 +1,4 @@
-import { BookOwnership } from "@prisma/client";
+import { GameOwnership } from "@prisma/client";
 
 /**
  * Pure lending helpers, kept out of the card component so they're testable —
@@ -6,9 +6,9 @@ import { BookOwnership } from "@prisma/client";
  */
 
 /**
- * How long a book has been out, in words.
+ * How long a game has been out, in words.
  *
- * Floors rather than rounds: a book lent this morning has been out for zero
+ * Floors rather than rounds: a game lent this morning has been out for zero
  * whole days, and rounding turned that into "1 days" by mid-afternoon —
  * wrong on both the count and the grammar.
  */
@@ -23,23 +23,23 @@ export function outFor(lentAt: Date, now: Date): string {
  *  lent out; for the others the card says why not. */
 export type LendingMode = "lendable" | "borrowed" | "given-away" | "wishlist";
 
-export function lendingMode(ownership: BookOwnership): LendingMode {
+export function lendingMode(ownership: GameOwnership): LendingMode {
   switch (ownership) {
-    case BookOwnership.BORROWED:
+    case GameOwnership.BORROWED:
       return "borrowed";
-    case BookOwnership.GIVEN_AWAY:
+    case GameOwnership.GIVEN_AWAY:
       return "given-away";
-    case BookOwnership.WISHLIST:
+    case GameOwnership.WISHLIST:
       return "wishlist";
     default:
       return "lendable";
   }
 }
 
-/** A wishlist book has no copy to lend, so it gets no Lending card, unless
+/** A wishlist game has no copy to lend, so it gets no Lending card, unless
  *  it has loans on record (it was owned once), which must not vanish. */
-export function showsLendingCard(ownership: BookOwnership, loanCount: number): boolean {
-  return ownership !== BookOwnership.WISHLIST || loanCount > 0;
+export function showsLendingCard(ownership: GameOwnership, loanCount: number): boolean {
+  return ownership !== GameOwnership.WISHLIST || loanCount > 0;
 }
 
 /** The card's line while nothing is lent out. */

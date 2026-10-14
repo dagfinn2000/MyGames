@@ -174,14 +174,14 @@ export function ManageShelvesDialog({
       if (res.merged) {
         const count = res.count ?? 0;
         setMessage(
-          `Merged “${shelf.name}” into “${res.name}”: ${formatNumber(count, prefs)} book${count === 1 ? "" : "s"}.`,
+          `Merged “${shelf.name}” into “${res.name}”: ${formatNumber(count, prefs)} game${count === 1 ? "" : "s"}.`,
         );
         removeRow(shelf.id);
       } else {
         setMessage(`Renamed “${shelf.name}” to “${res.name}”.`);
         focusSoon(`[data-rename="${shelf.id}"]`);
       }
-      // The shelf on screen merged away: follow its books.
+      // The shelf on screen merged away: follow its games.
       if (shelf.id === activeShelfId && res.shelfId !== shelf.id) {
         router.replace(shelfHref(res.shelfId));
       } else {
@@ -231,7 +231,7 @@ export function ManageShelvesDialog({
           <DialogTitle>Manage shelves</DialogTitle>
           <DialogDescription>
             Rename, reorder or hide shelves. Renaming a shelf to an existing
-            name merges the two. Hidden shelves still show on book pages.
+            name merges the two. Hidden shelves still show on game pages.
           </DialogDescription>
         </DialogHeader>
 
@@ -242,8 +242,8 @@ export function ManageShelvesDialog({
             <ul className="grid max-h-80 gap-1 overflow-y-auto pr-1">
               {rows.map((shelf, i) => {
                 const isHidden = hidden.includes(shelf.id);
-                const n = shelf.bookCount;
-                const books = `${formatNumber(n, prefs)} book${n === 1 ? "" : "s"}`;
+                const n = shelf.gameCount;
+                const games = `${formatNumber(n, prefs)} game${n === 1 ? "" : "s"}`;
                 return (
                   <li
                     key={shelf.id}
@@ -285,8 +285,8 @@ export function ManageShelvesDialog({
                         <span className="min-w-0 flex-1 basis-40 text-sm">
                           Delete “{shelf.name}”?{" "}
                           {n === 0
-                            ? "It has no books."
-                            : `Its ${books} ${n === 1 ? "stays" : "stay"} in your library.`}
+                            ? "It has no games."
+                            : `Its ${games} ${n === 1 ? "stays" : "stay"} in your library.`}
                         </span>
                         <span className="flex gap-1">
                           <Button
@@ -315,7 +315,7 @@ export function ManageShelvesDialog({
                             {shelf.name}
                           </span>
                           <span className="text-xs text-muted-foreground tabular-nums">
-                            {books}
+                            {games}
                             {isHidden && " · hidden"}
                           </span>
                         </span>

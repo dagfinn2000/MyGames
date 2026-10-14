@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BookFormat, ReadingStatus } from "@prisma/client";
+import { GameFormat, ReadingStatus } from "@prisma/client";
 import {
   DAY_MS,
   chartPaceText,
@@ -15,7 +15,7 @@ const p = (page: number, iso: string) => ({ page, date: new Date(iso) });
 // Noon in Oslo, 12 Oct 2026.
 const now = new Date("2026-10-12T10:00:00Z");
 const pages = (pageCount: number | null) =>
-  unitFor({ format: BookFormat.PHYSICAL, pageCount, lengthMinutes: null }, {
+  unitFor({ format: GameFormat.PHYSICAL, pageCount, lengthMinutes: null }, {
     ebookUnit: "page",
     audiobookUnit: "page",
   });
@@ -102,12 +102,12 @@ describe("paceAmount", () => {
   });
 
   it("speaks percent and time", () => {
-    const ebook = unitFor({ format: BookFormat.EBOOK, pageCount: 389, lengthMinutes: null }, {
+    const ebook = unitFor({ format: GameFormat.EBOOK, pageCount: 389, lengthMinutes: null }, {
       ebookUnit: "percent",
       audiobookUnit: "page",
     });
     expect(paceAmount(23, ebook)).toBe("about 5.9% a day");
-    const audio = unitFor({ format: BookFormat.AUDIOBOOK, pageCount: 476, lengthMinutes: 970 }, {
+    const audio = unitFor({ format: GameFormat.AUDIOBOOK, pageCount: 476, lengthMinutes: 970 }, {
       ebookUnit: "page",
       audiobookUnit: "time",
     });
@@ -148,7 +148,7 @@ describe("chartPaceText", () => {
     ).toBe("about 30 pages a day");
   });
 
-  it("always uses the whole read for a finished book", () => {
+  it("always uses the whole read for a finished game", () => {
     expect(
       chartPaceText({ status: ReadingStatus.READ, pass, info: pages(300), from: "7d", now, prefs }),
     ).toBe("about 30 pages a day over 10 days");

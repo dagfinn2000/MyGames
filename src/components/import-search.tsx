@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BookOpen, Loader2 } from "lucide-react";
-import { catalogueBookValues } from "@/lib/catalogue-values";
+import { catalogueGameValues } from "@/lib/catalogue-values";
 import { looksLikeIsbn } from "@/lib/isbn";
-import { SOURCE_LABELS, type BookDetails, type BookMetadata } from "@/lib/metadata/types";
+import { SOURCE_LABELS, type GameDetails, type GameMetadata } from "@/lib/metadata/types";
 import type { TagImportSettings } from "@/lib/tag-rules";
-import type { BookFormValues } from "@/components/book-form";
+import type { GameFormValues } from "@/components/game-form";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 import { NEWEST_FIRST_HREF, type ShelfScan } from "@/components/shelf-scan";
 import { Input } from "@/components/ui/input";
@@ -30,12 +30,12 @@ const IMPORT_ALL_TAGS: TagImportSettings = {
 
 /**
  * Search-as-you-type against /api/metadata/search (Open Library, with
- * optional Google Books fallback server-side). Picking a result fetches the
+ * optional Google Games fallback server-side). Picking a result fetches the
  * lazy details (description, subjects) and hands a prefilled form-value
  * object to the parent, which switches to the review form.
  *
  * With `shelfScan`, the barcode scanner also offers "Keep scanning",
- * which adds each scanned book straight away (components/shelf-scan.tsx).
+ * which adds each scanned game straight away (components/shelf-scan.tsx).
  * The session is the parent's, so codes still in line when this unmounts
  * (Manual entry, a picked result) are looked up and added all the same.
  */
@@ -48,11 +48,11 @@ export function ImportSearch({
 }: {
   /** `scanned`: the pick came from the barcode scanner, so adding another
    *  can open the camera again. */
-  onPick: (values: BookFormValues, how: { scanned: boolean }) => void;
+  onPick: (values: GameFormValues, how: { scanned: boolean }) => void;
   /** Seeds the search box (e.g. an ISBN from the check page) and auto-picks
    *  a single match, exactly like a barcode scan. */
   initialQuery?: string;
-  /** How catalogue subjects become tags (Preferences, New books). */
+  /** How catalogue subjects become tags (Preferences, New games). */
   tagImport?: TagImportSettings;
   openScannerOnMount?: boolean;
   /** The page's shelf-scan session, and "Add by hand" for a scanned code
@@ -69,7 +69,7 @@ export function ImportSearch({
   // answer as "they have nothing by that name".
   const [answer, setAnswer] = useState<{
     query: string;
-    list: BookMetadata[];
+    list: GameMetadata[];
     failed?: boolean;
   } | null>(null);
   const [pickingId, setPickingId] = useState<string | null>(null);
@@ -82,7 +82,7 @@ export function ImportSearch({
   const scannedRef = useRef(false);
   // The parent's callback and settings, read when a pick lands. Kept out of
   // `pick`'s dependencies: they change identity whenever the page re-renders
-  // (after a book is added, say), and `pick` changing would rerun the search
+  // (after a game is added, say), and `pick` changing would rerun the search
   // effect, aborting the search in flight and spending another lookup.
   const latest = useRef({ onPick, tagImport });
   useEffect(() => {
@@ -108,13 +108,13 @@ export function ImportSearch({
   /** Fetch description/subjects for the chosen result, then prefill.
    *  Stable across renders (it reads the parent's callback through a ref),
    *  so the search effect can depend on it honestly instead of omitting it.
-   *  `searched` is the query: an ISBN there is the book in hand, and beats
+   *  `searched` is the query: an ISBN there is the game in hand, and beats
    *  whatever edition's ISBN the row carries (an Open Library row's can be
    *  any edition of the work). */
-  const pick = useCallback(async (result: BookMetadata, key: string, searched: string) => {
+  const pick = useCallback(async (result: GameMetadata, key: string, searched: string) => {
     setPickingId(key);
     const scannedIsbn = looksLikeIsbn(searched) ? searched : undefined;
-    let details: Partial<BookDetails> | null = null;
+    let details: Partial<GameDetails> | null = null;
     try {
       const params = new URLSearchParams();
       if (result.openLibraryId) params.set("olid", result.openLibraryId);
@@ -134,7 +134,7 @@ export function ImportSearch({
     const scanned = scannedRef.current;
     scannedRef.current = false;
     latest.current.onPick(
-      catalogueBookValues(result, details, latest.current.tagImport, scannedIsbn),
+      catalogueGameValues(result, details, latest.current.tagImport, scannedIsbn),
       { scanned },
     );
     setPickingId(null);
@@ -157,7 +157,7 @@ export function ImportSearch({
           { signal: controller.signal },
         );
         const data = await res.json();
-        const list: BookMetadata[] = data.results ?? [];
+        const list: GameMetadata[] = data.results ?? [];
         // 502: no catalogue answered. Other errors (a spent lookup budget)
         // also mean "couldn't search", not "nothing found".
         setAnswer({ query: trimmed, list, failed: !res.ok });
@@ -217,8 +217,8 @@ export function ImportSearch({
       {!searching && longEnough && results.length === 0 && (
         <p className="text-sm text-muted-foreground">
           {failed
-            ? "Couldn't reach the book catalogues. Try again in a moment, or add the book manually."
-            : "No results. You can still add the book manually."}
+            ? "Couldn't reach the game catalogues. Try again in a moment, or add the game manually."
+            : "No results. You can still add the game manually."}
         </p>
       )}
 

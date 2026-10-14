@@ -21,5 +21,5 @@ export async function saveLibraryView(patch: Partial<Record<keyof LibraryView, u
     UPDATE "User"
     SET "libraryView" = COALESCE("libraryView", '{}'::jsonb) || ${JSON.stringify(clean)}::jsonb
     WHERE "id" = ${userId}`;
-  revalidatePath("/books");
+  revalidatePath("/games");
 }

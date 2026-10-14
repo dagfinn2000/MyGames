@@ -10,17 +10,17 @@ import { QUOTE_ORDERS, type Preferences, type QuoteOrder } from "@/lib/preferenc
 /** The fields the orders read; the page's key query satisfies this. */
 export interface OrderableQuote {
   id: string;
-  bookId: string;
+  gameId: string;
   page: number | null;
   createdAt: Date;
-  book: { title: string; authors: string[] };
+  game: { title: string; authors: string[] };
 }
 
 /** The quotes page's state, as it appears in the URL. */
 export interface QuotesParams {
   q: string;
   order: QuoteOrder;
-  /** Group by book. */
+  /** Group by game. */
   group: boolean;
   /** Pins a shuffle, so a re-render or Show more keeps the same order. */
   seed: number | null;
@@ -30,7 +30,7 @@ export interface QuotesParams {
 }
 
 export interface QuoteGroup<T> {
-  bookId: string;
+  gameId: string;
   quotes: T[];
 }
 
@@ -52,7 +52,7 @@ function param(v: string | string[] | undefined): string {
  *  picked last. */
 export function parseQuotesParams(
   sp: Record<string, string | string[] | undefined>,
-  prefs: Pick<Preferences, "quotesOrder" | "quotesGroupByBook">,
+  prefs: Pick<Preferences, "quotesOrder" | "quotesGroupByGame">,
 ): QuotesParams {
   const order = param(sp.order);
   const group = param(sp.group);
@@ -65,7 +65,7 @@ export function parseQuotesParams(
     order: (QUOTE_ORDERS as readonly string[]).includes(order)
       ? (order as QuoteOrder)
       : prefs.quotesOrder,
-    group: group === "book" ? true : group === "none" ? false : prefs.quotesGroupByBook,
+    group: group === "game" ? true : group === "none" ? false : prefs.quotesGroupByGame,
     seed: seed >= 1 && seed <= SEED_MAX ? seed : null,
     tag: tag.length <= 200 ? tag : "",
     shelfId: /^[a-z0-9]{1,40}$/i.test(shelfId) ? shelfId : "",
@@ -87,7 +87,7 @@ export function quotesHref(
   if (p.shelfId) params.set("shelfId", p.shelfId);
   else if (p.tag) params.set("tag", p.tag);
   params.set("order", p.order);
-  params.set("group", p.group ? "book" : "none");
+  params.set("group", p.group ? "game" : "none");
   if (p.order === "shuffle" && p.seed) params.set("seed", String(p.seed));
   if (p.limit && p.limit > QUOTES_PAGE_SIZE) params.set("limit", String(p.limit));
   return `/quotes?${params}`;
@@ -134,7 +134,7 @@ export function seededShuffle<T>(items: readonly T[], seed: number, keyOf: (item
     .map((x) => x.item);
 }
 
-/** A book's quotes in page order, the way its book page lists them: page
+/** A game's quotes in page order, the way its game page lists them: page
  *  ascending with unpaged ones last, then oldest first. */
 export function comparePageOrder(
   a: Pick<OrderableQuote, "id" | "page" | "createdAt">,
@@ -157,9 +157,9 @@ function oldestFirst(a: OrderableQuote, b: OrderableQuote): number {
 }
 
 /**
- * Quotes bucketed by book, each book's quotes in page order. The books
- * follow the chosen order: newest puts the book with the newest quote
- * first, oldest the one with the oldest quote, "book" goes by title with
+ * Quotes bucketed by game, each game's quotes in page order. The games
+ * follow the chosen order: newest puts the game with the newest quote
+ * first, oldest the one with the oldest quote, "game" goes by title with
  * the reader's sorting rules, and shuffle by the seed.
  */
 export function groupQuotes<T extends OrderableQuote>(
@@ -167,50 +167,50 @@ export function groupQuotes<T extends OrderableQuote>(
   order: QuoteOrder,
   opts: { seed: number; sort: SortOptions },
 ): QuoteGroup<T>[] {
-  const byBook = new Map<string, T[]>();
+  const byGame = new Map<string, T[]>();
   for (const q of quotes) {
-    const list = byBook.get(q.bookId);
+    const list = byGame.get(q.gameId);
     if (list) list.push(q);
-    else byBook.set(q.bookId, [q]);
+    else byGame.set(q.gameId, [q]);
   }
-  const groups = [...byBook].map(([bookId, list]) => ({
-    bookId,
+  const groups = [...byGame].map(([gameId, list]) => ({
+    gameId,
     quotes: list.sort(comparePageOrder),
   }));
 
-  if (order === "shuffle") return seededShuffle(groups, opts.seed, (g) => g.bookId);
+  if (order === "shuffle") return seededShuffle(groups, opts.seed, (g) => g.gameId);
 
-  if (order === "book") {
+  if (order === "game") {
     const compare = new Intl.Collator(opts.sort.alphabet).compare;
     const keys = new Map(
       groups.map((g) => {
-        const book = g.quotes[0].book;
+        const game = g.quotes[0].game;
         return [
-          g.bookId,
+          g.gameId,
           {
-            title: titleSortKey(book.title, opts.sort),
-            author: book.authors[0] ? authorSortKey(book.authors[0], opts.sort) : "",
+            title: titleSortKey(game.title, opts.sort),
+            author: game.authors[0] ? authorSortKey(game.authors[0], opts.sort) : "",
           },
         ];
       }),
     );
     return groups.sort((a, b) => {
-      const ka = keys.get(a.bookId)!;
-      const kb = keys.get(b.bookId)!;
+      const ka = keys.get(a.gameId)!;
+      const kb = keys.get(b.gameId)!;
       return (
         compare(ka.title, kb.title) ||
         compare(ka.author, kb.author) ||
-        compareIds(a.bookId, b.bookId)
+        compareIds(a.gameId, b.gameId)
       );
     });
   }
 
-  // newest / oldest: by each book's newest or oldest quote.
+  // newest / oldest: by each game's newest or oldest quote.
   const newest = order === "newest";
   const dir = newest ? -1 : 1;
   const times = new Map(
     groups.map((g) => [
-      g.bookId,
+      g.gameId,
       g.quotes
         .map((q) => q.createdAt.getTime())
         .reduce((x, y) => (newest ? Math.max(x, y) : Math.min(x, y))),
@@ -218,11 +218,11 @@ export function groupQuotes<T extends OrderableQuote>(
   );
   return groups.sort(
     (a, b) =>
-      dir * (times.get(a.bookId)! - times.get(b.bookId)!) || compareIds(a.bookId, b.bookId),
+      dir * (times.get(a.gameId)! - times.get(b.gameId)!) || compareIds(a.gameId, b.gameId),
   );
 }
 
-/** The quotes in the chosen order, ungrouped. "By book" is the grouped list
+/** The quotes in the chosen order, ungrouped. "By game" is the grouped list
  *  without its headings. */
 export function orderQuotes<T extends OrderableQuote>(
   quotes: readonly T[],
@@ -232,8 +232,8 @@ export function orderQuotes<T extends OrderableQuote>(
   switch (order) {
     case "oldest":
       return [...quotes].sort(oldestFirst);
-    case "book":
-      return groupQuotes(quotes, "book", opts).flatMap((g) => g.quotes);
+    case "game":
+      return groupQuotes(quotes, "game", opts).flatMap((g) => g.quotes);
     case "shuffle":
       return seededShuffle(quotes, opts.seed, (q) => q.id);
     default:
@@ -251,7 +251,7 @@ export function sliceQuoteGroups<T>(
   const out: (QuoteGroup<T> & { total: number })[] = [];
   for (const g of groups) {
     if (budget <= 0) break;
-    out.push({ bookId: g.bookId, quotes: g.quotes.slice(0, budget), total: g.quotes.length });
+    out.push({ gameId: g.gameId, quotes: g.quotes.slice(0, budget), total: g.quotes.length });
     budget -= g.quotes.length;
   }
   return out;

@@ -33,7 +33,7 @@ function pop(el: Element | null | undefined) {
  *
  * Follows the rating style in Preferences: whole stars only (steps of 2),
  * a row of 1–10 buttons, or — with ratings switched off — just the hidden
- * input, so saving the form keeps whatever rating the book already had.
+ * input, so saving the form keeps whatever rating the game already had.
  */
 export function StarRatingInput({
   name,

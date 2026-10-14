@@ -5,7 +5,7 @@ import { dailyPageTotalsForUser } from "@/lib/progress-query";
 
 /**
  * Differential test: the SQL implementation must agree with the JS one that
- * the book page still uses, entry for entry. The SQL exists purely to avoid
+ * the game page still uses, entry for entry. The SQL exists purely to avoid
  * loading every ProgressEntry into memory — if it ever disagreed, the
  * heatmap and the all-time streak would drift without anything looking
  * broken.
@@ -21,29 +21,29 @@ function local(y: number, m: number, d: number, h: number, min = 0): Date {
   return new Date(y, m - 1, d, h, min);
 }
 
-const entries: { bookId: string; page: number; date: Date }[] = [
-  // Book A — a normal run of days.
-  { bookId: "tz-a", page: 0, date: local(2026, 3, 1, 9) },
-  { bookId: "tz-a", page: 40, date: local(2026, 3, 1, 22) },
-  { bookId: "tz-a", page: 90, date: local(2026, 3, 2, 20) },
+const entries: { gameId: string; page: number; date: Date }[] = [
+  // Game A — a normal run of days.
+  { gameId: "tz-a", page: 0, date: local(2026, 3, 1, 9) },
+  { gameId: "tz-a", page: 40, date: local(2026, 3, 1, 22) },
+  { gameId: "tz-a", page: 90, date: local(2026, 3, 2, 20) },
   // Just after local midnight: a different UTC day east of Greenwich.
-  { bookId: "tz-a", page: 150, date: local(2026, 3, 3, 0, 30) },
+  { gameId: "tz-a", page: 150, date: local(2026, 3, 3, 0, 30) },
   // Just before local midnight: a different UTC day west of Greenwich.
-  { bookId: "tz-a", page: 200, date: local(2026, 3, 3, 23, 45) },
+  { gameId: "tz-a", page: 200, date: local(2026, 3, 3, 23, 45) },
 
-  // Book B — overlapping days, so the two books' deltas must sum per day.
-  { bookId: "tz-b", page: 0, date: local(2026, 3, 2, 10) },
-  { bookId: "tz-b", page: 25, date: local(2026, 3, 2, 21) },
+  // Game B — overlapping days, so the two games' deltas must sum per day.
+  { gameId: "tz-b", page: 0, date: local(2026, 3, 2, 10) },
+  { gameId: "tz-b", page: 25, date: local(2026, 3, 2, 21) },
   // A correction backwards: credits nothing, but moves the baseline.
-  { bookId: "tz-b", page: 10, date: local(2026, 3, 4, 12) },
-  { bookId: "tz-b", page: 60, date: local(2026, 3, 5, 12) },
+  { gameId: "tz-b", page: 10, date: local(2026, 3, 4, 12) },
+  { gameId: "tz-b", page: 60, date: local(2026, 3, 5, 12) },
 
-  // Book C — a lone entry with no predecessor credits nothing.
-  { bookId: "tz-c", page: 300, date: local(2026, 3, 6, 12) },
+  // Game C — a lone entry with no predecessor credits nothing.
+  { gameId: "tz-c", page: 300, date: local(2026, 3, 6, 12) },
 
   // Across a DST boundary (Europe clocks jump on 2026-03-29).
-  { bookId: "tz-a", page: 260, date: local(2026, 3, 29, 1, 30) },
-  { bookId: "tz-a", page: 300, date: local(2026, 3, 29, 12, 0) },
+  { gameId: "tz-a", page: 260, date: local(2026, 3, 29, 1, 30) },
+  { gameId: "tz-a", page: 300, date: local(2026, 3, 29, 12, 0) },
 ];
 
 beforeAll(async () => {
@@ -51,13 +51,13 @@ beforeAll(async () => {
   await prisma.user.create({
     data: { id: USER, username: `tzdiff-${Date.now()}`, passwordHash: "x" },
   });
-  for (const bookId of ["tz-a", "tz-b", "tz-c"]) {
-    await prisma.book.create({
+  for (const gameId of ["tz-a", "tz-b", "tz-c"]) {
+    await prisma.game.create({
       data: {
-        id: bookId,
+        id: gameId,
         userId: USER,
-        title: bookId,
-        searchText: bookId,
+        title: gameId,
+        searchText: gameId,
       },
     });
   }

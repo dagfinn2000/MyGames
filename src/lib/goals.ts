@@ -4,40 +4,40 @@ import { keyToUtcDate } from "@/lib/dates";
 /**
  * Finished passes and what they count toward, and how a goal is going.
  * Shared by the stats page and the year in review, so a goal shows the same
- * progress on both. What each pass adds (books, pages) comes from
+ * progress on both. What each pass adds (games, pages) comes from
  * lib/stats-count.ts, which applies the "What counts" preferences.
  */
 
-/** One finished pass through a book: the current one on a Read book, or
+/** One finished pass through a game: the current one on a Read game, or
  *  an archived re-read or pre-app read. */
 export interface Finish {
-  bookId: string;
+  gameId: string;
   dateFinished: Date;
   pageCount: number | null;
-  /** True when the book had been finished before this pass. */
+  /** True when the game had been finished before this pass. */
   isReread: boolean;
 }
 
 /**
  * Marks which finishes are re-reads. A finish is a re-read when the same
- * book has an earlier dated finish, or any undated past read — "read it
+ * game has an earlier dated finish, or any undated past read — "read it
  * before" placeholders are presumed to come first.
  */
-export function markRereads<T extends { bookId: string; dateFinished: Date }>(
+export function markRereads<T extends { gameId: string; dateFinished: Date }>(
   finishes: T[],
-  undatedReadBookIds: ReadonlySet<string>,
+  undatedReadGameIds: ReadonlySet<string>,
 ): (T & { isReread: boolean })[] {
-  const byBook = new Map<string, Date[]>();
+  const byGame = new Map<string, Date[]>();
   for (const f of finishes) {
-    const list = byBook.get(f.bookId) ?? [];
+    const list = byGame.get(f.gameId) ?? [];
     list.push(f.dateFinished);
-    byBook.set(f.bookId, list);
+    byGame.set(f.gameId, list);
   }
   return finishes.map((f) => ({
     ...f,
     isReread:
-      undatedReadBookIds.has(f.bookId) ||
-      (byBook.get(f.bookId) ?? []).some((d) => d < f.dateFinished),
+      undatedReadGameIds.has(f.gameId) ||
+      (byGame.get(f.gameId) ?? []).some((d) => d < f.dateFinished),
   }));
 }
 
@@ -56,21 +56,21 @@ export function countedFinishes<T extends Pick<Finish, "isReread">>(
 }
 
 /** Progress toward a goal from what the year's passes add (countWindow in
- *  lib/stats-count.ts): their books, or their pages. */
+ *  lib/stats-count.ts): their games, or their pages. */
 export function goalProgress(
-  yearItems: { isReread: boolean; books: number; pages: number }[],
+  yearItems: { isReread: boolean; games: number; pages: number }[],
   rule: GoalRule,
 ): number {
   return countedFinishes(yearItems, rule).reduce(
-    (sum, i) => sum + (rule.unit === "PAGES" ? i.pages : i.books),
+    (sum, i) => sum + (rule.unit === "PAGES" ? i.pages : i.games),
     0,
   );
 }
 
-/** "book" or "books", "page" or "pages". */
+/** "game" or "games", "page" or "pages". */
 export function unitWord(unit: GoalUnit, n: number): string {
   if (unit === "PAGES") return n === 1 ? "page" : "pages";
-  return n === 1 ? "book" : "books";
+  return n === 1 ? "game" : "games";
 }
 
 /** How far through a goal's year today is. Today counts as gone and as
@@ -107,13 +107,13 @@ export type GoalPace =
   | { kind: "missed"; short: number }
   | { kind: "on-schedule" }
   | { kind: "ahead"; by: number }
-  /** Behind, and what catching up takes: a book every few days, or so many
-   *  books or pages a day. */
+  /** Behind, and what catching up takes: a game every few days, or so many
+   *  games or pages a day. */
   | { kind: "behind"; by: number; everyDays?: number; perDay?: number };
 
 /**
  * Where a goal stands against the calendar. "On schedule" is within half a
- * book (or half a percent of a pages goal) of an even pace through the
+ * game (or half a percent of a pages goal) of an even pace through the
  * year.
  */
 export function goalPace(
@@ -133,13 +133,13 @@ export function goalPace(
   if (diff > 0) return { kind: "ahead", by };
 
   const remaining = target - done;
-  if (unit === "BOOKS" && remaining <= clock.daysLeft) {
+  if (unit === "GAMES" && remaining <= clock.daysLeft) {
     return { kind: "behind", by, everyDays: Math.floor(clock.daysLeft / remaining) };
   }
   return { kind: "behind", by, perDay: Math.ceil(remaining / clock.daysLeft) };
 }
 
-/** The pace as a sentence: "3 books behind. About 1 book every 10 days
+/** The pace as a sentence: "3 games behind. About 1 game every 10 days
  *  gets you there." `startsOn` is 1 January of the goal's year, formatted. */
 export function describePace(
   pace: GoalPace,
@@ -166,8 +166,8 @@ export function describePace(
         pace.everyDays === undefined
           ? `About ${amount(pace.perDay ?? 0)} a day`
           : pace.everyDays === 1
-            ? "About 1 book a day"
-            : `About 1 book every ${fmt(pace.everyDays)} days`;
+            ? "About 1 game a day"
+            : `About 1 game every ${fmt(pace.everyDays)} days`;
       return `${amount(pace.by)} behind. ${needed} gets you there.`;
     }
   }

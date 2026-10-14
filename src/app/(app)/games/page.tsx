@@ -9,15 +9,15 @@ import { prisma } from "@/lib/prisma";
 import { getPreferences } from "@/lib/current-user";
 import { calendarDay } from "@/lib/dates";
 import {
-  groupBooks,
+  groupGames,
   seriesHeading,
   seriesProgress,
   sliceGroups,
-  sortBooks,
+  sortGames,
   type SortOptions,
 } from "@/lib/library-sort";
 import { parseFilters } from "@/lib/library-filters";
-import { resolveBookWhere } from "@/lib/library-where";
+import { resolveGameWhere } from "@/lib/library-where";
 import { naturalDir, parseLibraryView } from "@/lib/library-view";
 import { seriesKey } from "@/lib/series";
 import { canonicalViewQuery } from "@/lib/saved-views";
@@ -41,11 +41,11 @@ function param(v: string | string[] | undefined): string {
   return typeof v === "string" ? v : "";
 }
 
-/** What the library page fetches per book: the card fields plus the sort
- *  and group keys (toCardBook drops the ones cards don't render before they
- *  reach the client). Everything else on Book — description, review,
+/** What the library page fetches per game: the card fields plus the sort
+ *  and group keys (toCardGame drops the ones cards don't render before they
+ *  reach the client). Everything else on Game — description, review,
  *  searchText, … — would be serialized into the client payload for every
- *  book on every visit, for nothing. */
+ *  game on every visit, for nothing. */
 const librarySelect = {
   id: true,
   title: true,
@@ -69,18 +69,18 @@ const librarySelect = {
   // Just enough to know whether the copy is out — one row at most, rather
   // than the loan history the card would never render.
   loans: { where: { returnedAt: null }, select: { id: true }, take: 1 },
-} satisfies Prisma.BookSelect;
+} satisfies Prisma.GameSelect;
 
 /** What the card actually receives: the selected columns with the open-loan
  *  probe collapsed into a boolean. */
-type LibraryBook = Omit<
-  Prisma.BookGetPayload<{ select: typeof librarySelect }>,
+type LibraryGame = Omit<
+  Prisma.GameGetPayload<{ select: typeof librarySelect }>,
   "loans"
 > & { lentOut: boolean };
 
-/** A book as its card gets it: the fields only sorting and grouping read
+/** A game as its card gets it: the fields only sorting and grouping read
  *  stay on the server. */
-function toCardBook<B extends LibraryBook & { shelves?: unknown }>({
+function toCardGame<B extends LibraryGame & { shelves?: unknown }>({
   dateStarted: _dateStarted,
   publishedDate: _publishedDate,
   updatedAt: _updatedAt,
@@ -92,7 +92,7 @@ function toCardBook<B extends LibraryBook & { shelves?: unknown }>({
   return card;
 }
 
-export default async function BooksPage({
+export default async function GamesPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -104,7 +104,7 @@ export default async function BooksPage({
   const sp = await searchParams;
   const prefs = await getPreferences();
 
-  // Saved views are needed up front: a bare visit to /books (the nav link,
+  // Saved views are needed up front: a bare visit to /games (the nav link,
   // the installed app) opens on the default saved view when there is one.
   // Every link the page itself makes carries explicit params, so this only
   // ever fires on the way in.
@@ -115,7 +115,7 @@ export default async function BooksPage({
   });
   if (Object.keys(sp).length === 0 && prefs.defaultViewId) {
     const start = savedViews.find((v) => v.id === prefs.defaultViewId);
-    if (start) redirect(`/books?${start.query}`);
+    if (start) redirect(`/games?${start.query}`);
   }
 
   // Explicit view params in the URL win (the filter bar always writes them);
@@ -125,36 +125,36 @@ export default async function BooksPage({
     sp.sort !== undefined || sp.dir !== undefined || sp.group !== undefined;
 
   const filters = parseFilters(sp);
-  const where = await resolveBookWhere(userId, filters, prefs);
+  const where = await resolveGameWhere(userId, filters, prefs);
 
   // How many cards to render. Sorting and grouping stay in JS — the
   // surname-filing and series-block rules have no SQL equivalent — so the
   // whole filtered set is still fetched and ordered here, but only this many
-  // books are serialized into the client payload. "Show more" raises it via
+  // games are serialized into the client payload. "Show more" raises it via
   // the URL, like every other bit of view state in this app.
   const limit = Math.min(
     Math.max(parseInt(param(sp.limit), 10) || DEFAULT_PAGE_SIZE, DEFAULT_PAGE_SIZE),
     MAX_PAGE_SIZE,
   );
 
-  const [books, statusCounts, tagRows, shelves, viewUser, bookFinishes, pastFinishes] =
+  const [games, statusCounts, tagRows, shelves, viewUser, gameFinishes, pastFinishes] =
     await Promise.all([
-    prisma.book.findMany({ where, select: librarySelect }),
-    prisma.book.groupBy({
+    prisma.game.findMany({ where, select: librarySelect }),
+    prisma.game.groupBy({
       by: ["status"],
       where: { userId },
       _count: { _all: true },
     }),
     // Tag names + occurrence counts across the whole library, aggregated in
-    // SQL instead of shipping every book's tags array out of the database.
+    // SQL instead of shipping every game's tags array out of the database.
     prisma.$queryRaw<{ tag: string; count: number }[]>`
       SELECT t AS tag, COUNT(*)::int AS count
-      FROM "Book", LATERAL unnest("tags") AS t
+      FROM "Game", LATERAL unnest("tags") AS t
       WHERE "userId" = ${userId}
       GROUP BY t`,
     prisma.shelf.findMany({
       where: { userId },
-      include: { _count: { select: { books: true } } },
+      include: { _count: { select: { games: true } } },
       orderBy: { name: "asc" },
     }),
     // The saved view only affects sort/group and how cards are drawn,
@@ -165,13 +165,13 @@ export default async function BooksPage({
       select: { libraryView: true },
     }),
     // The span of years anything was finished in, for "Finished in".
-    prisma.book.aggregate({
+    prisma.game.aggregate({
       where: { userId, status: ReadingStatus.READ },
       _min: { dateFinished: true },
       _max: { dateFinished: true },
     }),
     prisma.read.aggregate({
-      where: { book: { userId } },
+      where: { game: { userId } },
       _min: { dateFinished: true },
       _max: { dateFinished: true },
     }),
@@ -197,7 +197,7 @@ export default async function BooksPage({
   const yearOf = (d: Date | null) =>
     d ? Number(calendarDay(d, prefs.timeZone).slice(0, 4)) : null;
   const thisYear = Number(calendarDay(new Date(), prefs.timeZone).slice(0, 4));
-  const finishYears = [bookFinishes._min, bookFinishes._max, pastFinishes._min, pastFinishes._max]
+  const finishYears = [gameFinishes._min, gameFinishes._max, pastFinishes._min, pastFinishes._max]
     .map((a) => yearOf(a.dateFinished))
     .filter((y): y is number => y !== null);
   const newestYear = Math.max(thisYear, ...finishYears);
@@ -209,28 +209,28 @@ export default async function BooksPage({
     finishedYears.sort((a, b) => b - a);
   }
 
-  // Group by shelf needs each book's shelves: one query over the shelves
-  // rather than a join on every book in every other view.
+  // Group by shelf needs each game's shelves: one query over the shelves
+  // rather than a join on every game in every other view.
   const shelvesOf = new Map<string, { id: string; name: string }[]>();
   if (values.group === "shelf") {
     const memberships = await prisma.shelf.findMany({
       where: { userId },
-      select: { id: true, name: true, books: { select: { id: true } } },
+      select: { id: true, name: true, games: { select: { id: true } } },
     });
     for (const s of memberships) {
-      for (const b of s.books) {
+      for (const b of s.games) {
         shelvesOf.set(b.id, [...(shelvesOf.get(b.id) ?? []), { id: s.id, name: s.name }]);
       }
     }
   }
 
   // Sort and group the whole filtered set — the shelf-filing rules need every
-  // book to place any of them — then hand the client only the slice it
-  // renders. Passing all of them was the page's real cost: a 20k-book library
+  // game to place any of them — then hand the client only the slice it
+  // renders. Passing all of them was the page's real cost: a 20k-game library
   // serialized ~6.7 MB of props to draw two hundred cards.
   // Flatten the open-loan probe into a boolean before sorting, so the client
   // payload carries a flag rather than a relation.
-  const withLoanFlag = books.map(({ loans, ...b }) => ({
+  const withLoanFlag = games.map(({ loans, ...b }) => ({
     ...b,
     lentOut: loans.length > 0,
     shelves: shelvesOf.get(b.id) ?? [],
@@ -244,21 +244,21 @@ export default async function BooksPage({
     ratingStyle: prefs.ratingStyle,
     shelfOrder: prefs.shelfOrder,
   };
-  const sorted = sortBooks(withLoanFlag, values.sort, values.dir, sortOptions);
-  const groups = groupBooks(sorted, values.group, sortOptions);
-  // Grouped views fill their sections up to `limit` entries. A book under
-  // three tags is three entries, so the books on screen are the shown
-  // sections' books, each once.
+  const sorted = sortGames(withLoanFlag, values.sort, values.dir, sortOptions);
+  const groups = groupGames(sorted, values.group, sortOptions);
+  // Grouped views fill their sections up to `limit` entries. A game under
+  // three tags is three entries, so the games on screen are the shown
+  // sections' games, each once.
   const sliced = groups ? sliceGroups(groups, limit) : null;
-  const visibleBooks = sliced
-    ? [...new Map(sliced.groups.flatMap((g) => g.books).map((b) => [b.id, b])).values()]
+  const visibleGames = sliced
+    ? [...new Map(sliced.groups.flatMap((g) => g.games).map((b) => [b.id, b])).values()]
     : sorted.slice(0, limit);
 
   // Series headings say how far through each series the reader is. That
-  // takes the whole library: on the Want to Read tab, the books already
+  // takes the whole library: on the Want to Read tab, the games already
   // read aren't on screen.
   if (sliced && values.group === "series") {
-    const members = await prisma.book.findMany({
+    const members = await prisma.game.findMany({
       where: { userId, seriesName: { not: null } },
       select: { seriesName: true, seriesNumber: true, status: true, timesRead: true },
     });
@@ -290,7 +290,7 @@ export default async function BooksPage({
     if (typeof v === "string" && v) flatParams[k] = v;
   }
   // Links built from these (status tabs, shelf chips, "Show more") always
-  // name the view they keep. None of them is then a bare /books, which would
+  // name the view they keep. None of them is then a bare /games, which would
   // open the default saved view instead of the shelf that was clicked.
   flatParams.group ||= values.group;
   flatParams.sort ||= values.sort;
@@ -314,9 +314,9 @@ export default async function BooksPage({
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Library</h1>
         <Button asChild>
-          <Link href="/books/new">
+          <Link href="/games/new">
             <Plus data-slot="icon" />
-            Add book
+            Add game
           </Link>
         </Button>
       </div>
@@ -331,7 +331,7 @@ export default async function BooksPage({
         shelves={shelves.map((s) => ({
           id: s.id,
           name: s.name,
-          bookCount: s._count.books,
+          gameCount: s._count.games,
         }))}
         activeShelfId={values.shelfId}
         searchParams={flatParams}
@@ -339,7 +339,7 @@ export default async function BooksPage({
       <SavedViewChips
         views={orderByIds(savedViews, prefs.savedViewOrder)}
         currentQuery={canonicalViewQuery({ ...flatParams, ...values })}
-        clearHref={`/books?${new URLSearchParams({
+        clearHref={`/games?${new URLSearchParams({
           group: values.group,
           sort: values.sort,
           dir: values.dir,
@@ -357,9 +357,9 @@ export default async function BooksPage({
       {/* Mounted even when nothing matches, so a bulk change that empties
           the view still shows how it went (LibraryView shows `empty`). */}
       <LibraryView
-        books={visibleBooks.map(toCardBook)}
+        games={visibleGames.map(toCardGame)}
         groups={
-          sliced?.groups.map((g) => ({ ...g, books: g.books.map(toCardBook) })) ?? null
+          sliced?.groups.map((g) => ({ ...g, games: g.games.map(toCardGame) })) ?? null
         }
         limit={limit}
         maxLimit={MAX_PAGE_SIZE}
@@ -376,16 +376,16 @@ export default async function BooksPage({
             <LibraryBig className="size-10 text-muted-foreground/40" />
             <p className="text-muted-foreground">
               {counts.all === 0
-                ? "Your library is empty. Add your first book!"
+                ? "Your library is empty. Add your first game!"
                 : hasFilters
-                  ? "No books match these filters."
+                  ? "No games match these filters."
                   : "Nothing on this shelf yet."}
             </p>
             {counts.all === 0 && (
               <Button asChild variant="outline">
-                <Link href="/books/new">
+                <Link href="/games/new">
                   <Plus data-slot="icon" />
-                  Add a book
+                  Add a game
                 </Link>
               </Button>
             )}

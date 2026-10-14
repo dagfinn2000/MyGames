@@ -11,14 +11,14 @@ const nextConfig: NextConfig = {
       {
         source: "/:path*",
         headers: [
-          // No other site may show MyReads in a frame, where it could be
+          // No other site may show MyGames in a frame, where it could be
           // dressed up to trick a signed-in reader into clicking Delete.
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
           // Browsers take each response for the type it says it is.
           { key: "X-Content-Type-Options", value: "nosniff" },
           // Links out (Find it at, catalogue pages) say which site the
-          // reader came from, not which book page.
+          // reader came from, not which game page.
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
         ],
       },

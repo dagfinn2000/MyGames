@@ -57,13 +57,13 @@ describe("setReadingGoal", () => {
     await prisma.readingGoal.create({ data: { userId, year: 2026, target: 24 } });
 
     const result = await setReadingGoal(
-      goalForm({ year: "2027", target: "26", unit: "BOOKS", countRereads: "on" }),
+      goalForm({ year: "2027", target: "26", unit: "GAMES", countRereads: "on" }),
     );
 
     expect(result).toEqual({ saved: { year: 2027, removed: false } });
     expect(await goals()).toEqual([
-      { year: 2026, target: 24, unit: "BOOKS", countRereads: true },
-      { year: 2027, target: 26, unit: "BOOKS", countRereads: true },
+      { year: 2026, target: 24, unit: "GAMES", countRereads: true },
+      { year: 2027, target: 26, unit: "GAMES", countRereads: true },
     ]);
     expect(revalidated).toEqual(["/stats", "/stats/year/2027"]);
   });
@@ -106,7 +106,7 @@ describe("setReadingGoal", () => {
     }
     expect(await setReadingGoal(goalForm({ year: "1800", target: "5" }))).toHaveProperty("error");
     expect(await goals()).toEqual([
-      { year: 2026, target: 24, unit: "BOOKS", countRereads: true },
+      { year: 2026, target: 24, unit: "GAMES", countRereads: true },
     ]);
     expect(revalidated).toEqual([]);
   });

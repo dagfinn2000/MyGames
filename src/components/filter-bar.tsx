@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BookFormat } from "@prisma/client";
+import { GameFormat } from "@prisma/client";
 import {
   ArrowDownAZ,
   ArrowDownWideNarrow,
@@ -150,7 +150,7 @@ export function FilterBar({
 }: {
   values: FilterValues;
   allTags: string[];
-  /** Books per tag, for the tag list and the manage-tags dialog. */
+  /** Games per tag, for the tag list and the manage-tags dialog. */
   tagCounts: Record<string, number>;
   /** Card size, layout and card details, for the View menu. */
   display: LibraryDisplay;
@@ -211,7 +211,7 @@ export function FilterBar({
     params.set("sort", next.sort || "createdAt");
     params.set("dir", next.dir || "desc");
     const qs = params.toString();
-    router.replace(`/books${qs ? `?${qs}` : ""}`);
+    router.replace(`/games${qs ? `?${qs}` : ""}`);
 
     // A change to the view is a lasting preference — remember it on the
     // account (fire-and-forget; the URL is already correct either way).
@@ -281,7 +281,7 @@ export function FilterBar({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All formats</SelectItem>
-            {Object.values(BookFormat).map((f) => (
+            {Object.values(GameFormat).map((f) => (
               <SelectItem key={f} value={f}>
                 {FORMAT_LABELS[f]}
               </SelectItem>

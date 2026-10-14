@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
-import type { BookFormat, BookOwnership, ReadingStatus } from "@prisma/client";
+import type { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { spendMetadataBudget } from "@/lib/api-guard";
 import { getPreferences } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
-import { searchBooks } from "@/lib/metadata";
+import { searchGames } from "@/lib/metadata";
 import { isbnVariants, looksLikeIsbn, normalizeIsbn } from "@/lib/isbn";
 import { escapeLike, foldForSearch } from "@/lib/utils";
 
 /** What the check UI needs to show a hit — no reading data beyond the badge bits. */
-const bookSelect = {
+const gameSelect = {
   id: true,
   title: true,
   authors: true,
@@ -24,7 +24,7 @@ const bookSelect = {
 export interface LibraryCheckResult {
   /** "isbn" = this exact edition; "title" = same title, different edition. */
   match: "isbn" | "title" | null;
-  book?: {
+  game?: {
     id: string;
     title: string;
     authors: string[];
@@ -32,8 +32,8 @@ export interface LibraryCheckResult {
     status: ReadingStatus;
     rating: number | null;
     timesRead: number;
-    format: BookFormat;
-    ownership: BookOwnership;
+    format: GameFormat;
+    ownership: GameOwnership;
   };
   /** What the ISBN resolved to in the metadata sources (scan flow only). */
   lookedUp?: { title: string; authors: string[] } | null;
@@ -73,12 +73,12 @@ export async function GET(req: Request) {
   }
 
   if (isbnParam) {
-    const book = await prisma.book.findFirst({
+    const game = await prisma.game.findFirst({
       where: { userId, isbn: { in: isbnVariants(isbnParam) } },
-      select: bookSelect,
+      select: gameSelect,
     });
-    if (book) {
-      return NextResponse.json({ match: "isbn", book } satisfies LibraryCheckResult);
+    if (game) {
+      return NextResponse.json({ match: "isbn", game } satisfies LibraryCheckResult);
     }
   }
 
@@ -94,7 +94,7 @@ export async function GET(req: Request) {
     // The reader's catalogues, in their order (Preferences).
     const { catalogues } = await getPreferences();
     try {
-      const results = await searchBooks(normalizeIsbn(isbnParam), catalogues);
+      const results = await searchGames(normalizeIsbn(isbnParam), catalogues);
       const hit = results[0];
       if (hit) {
         title = hit.title;
@@ -115,7 +115,7 @@ export async function GET(req: Request) {
     // Folded like searchText, so an edition titled "Brontë" still matches
     // a catalogue that spells it "Bronte".
     const surname = author.split(/\s+/).filter(Boolean).pop();
-    const book = await prisma.book.findFirst({
+    const game = await prisma.game.findFirst({
       where: {
         userId,
         AND: [
@@ -123,12 +123,12 @@ export async function GET(req: Request) {
           ...(surname ? [{ searchText: { contains: escapeLike(foldForSearch(surname)) } }] : []),
         ],
       },
-      select: bookSelect,
+      select: gameSelect,
     });
-    if (book) {
+    if (game) {
       return NextResponse.json({
         match: "title",
-        book,
+        game,
         lookedUp,
       } satisfies LibraryCheckResult);
     }

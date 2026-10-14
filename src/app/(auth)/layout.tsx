@@ -1,8 +1,8 @@
 import { ThemePicker } from "@/components/theme-picker";
 
-/** A few books on a shelf, the last one leaning: the sign-in page's
+/** A few games on a shelf, the last one leaning: the sign-in page's
  *  picture, drawn in the theme's accent so it suits every theme. */
-function ShelfOfBooks() {
+function ShelfOfGames() {
   return (
     <svg
       viewBox="0 0 88 64"
@@ -42,8 +42,8 @@ export default function AuthLayout({
         <ThemePicker />
       </div>
       <div className="grid justify-items-center gap-3">
-        <ShelfOfBooks />
-        <p className="wordmark text-3xl">MyReads</p>
+        <ShelfOfGames />
+        <p className="wordmark text-3xl">MyGames</p>
       </div>
       {children}
     </main>

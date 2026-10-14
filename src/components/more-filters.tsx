@@ -55,7 +55,7 @@ export function minRatingLabel(value: string, style: RatingStyle): string {
 
 /**
  * The filters most people reach for less often, behind one button: the
- * year a book was finished, rating (including unrated) and a missing detail
+ * year a game was finished, rating (including unrated) and a missing detail
  * to clean up. Each change applies straight away; the menu stays open.
  */
 export function MoreFilters({
@@ -130,7 +130,7 @@ export function MoreFilters({
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Books you finished that year, re-reads included. Uses your time zone.
+            Games you finished that year, re-reads included. Uses your time zone.
           </p>
         </div>
 

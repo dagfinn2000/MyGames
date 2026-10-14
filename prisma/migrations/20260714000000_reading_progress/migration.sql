@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE "Book" ADD COLUMN     "currentPage" INTEGER;
+ALTER TABLE "Game" ADD COLUMN     "currentPage" INTEGER;

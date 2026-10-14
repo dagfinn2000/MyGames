@@ -4,12 +4,12 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Pencil, Trash2 } from "lucide-react";
 import { fillFindLink } from "@/lib/find-links";
 import {
-  BOOK_PAGE_CARD_LABELS,
+  GAME_PAGE_CARD_LABELS,
   FIND_LINK_NAME_MAX,
   FIND_LINK_URL_MAX,
   MAX_FIND_LINKS,
   findLinkError,
-  type BookPageCard,
+  type GamePageCard,
   type FindLink,
   type Preferences,
 } from "@/lib/preferences";
@@ -57,21 +57,21 @@ function useRefocus() {
   };
 }
 
-/** The book page's cards in order, each with a Show checkbox and arrows. */
-export function BookPageCardList({ prefs, update }: { prefs: Preferences; update: Update }) {
+/** The game page's cards in order, each with a Show checkbox and arrows. */
+export function GamePageCardList({ prefs, update }: { prefs: Preferences; update: Update }) {
   const headingId = useId();
   const refocus = useRefocus();
-  const order = prefs.bookPageCards;
-  const hidden = prefs.hiddenBookPageCards;
+  const order = prefs.gamePageCards;
+  const hidden = prefs.hiddenGamePageCards;
 
-  function move(card: BookPageCard, dir: "up" | "down") {
+  function move(card: GamePageCard, dir: "up" | "down") {
     const i = order.indexOf(card);
     const j = dir === "up" ? i - 1 : i + 1;
     if (i < 0 || j < 0 || j >= order.length) return;
     const next = [...order];
     [next[i], next[j]] = [next[j], next[i]];
     refocus.focusAfter(`${card}-${dir}`, `${card}-${dir === "up" ? "down" : "up"}`);
-    update({ bookPageCards: next });
+    update({ gamePageCards: next });
   }
 
   return (
@@ -81,7 +81,7 @@ export function BookPageCardList({ prefs, update }: { prefs: Preferences; update
       </p>
       <ul aria-labelledby={headingId} className="grid gap-1">
         {order.map((card, i) => {
-          const label = BOOK_PAGE_CARD_LABELS[card];
+          const label = GAME_PAGE_CARD_LABELS[card];
           const shown = !hidden.includes(card);
           return (
             <li key={card} className="flex items-center gap-2">
@@ -92,7 +92,7 @@ export function BookPageCardList({ prefs, update }: { prefs: Preferences; update
                   aria-label={`Show ${label}`}
                   onChange={(e) =>
                     update({
-                      hiddenBookPageCards: e.target.checked
+                      hiddenGamePageCards: e.target.checked
                         ? hidden.filter((c) => c !== card)
                         : [...hidden, card],
                     })
@@ -134,7 +134,7 @@ export function BookPageCardList({ prefs, update }: { prefs: Preferences; update
         })}
       </ul>
       <p className="text-xs text-muted-foreground">
-        A hidden card still shows on a book when it has something in it: your
+        A hidden card still shows on a game when it has something in it: your
         review or a read in progress, past reads, an open loan or saved quotes.
         Hiding Read history also hides Read it again, and hiding My reading
         hides the status menu (Select in the library can still change it).
@@ -144,7 +144,7 @@ export function BookPageCardList({ prefs, update }: { prefs: Preferences; update
 }
 
 /** What the live example under the Link field fills in. */
-const SAMPLE_BOOK = {
+const SAMPLE_GAME = {
   isbn: "9780099448822",
   title: "Norwegian Wood",
   authors: ["Haruki Murakami"],
@@ -236,7 +236,7 @@ export function FindLinksEditor({ prefs, update }: { prefs: Preferences; update:
 
   const showForm = editing !== null || links.length < MAX_FIND_LINKS;
   const example =
-    url.trim() && findLinkError("x", url) === null ? fillFindLink(url.trim(), SAMPLE_BOOK) : null;
+    url.trim() && findLinkError("x", url) === null ? fillFindLink(url.trim(), SAMPLE_GAME) : null;
 
   return (
     <div className="grid gap-2">
@@ -245,9 +245,9 @@ export function FindLinksEditor({ prefs, update }: { prefs: Preferences; update:
           Find it at links
         </p>
         <p id={hintId} className="text-xs text-muted-foreground">
-          Links to your library or a shop, shown on each book. Put {"{isbn}"}, {"{title}"} or{" "}
-          {"{author}"} where the book&apos;s details go. Links that use {"{isbn}"} are hidden on
-          books without one.
+          Links to your library or a shop, shown on each game. Put {"{isbn}"}, {"{title}"} or{" "}
+          {"{author}"} where the game&apos;s details go. Links that use {"{isbn}"} are hidden on
+          games without one.
         </p>
       </div>
 
@@ -354,7 +354,7 @@ export function FindLinksEditor({ prefs, update }: { prefs: Preferences; update:
           </div>
           {example && (
             <p className="text-xs text-muted-foreground">
-              On “{SAMPLE_BOOK.title}” this opens: <span className="break-all">{example}</span>
+              On “{SAMPLE_GAME.title}” this opens: <span className="break-all">{example}</span>
             </p>
           )}
           {error && (

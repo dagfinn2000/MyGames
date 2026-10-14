@@ -1,4 +1,4 @@
-import { BookFormat, BookOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
 import { calendarDay, dayKey, keyToUtcDate } from "@/lib/dates";
 import type { DateFormat, NumberFormat } from "@/lib/preferences";
 
@@ -9,22 +9,22 @@ export const STATUS_LABELS: Record<ReadingStatus, string> = {
   DNF: "Did Not Finish",
 };
 
-export const FORMAT_LABELS: Record<BookFormat, string> = {
+export const FORMAT_LABELS: Record<GameFormat, string> = {
   PHYSICAL: "Physical",
   EBOOK: "Ebook",
   AUDIOBOOK: "Audiobook",
 };
 
-export const OWNERSHIP_LABELS: Record<BookOwnership, string> = {
+export const OWNERSHIP_LABELS: Record<GameOwnership, string> = {
   OWNED: "Owned",
   WISHLIST: "Wishlist",
   BORROWED: "Borrowed",
   GIVEN_AWAY: "No longer have it",
 };
 
-/** Shorter form for the badge on a book page, where "Owned" is the boring
+/** Shorter form for the badge on a game page, where "Owned" is the boring
  *  default and only the other three are worth calling out. */
-export const OWNERSHIP_BADGE_LABELS: Record<BookOwnership, string> = {
+export const OWNERSHIP_BADGE_LABELS: Record<GameOwnership, string> = {
   OWNED: "Owned",
   WISHLIST: "Wishlist",
   BORROWED: "Borrowed",

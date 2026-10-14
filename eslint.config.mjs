@@ -20,10 +20,10 @@ const config = [
   ...nextCoreWebVitals,
   ...nextTypescript,
   {
-    name: "myreads/overrides",
+    name: "mygames/overrides",
     rules: {
       // The codebase deliberately destructures fields it wants to *drop*
-      // (`{ userId: _userId, ...book }` in the export route). Underscore
+      // (`{ userId: _userId, ...game }` in the export route). Underscore
       // prefix is the established signal for that here.
       "@typescript-eslint/no-unused-vars": [
         "warn",
@@ -35,7 +35,7 @@ const config = [
       ],
 
       // Left at its default (error). The five components that tripped it —
-      // theme-picker, shelf-chips, add-book-client, barcode-scanner,
+      // theme-picker, shelf-chips, add-game-client, barcode-scanner,
       // import-search — have been reworked to read external state properly,
       // close dialogs from the action that succeeded, and derive rather than
       // mirror. Nothing is suppressed here any more.

@@ -9,7 +9,7 @@ import { parsePreferences } from "@/lib/preferences";
 
 /**
  * GET /api/export — downloads the signed-in user's entire library as a zip:
- * `library.json` (every book with its shelf names, quotes, read history,
+ * `library.json` (every game with its shelf names, quotes, read history,
  * reading log and lending records, every shelf, reading goals, saved views,
  * and the account's theme, library view and preferences) plus
  * `covers/<file>` for each
@@ -18,7 +18,7 @@ import { parsePreferences } from "@/lib/preferences";
  *
  * The JSON inside is still the version-1 export format — quotes, reads,
  * progress, loans, settings, saved views and pages goals are additive
- * fields (as are a goal's `countRereads`, a book's `lengthMinutes` and a
+ * fields (as are a goal's `countRereads`, a game's `lengthMinutes` and a
  * past read's `note`), and `owned` is still written
  * alongside the newer `ownership` — so unzipping and feeding `library.json`
  * to an older instance keeps working.
@@ -34,8 +34,8 @@ export async function GET() {
   }
   const userId = session.user.id;
 
-  const [books, shelves, readingGoals, user, savedViews] = await Promise.all([
-    prisma.book.findMany({
+  const [games, shelves, readingGoals, user, savedViews] = await Promise.all([
+    prisma.game.findMany({
       where: { userId },
       orderBy: { createdAt: "asc" },
       include: {
@@ -100,16 +100,16 @@ export async function GET() {
     ids.flatMap((id) => names.get(id) ?? []);
 
   const payload = {
-    format: "myreads-export",
+    format: "mygames-export",
     version: 1,
     exportedAt: new Date().toISOString(),
     username: session.user.name ?? null,
-    counts: { books: books.length, shelves: shelves.length },
+    counts: { games: games.length, shelves: shelves.length },
     shelves: shelves.map(({ id: _id, ...shelf }) => shelf),
-    // Pages goals get a list of their own: an older MyReads reads every
-    // entry of readingGoals as a number of books.
+    // Pages goals get a list of their own: an older MyGames reads every
+    // entry of readingGoals as a number of games.
     readingGoals: readingGoals
-      .filter((g) => g.unit === "BOOKS")
+      .filter((g) => g.unit === "GAMES")
       .map(({ unit: _unit, ...goal }) => goal),
     pageGoals: readingGoals
       .filter((g) => g.unit === "PAGES")
@@ -132,21 +132,21 @@ export async function GET() {
       const shelfName = shelfNames.get(new URLSearchParams(query).get("shelfId") ?? "");
       return shelfName ? { name, query, shelfName } : { name, query };
     }),
-    books: books.map(({
+    games: games.map(({
       userId: _userId,
       searchText: _searchText,
       reviewSearchText: _reviewSearchText,
-      ...book
+      ...game
     }) => ({
-      ...book,
+      ...game,
       // `owned` no longer exists on the row, but the export format promises
       // that an older instance can still read this file. Emitting the boolean
       // alongside the richer field keeps that promise: an old build sees the
       // shelf/wishlist split it understands, a current one prefers
-      // `ownership`. A borrowed or given-away book reads as "not owned"
+      // `ownership`. A borrowed or given-away game reads as "not owned"
       // there, which is the closest true statement that vocabulary has.
-      owned: book.ownership === "OWNED",
-      shelves: book.shelves.map((s) => s.name),
+      owned: game.ownership === "OWNED",
+      shelves: game.shelves.map((s) => s.name),
     })),
   };
 
@@ -154,14 +154,14 @@ export async function GET() {
   zip.file("library.json", JSON.stringify(payload, null, 2));
 
   // Bundle every locally cached cover. A missing file is not an error — the
-  // book row simply exports without its image, exactly as before. Files are
-  // read concurrently but added to the zip in book order, so the archive
+  // game row simply exports without its image, exactly as before. Files are
+  // read concurrently but added to the zip in game order, so the archive
   // layout stays deterministic.
   const coverFiles = await Promise.all(
-    books
+    games
       .filter((b) => b.coverUrl?.startsWith("/api/covers/"))
-      .map(async (book) => {
-        const filename = path.basename(book.coverUrl!);
+      .map(async (game) => {
+        const filename = path.basename(game.coverUrl!);
         try {
           return { filename, buf: await fs.readFile(coverFilePath(filename)) };
         } catch {
@@ -264,7 +264,7 @@ export async function GET() {
   return new NextResponse(body, {
     headers: {
       "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="myreads-export-${date}.zip"`,
+      "Content-Disposition": `attachment; filename="mygames-export-${date}.zip"`,
       "Cache-Control": "no-store",
     },
   });

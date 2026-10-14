@@ -6,7 +6,7 @@ import { checkUrlAllowed } from "@/lib/net-guard";
 import { prisma } from "@/lib/prisma";
 
 /**
- * Local cover-image cache. When a book is saved with a remote cover URL the
+ * Local cover-image cache. When a game is saved with a remote cover URL the
  * image is downloaded here once and served from /api/covers/<file> from then
  * on, so the library never depends on (or hammers) covers.openlibrary.org.
  *
@@ -37,7 +37,7 @@ const EXT_BY_MIME: Record<string, string> = {
   "image/webp": "webp",
 };
 
-/** Hard ceiling on a downloaded cover. Book covers are tens to hundreds of
+/** Hard ceiling on a downloaded cover. Game covers are tens to hundreds of
  *  KB; anything past this is a mistake or an attempt to exhaust memory. */
 const MAX_COVER_BYTES = 5 * 1024 * 1024;
 
@@ -61,7 +61,7 @@ async function guardedFetch(url: string): Promise<Response | null> {
     const res = await fetch(target, {
       redirect: "manual",
       signal: AbortSignal.timeout(15_000),
-      headers: { "User-Agent": "myreads/1.0 (self-hosted personal library)" },
+      headers: { "User-Agent": "mygames/1.0 (self-hosted personal library)" },
     });
 
     if (res.status >= 300 && res.status < 400) {
@@ -88,7 +88,7 @@ async function guardedFetch(url: string): Promise<Response | null> {
  */
 export async function cacheCoverImage(
   remoteUrl: string,
-  bookId: string,
+  gameId: string,
 ): Promise<string | null> {
   try {
     const res = await guardedFetch(remoteUrl);
@@ -112,7 +112,7 @@ export async function cacheCoverImage(
     const dir = coversDir();
     await fs.mkdir(dir, { recursive: true });
     const hash = crypto.createHash("sha1").update(buf).digest("hex").slice(0, 8);
-    const filename = `${bookId}-${hash}.${ext}`;
+    const filename = `${gameId}-${hash}.${ext}`;
     await fs.writeFile(coverFilePath(filename), buf);
     return `/api/covers/${filename}`;
   } catch {
@@ -122,12 +122,12 @@ export async function cacheCoverImage(
 
 /**
  * Removes a cached cover file, if `coverUrl` points into the cache and no
- * book uses it any more. Call it after the row that held `coverUrl` has been
+ * game uses it any more. Call it after the row that held `coverUrl` has been
  * changed or deleted.
  *
- * coverUrl is only a string: the book form accepts any local path, and a
- * restored backup keeps the path it had. So two books, even two accounts'
- * books, can name the same file, and deleting it for one would break the
+ * coverUrl is only a string: the game form accepts any local path, and a
+ * restored backup keeps the path it had. So two games, even two accounts'
+ * games, can name the same file, and deleting it for one would break the
  * other's cover (or let one account delete another's). When in doubt the
  * file stays; `npm run covers:prune` clears what nothing points at.
  */
@@ -135,7 +135,7 @@ export async function deleteCachedCover(coverUrl: string | null | undefined) {
   if (!coverUrl?.startsWith("/api/covers/")) return;
   const filename = path.basename(coverUrl);
   try {
-    const stillUsed = await prisma.book.count({
+    const stillUsed = await prisma.game.count({
       where: { coverUrl: { contains: filename } },
     });
     if (stillUsed > 0) return;
@@ -150,10 +150,10 @@ export async function deleteCachedCover(coverUrl: string | null | undefined) {
 }
 
 /**
- * deleteCachedCover for many books at once (bulk delete). One look at every
- * cached cover still in use, instead of a search of every book per cover,
- * which for thousands of books is thousands of full scans. The rule is the
- * same: a file any book still names stays.
+ * deleteCachedCover for many games at once (bulk delete). One look at every
+ * cached cover still in use, instead of a search of every game per cover,
+ * which for thousands of games is thousands of full scans. The rule is the
+ * same: a file any game still names stays.
  */
 export async function deleteCachedCovers(coverUrls: (string | null | undefined)[]) {
   const filenames = new Set(
@@ -165,7 +165,7 @@ export async function deleteCachedCovers(coverUrls: (string | null | undefined)[
 
   const stillUsed = new Set<string>();
   try {
-    const rows = await prisma.book.findMany({
+    const rows = await prisma.game.findMany({
       where: { coverUrl: { contains: "/api/covers/" } },
       select: { coverUrl: true },
     });

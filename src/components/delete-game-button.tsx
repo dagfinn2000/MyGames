@@ -1,7 +1,7 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
-import { deleteBook } from "@/lib/actions/books";
+import { deleteGame } from "@/lib/actions/games";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,14 +15,14 @@ import {
 } from "@/components/ui/dialog";
 
 /** Delete with a confirm dialog — removal also drops the cached cover. */
-export function DeleteBookButton({
-  bookId,
+export function DeleteGameButton({
+  gameId,
   title,
 }: {
-  bookId: string;
+  gameId: string;
   title: string;
 }) {
-  const action = deleteBook.bind(null, bookId);
+  const action = deleteGame.bind(null, gameId);
 
   return (
     <Dialog>
@@ -36,7 +36,7 @@ export function DeleteBookButton({
         <DialogHeader>
           <DialogTitle>Delete “{title}”?</DialogTitle>
           <DialogDescription>
-            This permanently removes the book along with your rating, review,
+            This permanently removes the game along with your rating, review,
             and reading history. There is no undo.
           </DialogDescription>
         </DialogHeader>
@@ -46,7 +46,7 @@ export function DeleteBookButton({
           </DialogClose>
           <form action={action}>
             <Button type="submit" variant="destructive">
-              Delete book
+              Delete game
             </Button>
           </form>
         </DialogFooter>

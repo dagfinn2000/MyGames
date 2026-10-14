@@ -1,20 +1,20 @@
-name: myreads
+name: mygames
 
 services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-myreads}
+      POSTGRES_USER: ${POSTGRES_USER:-mygames}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: ${POSTGRES_DB:-myreads}
+      POSTGRES_DB: ${POSTGRES_DB:-mygames}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-myreads} -d ${POSTGRES_DB:-myreads}",
+          "pg_isready -U ${POSTGRES_USER:-mygames} -d ${POSTGRES_DB:-mygames}",
         ]
       interval: 5s
       timeout: 3s
@@ -29,7 +29,7 @@ services:
       # Assembled here from the POSTGRES_* values so there is exactly one
       # place to configure credentials. (The DATABASE_URL in .env is only
       # for running the app / prisma CLI outside Docker.)
-      DATABASE_URL: postgresql://${POSTGRES_USER:-myreads}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myreads}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mygames}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-mygames}
       AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env}
       AUTH_TRUST_HOST: "true"
       GOOGLE_BOOKS_API_KEY: ${GOOGLE_BOOKS_API_KEY:-}

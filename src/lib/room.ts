@@ -1,10 +1,10 @@
-import { BookOwnership, ReadingStatus } from "@prisma/client";
+import { GameOwnership, ReadingStatus } from "@prisma/client";
 import { hash } from "@/lib/cover-art";
 
 /**
  * The reading room (components/reading-room.tsx): the library drawn as a
- * little pixel-art house, one spine per book, that grows a bookcase at a
- * time and a floor at a time as books are added. This file is the layout,
+ * little pixel-art house, one spine per game, that grows a bookcase at a
+ * time and a floor at a time as games are added. This file is the layout,
  * kept free of React so it can be tested: how big each spine is, which
  * shelf it stands on, and where the bookcases and furniture go.
  *
@@ -35,8 +35,8 @@ export const WALL = 5;
 export const GAP = 4;
 export const PAD = 4;
 
-/** The fields the room needs from a book. */
-export interface RoomBook {
+/** The fields the room needs from a game. */
+export interface RoomGame {
   id: string;
   title: string;
   /** All authors, joined: "Terry Pratchett, Neil Gaiman". */
@@ -45,13 +45,13 @@ export interface RoomBook {
   pageCount: number | null;
   currentPage: number | null;
   status: ReadingStatus;
-  ownership: BookOwnership;
+  ownership: GameOwnership;
   /** Who has it, while it is lent out. */
   lentTo: string | null;
 }
 
 export interface Spine {
-  /** 3–6 dots: thicker books are wider. */
+  /** 3–6 dots: thicker games are wider. */
   width: number;
   /** 14–18 dots. */
   height: number;
@@ -59,28 +59,28 @@ export interface Spine {
   pattern: number;
 }
 
-/** A book's spine. The size comes from its page count, the height and
- *  pattern from its title, so a book looks the same on every visit. */
-export function spineFor(book: Pick<RoomBook, "title" | "pageCount">): Spine {
-  const pages = book.pageCount ?? 0;
+/** A game's spine. The size comes from its page count, the height and
+ *  pattern from its title, so a game looks the same on every visit. */
+export function spineFor(game: Pick<RoomGame, "title" | "pageCount">): Spine {
+  const pages = game.pageCount ?? 0;
   const width = !pages ? 4 : pages < 200 ? 3 : pages < 420 ? 4 : pages < 700 ? 5 : 6;
-  const h = hash(book.title.trim().toLowerCase());
+  const h = hash(game.title.trim().toLowerCase());
   return { width, height: 14 + ((h >>> 3) % 5), pattern: (h >>> 11) % 5 };
 }
 
-/** Whether the book is actually on the shelf, rather than wished for, lent
+/** Whether the game is actually on the shelf, rather than wished for, lent
  *  out or given away. Those keep their place on the shelf as an outline. */
-export function isOnShelf(book: Pick<RoomBook, "ownership" | "lentTo">): boolean {
+export function isOnShelf(game: Pick<RoomGame, "ownership" | "lentTo">): boolean {
   return (
-    (book.ownership === BookOwnership.OWNED || book.ownership === BookOwnership.BORROWED) &&
-    !book.lentTo
+    (game.ownership === GameOwnership.OWNED || game.ownership === GameOwnership.BORROWED) &&
+    !game.lentTo
   );
 }
 
 /**
  * Stands the spines on shelves in order, starting a new shelf when the
- * next one wouldn't fit. Returns each shelf as the indexes of its books.
- * There is always at least one shelf, even with no books.
+ * next one wouldn't fit. Returns each shelf as the indexes of its games.
+ * There is always at least one shelf, even with no games.
  */
 export function shelve(widths: readonly number[]): number[][] {
   const shelves: number[][] = [[]];
@@ -257,7 +257,7 @@ export const PIECE_WIDTH: Record<PieceKind, number> = {
   dollhouse: 30,
 };
 
-/** How many books it takes for each piece of furniture (and the cat) to
+/** How many games it takes for each piece of furniture (and the cat) to
  *  move in. The hearth and the first bookcase are always there. */
 export const MILESTONES = {
   plant: 10,
@@ -275,7 +275,7 @@ const FLOOR_STARTERS = ["seat", "study", "gramophone"] as const;
 const FILLERS = ["plant", "clock"] as const;
 
 /** Furniture the reader can move about (Decorate › Arrange). Bookcases
- *  keep to the order of the books, and the ladder to the bookcases. */
+ *  keep to the order of the games, and the ladder to the bookcases. */
 export const MOVABLE = ["hearth", "seat", "study", "gramophone", "plant", "clock", ...ROOM_PIECE_LIST, ...EXTRAS] as const;
 export type Movable = (typeof MOVABLE)[number];
 /** Furniture that can be put away. The hearth stays: it is where the
@@ -430,7 +430,7 @@ function withPins(row: readonly PieceKind[], pins: readonly { kind: PieceKind; s
 
 /**
  * Lays out the house: `caseCount` bookcases (at least one), plus the
- * furniture `bookCount` books have earned, in a house no wider inside than
+ * furniture `gameCount` games have earned, in a house no wider inside than
  * `maxInner`.
  *
  * The ground floor has the hearth and as many bookcases as fit beside it.
@@ -450,7 +450,7 @@ function withPins(row: readonly PieceKind[], pins: readonly { kind: PieceKind; s
  */
 export function planHouse(
   caseCount: number,
-  bookCount: number,
+  gameCount: number,
   maxInner: number,
   arrangement: Arrangement = NO_ARRANGEMENT,
 ): HousePlan {
@@ -463,7 +463,7 @@ export function planHouse(
   const has = (k: keyof typeof MILESTONES | RoomPiece | Extra) =>
     !away.has(k) &&
     (k in MILESTONES
-      ? bookCount >= MILESTONES[k as keyof typeof MILESTONES]
+      ? gameCount >= MILESTONES[k as keyof typeof MILESTONES]
       : isExtra(k)
         ? added.has(k)
         : inRooms.has(k));
@@ -488,7 +488,7 @@ export function planHouse(
   // upstairs frees room on the ground floor, but shouldn't squeeze the
   // furniture out of the floors it was moved to.
   const ownFloors = pinned.size
-    ? planHouse(caseCount, bookCount, maxInner, { places: [], away: arrangement.away }).floors.length
+    ? planHouse(caseCount, gameCount, maxInner, { places: [], away: arrangement.away }).floors.length
     : 0;
 
   const isStarter = (k: PieceKind) => (FLOOR_STARTERS as readonly PieceKind[]).includes(k);
@@ -586,7 +586,7 @@ export function planHouse(
     // The hearth is never left out: moved to a floor that has no room for
     // it, it goes back where it would be by itself, on the ground floor.
     if (!placed && kind === "hearth") {
-      return planHouse(caseCount, bookCount, maxInner, {
+      return planHouse(caseCount, gameCount, maxInner, {
         ...arrangement,
         places: arrangement.places.filter((p) => p.kind !== "hearth"),
       });
@@ -772,15 +772,15 @@ const ORNAMENTS = Object.keys(ORNAMENT_WIDTH) as Ornament[];
 export const BOOKEND_WIDTH = 3;
 
 export interface ShelfDressing {
-  /** A bookend after the last book, on a shelf that isn't full. */
+  /** A bookend after the last game, on a shelf that isn't full. */
   bookend: boolean;
   /** Ornaments on the rest, each with its left edge on the shelf. */
   ornaments: { kind: Ornament; x: number }[];
 }
 
 /**
- * What stands on a shelf beside its books (`used` dots of them): a bookend
- * when there is room for one, then an ornament or two on space a book
+ * What stands on a shelf beside its games (`used` dots of them): a bookend
+ * when there is room for one, then an ornament or two on space a game
  * would leave bare. Shelf `n` (counting from the first) always gets the
  * same ones.
  */

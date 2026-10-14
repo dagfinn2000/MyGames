@@ -57,7 +57,7 @@ describe("getLastBackupAt", () => {
 describe("snoozeBackupReminder", () => {
   it("sets a week-long httpOnly cookie holding the account id", async () => {
     await snoozeBackupReminder();
-    expect(cookieSet).toHaveBeenCalledWith("myreads-backup-snooze", userId, {
+    expect(cookieSet).toHaveBeenCalledWith("mygames-backup-snooze", userId, {
       maxAge: 604800,
       path: "/",
       httpOnly: true,

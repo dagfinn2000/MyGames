@@ -3,11 +3,11 @@
 import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookFormat, BookOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
 import { Check, Dices, SquareCheckBig, X } from "lucide-react";
-import { bulkDeleteBooks, bulkUpdateBooks } from "@/lib/actions/bulk";
-import { pickRandomBook } from "@/lib/actions/pick";
-import { isClosingBook } from "@/lib/cover-flight";
+import { bulkDeleteGames, bulkUpdateGames } from "@/lib/actions/bulk";
+import { pickRandomGame } from "@/lib/actions/pick";
+import { isClosingGame } from "@/lib/cover-flight";
 import { FORMAT_LABELS, OWNERSHIP_LABELS, STATUS_LABELS, formatNumber } from "@/lib/display";
 import { orderByIds } from "@/lib/library-order";
 import { cn } from "@/lib/utils";
@@ -15,12 +15,12 @@ import type { LibraryDisplay } from "@/lib/library-view";
 import { pickButtonTitle, tabStatus } from "@/lib/pick";
 import { usePreferences } from "@/components/preferences-provider";
 import {
-  BookCard,
-  BookCoverTile,
-  BookOnShelf,
-  BookRow,
-  type BookCardBook,
-} from "@/components/book-card";
+  GameCard,
+  GameCoverTile,
+  GameOnShelf,
+  GameRow,
+  type GameCardGame,
+} from "@/components/game-card";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -44,10 +44,10 @@ export interface LibraryGroup {
   /** Unique among the sections ("tag:fantasy", "year:2026"). */
   key: string;
   title: string;
-  books: BookCardBook[];
+  games: GameCardGame[];
   /** The section's real size, which may exceed what's rendered. */
   total: number;
-  /** Shown instead of the count: "5 books · 3 read · next #4". */
+  /** Shown instead of the count: "5 games · 3 read · next #4". */
   detail?: string;
   /** A warning after it: "#3 missing". */
   note?: string;
@@ -87,16 +87,16 @@ function splitTags(text: string): string[] {
  * The library grid with bulk-edit support. Normally the cards are plain
  * links; toggling select mode overlays each card with a checkbox hitbox and
  * shows a floating action bar (status, shelf, format, ownership, tags to
- * add or remove, or delete) that applies to every selected book in one
- * server action. Once every card on screen is picked, "Select all N books
- * that match" widens the selection to every book the filters match, which
+ * add or remove, or delete) that applies to every selected game in one
+ * server action. Once every card on screen is picked, "Select all N games
+ * that match" widens the selection to every game the filters match, which
  * the server finds again from the same URL parameters.
  *
  * Renders only the slice the server sent. "Show more" and "Pick for me" both
  * go back to the server rather than working from a full in-memory library.
  */
 export function LibraryView({
-  books,
+  games,
   groups,
   limit,
   maxLimit,
@@ -107,34 +107,34 @@ export function LibraryView({
   display,
   empty,
 }: {
-  /** Only the books being rendered — the server sorts everything and slices.
-   *  Grouped: every book in the shown sections, once each. */
-  books: BookCardBook[];
+  /** Only the games being rendered — the server sorts everything and slices.
+   *  Grouped: every game in the shown sections, once each. */
+  games: GameCardGame[];
   /** Pre-grouped sections (a group-by view) or null for the flat grid. */
   groups: LibraryGroup[] | null;
   /** How many entries the server rendered (the URL's limit). A grouped view
-   *  can show a book in more than one section, so it can differ from
-   *  books.length. */
+   *  can show a game in more than one section, so it can differ from
+   *  games.length. */
   limit?: number;
   /** The most the server will render, however high the URL's limit. */
   maxLimit: number;
-  /** Sections were cut short, even if every book already shows in one. */
+  /** Sections were cut short, even if every game already shows in one. */
   hasMore?: boolean;
-  /** How many books match the current filters, rendered or not. */
+  /** How many games match the current filters, rendered or not. */
   totalCount: number;
   /** Current URL params, so "Show more" can raise the limit in place. */
   searchParams: Record<string, string>;
   shelves: { id: string; name: string }[];
   /** Cover size, grid or list, and which details cards show. */
   display: LibraryDisplay;
-  /** What to show when no book matches. */
+  /** What to show when no game matches. */
   empty: React.ReactNode;
 }) {
   const router = useRouter();
   const prefs = usePreferences();
-  // Back from a book's X: the cards are already in place as the cover flies
+  // Back from a game's X: the cards are already in place as the cover flies
   // home, rather than rising in again (lib/cover-flight.ts).
-  const [returning] = useState(isClosingBook);
+  const [returning] = useState(isClosingGame);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [status, setStatus] = useState("keep");
@@ -143,7 +143,7 @@ export function LibraryView({
   const [ownership, setOwnership] = useState("keep");
   const [tags, setTags] = useState("");
   const [removeTags, setRemoveTags] = useState("");
-  // The filters (as matchKey below) for which "every book that matches" was
+  // The filters (as matchKey below) for which "every game that matches" was
   // chosen. Any other filters on screen and it no longer applies.
   const [matchingFor, setMatchingFor] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -161,10 +161,10 @@ export function LibraryView({
   const viewKey = new URLSearchParams(searchParams).toString();
 
   // --- Bulk selection ---
-  // Only books on screen count as picked. The selection outlives a change
-  // of filters (this component stays mounted), and acting on books no
+  // Only games on screen count as picked. The selection outlives a change
+  // of filters (this component stays mounted), and acting on games no
   // longer shown, Delete above all, is never what anyone means.
-  const shownIds = new Set((groups ? groups.flatMap((g) => g.books) : books).map((b) => b.id));
+  const shownIds = new Set((groups ? groups.flatMap((g) => g.games) : games).map((b) => b.id));
   const picked = [...selected].filter((id) => shownIds.has(id));
   const matchKey = (() => {
     const params = new URLSearchParams(searchParams);
@@ -175,9 +175,9 @@ export function LibraryView({
   const selCount = allMatching ? totalCount : picked.length;
   const canSelectMatching =
     !allMatching && picked.length === shownIds.size && totalCount > shownIds.size;
-  const booksLabel = (n: number) => `${formatNumber(n, prefs)} book${n === 1 ? "" : "s"}`;
+  const gamesLabel = (n: number) => `${formatNumber(n, prefs)} game${n === 1 ? "" : "s"}`;
   const target = () =>
-    allMatching ? { matching: searchParams } : { bookIds: picked };
+    allMatching ? { matching: searchParams } : { gameIds: picked };
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -211,15 +211,15 @@ export function LibraryView({
    *  me switches; the All tab prefers Want to Read (actions/pick.ts).
    *
    *  Runs on the server: the page no longer ships the whole library, so
-   *  picking from `books` would silently narrow the shuffle to the loaded
+   *  picking from `games` would silently narrow the shuffle to the loaded
    *  slice instead of everything matching the filters. */
   function pickForMe() {
     const key = viewKey;
     setPickNote(null);
     startTransition(async () => {
       try {
-        const res = await pickRandomBook(searchParams);
-        if ("id" in res) router.push(`/books/${res.id}`);
+        const res = await pickRandomGame(searchParams);
+        if ("id" in res) router.push(`/games/${res.id}`);
         else setPickNote({ key, reason: res.reason });
       } catch {
         setPickNote({ key, reason: "error" });
@@ -245,11 +245,11 @@ export function LibraryView({
       return;
     }
     startTransition(async () => {
-      const res = await bulkUpdateBooks({
+      const res = await bulkUpdateGames({
         ...target(),
         status: status === "keep" ? undefined : (status as ReadingStatus),
-        format: format === "keep" ? undefined : (format as BookFormat),
-        ownership: ownership === "keep" ? undefined : (ownership as BookOwnership),
+        format: format === "keep" ? undefined : (format as GameFormat),
+        ownership: ownership === "keep" ? undefined : (ownership as GameOwnership),
         addShelfId: shelfAction === "add" ? shelfTarget : undefined,
         removeShelfId: shelfAction === "remove" ? shelfTarget : undefined,
         addTags: addTags.length ? addTags : undefined,
@@ -258,7 +258,7 @@ export function LibraryView({
       if (res.error) {
         setMessage(res.error);
       } else {
-        setMessage(`Updated ${booksLabel(res.count ?? 0)}.`);
+        setMessage(`Updated ${gamesLabel(res.count ?? 0)}.`);
         clearSelection();
         // Apply is disabled with nothing selected; focus goes to how it went
         // rather than falling to the page.
@@ -270,7 +270,7 @@ export function LibraryView({
 
   function deleteSelected() {
     startDelete(async () => {
-      const res = await bulkDeleteBooks({
+      const res = await bulkDeleteGames({
         ...target(),
         // The count the dialog named: if the matches have changed since,
         // the server refuses rather than delete a different set.
@@ -280,15 +280,15 @@ export function LibraryView({
       if (res.error) {
         setMessage(res.error);
       } else {
-        setMessage(`Deleted ${booksLabel(res.count ?? 0)}.`);
+        setMessage(`Deleted ${gamesLabel(res.count ?? 0)}.`);
         clearSelection();
         router.refresh();
       }
     });
   }
 
-  const hiddenCount = totalCount - books.length;
-  const shownLimit = limit ?? books.length;
+  const hiddenCount = totalCount - games.length;
+  const shownLimit = limit ?? games.length;
   /** Past the server's cap a bigger limit would bring nothing more. */
   const atCap = shownLimit >= maxLimit;
 
@@ -298,12 +298,12 @@ export function LibraryView({
   function showMore() {
     const next = new URLSearchParams(searchParams);
     next.set("limit", String(Math.min(shownLimit + PAGE_STEP, maxLimit)));
-    router.push(`/books?${next}`, { scroll: false });
+    router.push(`/games?${next}`, { scroll: false });
   }
 
   const list = display.layout === "list";
   const style = list ? null : display.cardStyle;
-  const renderGrid = (items: BookCardBook[]) => (
+  const renderGrid = (items: GameCardGame[]) => (
     // no-lift: cards stay put on hover while picking, so the selection ring
     // keeps lining up with the card.
     <div
@@ -315,11 +315,11 @@ export function LibraryView({
         selectMode && "no-lift",
       )}
     >
-      {items.map((book, i) => {
-        const isSelected = selected.has(book.id);
+      {items.map((game, i) => {
+        const isSelected = selected.has(game.id);
         return (
           <div
-            key={book.id}
+            key={game.id}
             className={cn(
               "relative rounded-lg",
               !returning && "card-in",
@@ -329,14 +329,14 @@ export function LibraryView({
             style={{ "--i": i < STAGGERED_CARDS ? i : 0 } as React.CSSProperties}
           >
             {list ? (
-              <BookRow book={book} details={display} formatPrefs={prefs} />
+              <GameRow game={game} details={display} formatPrefs={prefs} />
             ) : style === "shelf" ? (
-              <BookOnShelf book={book} />
+              <GameOnShelf game={game} />
             ) : style === "covers" ? (
-              <BookCoverTile book={book} compact={display.cardSize === "small"} />
+              <GameCoverTile game={game} compact={display.cardSize === "small"} />
             ) : (
-              <BookCard
-                book={book}
+              <GameCard
+                game={game}
                 details={display}
                 compact={display.cardSize === "small"}
               />
@@ -344,9 +344,9 @@ export function LibraryView({
             {selectMode && (
               <button
                 type="button"
-                onClick={() => toggle(book.id)}
+                onClick={() => toggle(game.id)}
                 aria-pressed={isSelected}
-                aria-label={`Select ${book.title}`}
+                aria-label={`Select ${game.title}`}
                 className="absolute inset-0 z-10 rounded-lg"
               >
                 <span
@@ -367,19 +367,19 @@ export function LibraryView({
   );
 
   // While selecting, an empty view keeps the bar, so a change that emptied
-  // it (a delete, or a status moving every book off this tab) shows how it
+  // it (a delete, or a status moving every game off this tab) shows how it
   // went; otherwise there's nothing here to count or pick.
   if (totalCount === 0 && !selectMode) return empty;
 
   return (
     // While selecting, room at the bottom so the action bar never covers
-    // the last books. data-library-view tells a closing book page that the
+    // the last games. data-library-view tells a closing game page that the
     // library itself is back, not its loading skeleton (lib/cover-flight.ts).
     <div className={cn("grid gap-4", selectMode && "pb-80 sm:pb-48")} data-library-view="">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground tabular-nums">
-          {totalCount} book{totalCount === 1 ? "" : "s"}
-          {hiddenCount > 0 ? ` · showing ${books.length}` : ""}
+          {totalCount} game{totalCount === 1 ? "" : "s"}
+          {hiddenCount > 0 ? ` · showing ${games.length}` : ""}
         </p>
         {!selectMode ? (
           <div className="flex gap-2">
@@ -387,7 +387,7 @@ export function LibraryView({
               variant="outline"
               size="sm"
               onClick={pickForMe}
-              disabled={books.length === 0}
+              disabled={games.length === 0}
               title={pickButtonTitle(tabStatus(searchParams.shelf), prefs)}
             >
               <Dices data-slot="icon" />
@@ -407,7 +407,7 @@ export function LibraryView({
                 setSelected(new Set(shownIds));
                 setMatchingFor(null);
               }}
-              title="Selects the books currently shown"
+              title="Selects the games currently shown"
             >
               Select all
             </Button>
@@ -425,7 +425,7 @@ export function LibraryView({
         role="status"
         className={cn("text-sm text-muted-foreground", !shownPickNote && "sr-only")}
       >
-        {shownPickNote === "none" && "No books match these filters."}
+        {shownPickNote === "none" && "No games match these filters."}
         {shownPickNote === "settings" && (
           <>
             Nothing here fits your Pick for me settings.{" "}
@@ -434,7 +434,7 @@ export function LibraryView({
             </Link>
           </>
         )}
-        {shownPickNote === "error" && "Couldn't pick a book. Try again."}
+        {shownPickNote === "error" && "Couldn't pick a game. Try again."}
       </p>
 
       {totalCount === 0 ? (
@@ -457,12 +457,12 @@ export function LibraryView({
                   </span>
                 )}
               </h2>
-              {renderGrid(g.books)}
+              {renderGrid(g.games)}
             </section>
           ))}
         </div>
       ) : (
-        renderGrid(books)
+        renderGrid(games)
       )}
 
       {(hiddenCount > 0 || hasMore) &&
@@ -474,7 +474,7 @@ export function LibraryView({
         ) : (
           <div className="flex justify-center">
             <Button variant="outline" onClick={showMore}>
-              {/* Counts books, never repeats: grouped by tag, a book can be
+              {/* Counts games, never repeats: grouped by tag, a game can be
                   cut from one section while it shows in another. */}
               {hiddenCount > 0 ? `Show more (${hiddenCount} not shown)` : "Show more"}
             </Button>
@@ -493,7 +493,7 @@ export function LibraryView({
             {allMatching ? (
               <>
                 <span className="text-muted-foreground">
-                  All {booksLabel(totalCount)} that match are selected.
+                  All {gamesLabel(totalCount)} that match are selected.
                 </span>
                 <Button variant="link" size="sm" className="h-auto p-0" onClick={clearSelection}>
                   Clear selection
@@ -506,7 +506,7 @@ export function LibraryView({
                 className="h-auto p-0"
                 onClick={() => setMatchingFor(matchKey)}
               >
-                Select all {booksLabel(totalCount)} that match
+                Select all {gamesLabel(totalCount)} that match
               </Button>
             ) : null}
           </div>
@@ -551,7 +551,7 @@ export function LibraryView({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="keep">Format: don&apos;t change</SelectItem>
-                {Object.values(BookFormat).map((f) => (
+                {Object.values(GameFormat).map((f) => (
                   <SelectItem key={f} value={f}>
                     {FORMAT_LABELS[f]}
                   </SelectItem>
@@ -564,7 +564,7 @@ export function LibraryView({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="keep">Ownership: don&apos;t change</SelectItem>
-                {Object.values(BookOwnership).map((o) => (
+                {Object.values(GameOwnership).map((o) => (
                   <SelectItem key={o} value={o}>
                     {OWNERSHIP_LABELS[o]}
                   </SelectItem>
@@ -633,7 +633,7 @@ export function LibraryView({
           }}
         >
           <DialogHeader>
-            <DialogTitle>Delete {booksLabel(selCount)}?</DialogTitle>
+            <DialogTitle>Delete {gamesLabel(selCount)}?</DialogTitle>
             <DialogDescription>
               They leave your library with their reading history, quotes and
               loans. This can&apos;t be undone, so{" "}
@@ -648,7 +648,7 @@ export function LibraryView({
               </Button>
             </DialogClose>
             <Button variant="destructive" disabled={deleting} onClick={deleteSelected}>
-              {deleting ? "Deleting…" : `Delete ${booksLabel(selCount)}`}
+              {deleting ? "Deleting…" : `Delete ${gamesLabel(selCount)}`}
             </Button>
           </DialogFooter>
         </DialogContent>

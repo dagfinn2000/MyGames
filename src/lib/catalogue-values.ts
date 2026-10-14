@@ -1,16 +1,16 @@
 import { isbnVariants, looksLikeIsbn, normalizeIsbn } from "@/lib/isbn";
-import type { BookDetails, BookMetadata } from "@/lib/metadata/types";
+import type { GameDetails, GameMetadata } from "@/lib/metadata/types";
 import { catalogueTags, type TagImportSettings } from "@/lib/tag-rules";
 
 /**
- * Turning what the catalogues say about a book into book-form values, and
+ * Turning what the catalogues say about a game into game-form values, and
  * comparing those with what a form already holds. Pure and client-safe:
  * the import search, the shelf scan (server side) and the edit page's
- * "Look up details" all go through here, so a book gets the same page
+ * "Look up details" all go through here, so a game gets the same page
  * count, tags and Open Library id whichever way it came in.
  */
 
-/** The catalogue's fields as the book form holds them: all strings. */
+/** The catalogue's fields as the game form holds them: all strings. */
 export interface CatalogueValues {
   title: string;
   authors: string; // comma-separated
@@ -32,7 +32,7 @@ export type CatalogueField = keyof CatalogueValues;
  * one edition, so its own count does.
  */
 export function bestPageCount(
-  row: Pick<BookMetadata, "source" | "pageCount"> | null,
+  row: Pick<GameMetadata, "source" | "pageCount"> | null,
   detailsPageCount: number | null | undefined,
 ): number | null {
   const details = detailsPageCount ?? null;
@@ -41,15 +41,15 @@ export function bestPageCount(
 }
 
 /**
- * Form values for a catalogue's book: the search row (if there is one) plus
+ * Form values for a catalogue's game: the search row (if there is one) plus
  * the details fetched for it, with the subjects run through the reader's
  * tag settings. `scannedIsbn` is the code the reader scanned or searched
  * for; it wins over the row's ISBN, which for an Open Library row can be
  * any edition of the work.
  */
-export function catalogueBookValues(
-  row: BookMetadata | null,
-  details: Partial<BookDetails> | null,
+export function catalogueGameValues(
+  row: GameMetadata | null,
+  details: Partial<GameDetails> | null,
   tagImport: TagImportSettings,
   scannedIsbn?: string,
 ): CatalogueValues {
@@ -130,7 +130,7 @@ function sameIsbn(a: string, b: string): boolean {
  * and the other ISBN form, and how a number is written). Empty fields come
  * ticked; ones that differ come unticked, so nothing the reader typed is
  * overwritten by accident. Tags are only ever added to, the cover is only
- * offered for a book without one (the cover picker changes covers), and the
+ * offered for a game without one (the cover picker changes covers), and the
  * Open Library id only when there is none.
  */
 export function diffAgainstForm(

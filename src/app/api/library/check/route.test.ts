@@ -12,7 +12,7 @@ vi.mock("@/auth", () => ({ auth: async () => ({ user: { id: userId } }) }));
 
 const findFirst = vi.fn();
 vi.mock("@/lib/prisma", () => ({
-  prisma: { book: { findFirst: (...args: unknown[]) => findFirst(...args) } },
+  prisma: { game: { findFirst: (...args: unknown[]) => findFirst(...args) } },
 }));
 
 vi.mock("@/lib/current-user", async () => {
@@ -20,9 +20,9 @@ vi.mock("@/lib/current-user", async () => {
   return { getPreferences: async () => DEFAULT_PREFERENCES };
 });
 
-const searchBooks = vi.fn();
+const searchGames = vi.fn();
 vi.mock("@/lib/metadata", () => ({
-  searchBooks: (...args: unknown[]) => searchBooks(...args),
+  searchGames: (...args: unknown[]) => searchGames(...args),
 }));
 
 const { GET } = await import("@/app/api/library/check/route");
@@ -33,7 +33,7 @@ beforeEach(() => {
   // A fresh user per test, so each starts with a full budget.
   userId = `user-${Math.random()}`;
   findFirst.mockReset().mockResolvedValue(null);
-  searchBooks.mockReset().mockResolvedValue([]);
+  searchGames.mockReset().mockResolvedValue([]);
 });
 
 /** Spends the whole budget on ISBN lookups. */
@@ -46,12 +46,12 @@ async function exhaustBudget() {
 describe("GET /api/library/check", () => {
   it("stops looking ISBNs up once the user's lookup budget is spent", async () => {
     await exhaustBudget();
-    expect(searchBooks).toHaveBeenCalledTimes(90);
+    expect(searchGames).toHaveBeenCalledTimes(90);
 
     const res = await check("isbn=9780765311788");
     expect(res.status).toBe(429);
     expect(res.headers.get("Retry-After")).toBe("60");
-    expect(searchBooks).toHaveBeenCalledTimes(90);
+    expect(searchGames).toHaveBeenCalledTimes(90);
   });
 
   it("still answers checks that need no lookup when the budget is spent", async () => {
@@ -73,11 +73,11 @@ describe("GET /api/library/check input and outages", () => {
     const res = await check("isbn=not-an-isbn");
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "That doesn't look like an ISBN" });
-    expect(searchBooks).not.toHaveBeenCalled();
+    expect(searchGames).not.toHaveBeenCalled();
   });
 
   it("says so when the catalogues couldn't be asked", async () => {
-    searchBooks.mockRejectedValueOnce(new Error("Couldn't reach the book catalogues"));
+    searchGames.mockRejectedValueOnce(new Error("Couldn't reach the game catalogues"));
     const res = await check("isbn=9780765311788");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ match: null, lookedUp: null, lookupFailed: true });

@@ -1,8 +1,8 @@
 /**
- * The colours of the drawn cover a book gets when it has no cover image
- * (BookCover in components/book-card.tsx).
+ * The colours of the drawn cover a game gets when it has no cover image
+ * (GameCover in components/game-card.tsx).
  *
- * Everything comes from the title, so a book keeps the same cover on every
+ * Everything comes from the title, so a game keeps the same cover on every
  * page and every visit, and different titles spread around the colour
  * wheel instead of all coming out one shade. Saturation and lightness stay
  * in a band dark enough for the pale title text to read on any hue.
@@ -23,8 +23,8 @@ export interface CoverArt {
 }
 
 /** 32-bit FNV-1a, finished with MurmurHash3's mixing step. FNV alone
- *  leaves titles that differ only in their last letter ("Book 1",
- *  "Book 2") with nearly the same low bits, which the hue comes from.
+ *  leaves titles that differ only in their last letter ("Game 1",
+ *  "Game 2") with nearly the same low bits, which the hue comes from.
  *  The reading room (lib/room.ts) uses it for spine heights too. */
 export function hash(text: string): number {
   let h = 2166136261;
@@ -49,7 +49,7 @@ function titleSize(title: string): number {
 }
 
 export function coverArt(title: string): CoverArt {
-  // Case and stray spaces don't change a book's colour.
+  // Case and stray spaces don't change a game's colour.
   const h = hash(title.trim().toLowerCase());
   return {
     hue: h % 360,

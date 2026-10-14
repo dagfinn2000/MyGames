@@ -9,7 +9,7 @@ describe("coverArt", () => {
 
   it("keeps every colour in the band the cover text is readable on", () => {
     const titles = ["The Hobbit", "Sult", "Kristin Lavransdatter", "", "Æ Ø Å", "1984"];
-    for (let i = 0; i < 200; i++) titles.push(`Book ${i}`);
+    for (let i = 0; i < 200; i++) titles.push(`Game ${i}`);
     for (const title of titles) {
       const art = coverArt(title);
       expect(art.hue).toBeGreaterThanOrEqual(0);

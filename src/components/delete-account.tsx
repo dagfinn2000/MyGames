@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
  * On success the server action signs out and redirects — nothing to render
  * after that.
  */
-export function DeleteAccount({ bookCount }: { bookCount: number }) {
+export function DeleteAccount({ gameCount }: { gameCount: number }) {
   const [confirming, setConfirming] = useState(false);
   const [state, formAction, pending] = useActionState(deleteAccount, {});
 
@@ -37,8 +37,8 @@ export function DeleteAccount({ bookCount }: { bookCount: number }) {
       <p className="flex items-start gap-2 text-sm text-destructive">
         <TriangleAlert className="mt-0.5 size-4 shrink-0" />
         <span>
-          This permanently deletes your account and all {bookCount} book
-          {bookCount === 1 ? "" : "s"} — reading history, quotes, shelves,
+          This permanently deletes your account and all {gameCount} game
+          {gameCount === 1 ? "" : "s"} — reading history, quotes, shelves,
           goals, covers, everything. There is no undo. Consider downloading a
           backup first.
         </span>

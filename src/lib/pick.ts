@@ -1,26 +1,26 @@
-import { BookOwnership, ReadingStatus } from "@prisma/client";
+import { GameOwnership, ReadingStatus } from "@prisma/client";
 import { STATUS_LABELS } from "@/lib/display";
 import { isNextInSeries, seriesKey, type SeriesMember } from "@/lib/series";
 
 /**
- * Which books "Pick for me" chooses from, kept pure so the rule is testable
+ * Which games "Pick for me" chooses from, kept pure so the rule is testable
  * apart from the database (actions/pick.ts does the fetching).
  *
- * The rule: the books on screen (the tab and filters), minus what the
+ * The rule: the games on screen (the tab and filters), minus what the
  * Preferences switches leave out; then, on the All tab only, Want to Read
- * books when any are left. A status tab is never swapped for Want to Read.
+ * games when any are left. A status tab is never swapped for Want to Read.
  */
 
-/** A book in the current view, with what the rules look at. */
+/** A game in the current view, with what the rules look at. */
 export interface PickRow extends SeriesMember {
   id: string;
-  ownership: BookOwnership;
+  ownership: GameOwnership;
   seriesName: string | null;
   /** Out with someone right now (an open loan). */
   lent: boolean;
 }
 
-/** Any numbered series book in the library, on screen or not. */
+/** Any numbered series game in the library, on screen or not. */
 export interface SeriesRow extends SeriesMember {
   seriesName: string | null;
 }
@@ -28,9 +28,9 @@ export interface SeriesRow extends SeriesMember {
 export interface PickRules {
   /** The status tab, or null for All (and custom shelves without one). */
   tab: ReadingStatus | null;
-  /** Preferences: Only books I have. */
+  /** Preferences: Only games I have. */
   onlyHave: boolean;
-  /** Preferences: Only the next book in a series. */
+  /** Preferences: Only the next game in a series. */
   nextInSeries: boolean;
 }
 
@@ -45,7 +45,7 @@ export function tabStatus(shelf: string | undefined): ReadingStatus | null {
 /** Yours or borrowed, and on hand: not wishlist, given away or lent out. */
 function haveIt(b: PickRow): boolean {
   return (
-    (b.ownership === BookOwnership.OWNED || b.ownership === BookOwnership.BORROWED) && !b.lent
+    (b.ownership === GameOwnership.OWNED || b.ownership === GameOwnership.BORROWED) && !b.lent
   );
 }
 
@@ -55,7 +55,7 @@ export function pickPool(rows: PickRow[], rules: PickRules, series: SeriesRow[] 
 
   if (rules.nextInSeries) {
     // Each series from the whole library plus the rows themselves, so a
-    // sibling missing from `series` can't wave a later book through.
+    // sibling missing from `series` can't wave a later game through.
     const bySeries = new Map<string, SeriesMember[]>();
     for (const b of [...series, ...rows]) {
       if (!b.seriesName || b.seriesNumber === null) continue;
@@ -64,7 +64,7 @@ export function pickPool(rows: PickRow[], rules: PickRules, series: SeriesRow[] 
       if (list) list.push(b);
       else bySeries.set(key, [b]);
     }
-    // Only Want to Read books wait their turn. A book you're already
+    // Only Want to Read games wait their turn. A game you're already
     // reading is never held back.
     pool = pool.filter(
       (b) =>
@@ -99,10 +99,10 @@ export function pickButtonTitle(
   prefs: { pickOnlyHave: boolean; pickNextInSeries: boolean },
 ): string {
   const base = tab
-    ? `Open a random book from ${STATUS_LABELS[tab]}`
-    : "Open a random book, from Want to Read when there is one";
+    ? `Open a random game from ${STATUS_LABELS[tab]}`
+    : "Open a random game, from Want to Read when there is one";
   const rules = ["your filters"];
-  if (prefs.pickOnlyHave) rules.push("only books you have");
-  if (prefs.pickNextInSeries) rules.push("only the next book in each series");
+  if (prefs.pickOnlyHave) rules.push("only games you have");
+  if (prefs.pickNextInSeries) rules.push("only the next game in each series");
   return `${base} (respects ${joinList(rules)})`;
 }

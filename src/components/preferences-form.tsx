@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BookFormat, BookOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
 import { ArrowDown, ArrowUp, Pencil, Trash2 } from "lucide-react";
 import { savePreferences } from "@/lib/actions/preferences";
 import { deleteView, renameView } from "@/lib/actions/saved-views";
@@ -35,7 +35,7 @@ import {
 } from "@/lib/preferences";
 import { PERIOD_LABELS } from "@/lib/stats-period";
 import { cn } from "@/lib/utils";
-import { BookPageCardList, FindLinksEditor } from "@/components/book-page-preferences";
+import { GamePageCardList, FindLinksEditor } from "@/components/game-page-preferences";
 import { TagRulesList } from "@/components/tag-rules-list";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,7 +49,7 @@ import {
 
 const CATALOGUE_LABELS: Record<Catalogue, string> = {
   openlibrary: "Open Library",
-  google: "Google Books",
+  google: "Google Games",
   nb: "National Library of Norway",
 };
 
@@ -94,7 +94,7 @@ const HTML_ATTRIBUTES: Partial<Record<keyof Preferences, string>> = {
   cardStyle: "data-cards",
   background: "data-background",
   backgroundMotion: "data-background-motion",
-  bookBackdrop: "data-book-backdrop",
+  gameBackdrop: "data-game-backdrop",
 };
 
 /** The accent colour swatches, one round button each. */
@@ -138,7 +138,7 @@ const BACKGROUND_LABELS: Record<Background, string> = {
   lines: "Ruled lines",
   grid: "Graph paper",
   linen: "Linen",
-  books: "Little books",
+  games: "Little games",
   waves: "Waves",
   glow: "Glow",
   contours: "Contours",
@@ -210,7 +210,7 @@ function BackgroundPicker({
 const STATS_LABELS: Record<HideableStat, string> = {
   goal: "Reading goal",
   heatmap: "Reading days calendar",
-  perYear: "Books read per year",
+  perYear: "Games read per year",
   tags: "Genres & tags",
   formats: "Formats",
   quote: "From your quotes",
@@ -315,7 +315,7 @@ export function PreferencesForm({
   serverTimeZone: string;
   /** Every zone this server knows, for the time zone list. */
   timeZones: string[];
-  /** Whether this server has a Google Books key. Without one the catalogue
+  /** Whether this server has a Google Games key. Without one the catalogue
    *  isn't searched whatever the setting says, so it isn't offered. */
   googleAvailable: boolean;
   savedViews: { id: string; name: string }[];
@@ -358,7 +358,7 @@ export function PreferencesForm({
     const j = i + by;
     if (i < 0 || j < 0 || j >= list.length) return;
     [list[i], list[j]] = [list[j], list[i]];
-    // Keep an unavailable Google Books in the list (last), so it comes back
+    // Keep an unavailable Google Games in the list (last), so it comes back
     // on if this server gets a key later.
     update({ catalogues: [...list, ...prefs.catalogues.filter((x) => !offered.includes(x))] });
   }
@@ -384,30 +384,30 @@ export function PreferencesForm({
               : "Changes save as you make them."}
       </p>
 
-      <Section title="New books" id="new-books">
+      <Section title="New games" id="new-games">
         <Choice
           label="Format"
-          value={prefs.newBookFormat}
-          options={Object.values(BookFormat).map((f) => ({ value: f, label: FORMAT_LABELS[f] }))}
-          onChange={(v) => update({ newBookFormat: v })}
+          value={prefs.newGameFormat}
+          options={Object.values(GameFormat).map((f) => ({ value: f, label: FORMAT_LABELS[f] }))}
+          onChange={(v) => update({ newGameFormat: v })}
         />
         <Choice
           label="Status"
-          value={prefs.newBookStatus}
+          value={prefs.newGameStatus}
           options={Object.values(ReadingStatus).map((s) => ({ value: s, label: STATUS_LABELS[s] }))}
-          onChange={(v) => update({ newBookStatus: v })}
+          onChange={(v) => update({ newGameStatus: v })}
         />
         <Choice
           label="Ownership"
-          value={prefs.newBookOwnership}
-          options={Object.values(BookOwnership).map((o) => ({
+          value={prefs.newGameOwnership}
+          options={Object.values(GameOwnership).map((o) => ({
             value: o,
             label: OWNERSHIP_LABELS[o],
           }))}
-          onChange={(v) => update({ newBookOwnership: v })}
+          onChange={(v) => update({ newGameOwnership: v })}
         />
         <Choice
-          label="Books I add as Read were finished"
+          label="Games I add as Read were finished"
           hint="Bulk edit's Set status: Read follows this too."
           value={prefs.addedAsReadFinished}
           options={[
@@ -417,10 +417,10 @@ export function PreferencesForm({
           onChange={(v) => update({ addedAsReadFinished: v })}
         />
         <Choice
-          label="After adding a book"
+          label="After adding a game"
           value={prefs.afterAdd}
           options={[
-            { value: "open", label: "Open the book" },
+            { value: "open", label: "Open the game" },
             { value: "another", label: "Add another" },
             { value: "library", label: "Go to the library" },
           ]}
@@ -441,9 +441,9 @@ export function PreferencesForm({
         <TagRulesList renames={initial.tagRenames} skips={initial.tagSkips} />
       </Section>
 
-      <Section title="Book search">
+      <Section title="Game search">
         <p className="text-xs text-muted-foreground">
-          Which catalogues to search when adding a book, and which comes first.
+          Which catalogues to search when adding a game, and which comes first.
         </p>
         <ul className="grid gap-1.5">
           {catalogueRows.map((c) => {
@@ -497,12 +497,12 @@ export function PreferencesForm({
       <Section title="Reading">
         <Choice
           label="Step buttons"
-          hint="The buttons next to the page box, in the book's own unit: pages, percent or minutes."
+          hint="The buttons next to the page box, in the game's own unit: pages, percent or minutes."
           value={prefs.quickLogSteps}
           options={[
             { value: "10-25", label: "+10 and +25" },
             { value: "5-10", label: "+5 and +10" },
-            { value: "5pct", label: "+5% of the book" },
+            { value: "5pct", label: "+5% of the game" },
           ]}
           onChange={(v) => update({ quickLogSteps: v })}
         />
@@ -517,7 +517,7 @@ export function PreferencesForm({
         />
         <Choice
           label="Audiobooks: track by"
-          hint="Time needs the book's length and a page count, both on its Edit page."
+          hint="Time needs the game's length and a page count, both on its Edit page."
           value={prefs.audiobookUnit}
           options={[
             { value: "page", label: "Page" },
@@ -652,25 +652,25 @@ export function PreferencesForm({
 
       <Section title="Pick for me" id="pick-for-me">
         <Toggle
-          label="Only books I have"
+          label="Only games I have"
           checked={prefs.pickOnlyHave}
           onChange={(c) => update({ pickOnlyHave: c })}
         />
         <Toggle
-          label="Only the next book in a series"
+          label="Only the next game in a series"
           checked={prefs.pickNextInSeries}
           onChange={(c) => update({ pickNextInSeries: c })}
         />
         <p className="text-xs text-muted-foreground">
-          Borrowed books count as books you have. Wishlist, given-away and
-          lent-out books don&apos;t. A Want to Read book in a series is skipped
+          Borrowed games count as games you have. Wishlist, given-away and
+          lent-out games don&apos;t. A Want to Read game in a series is skipped
           while an earlier one is still unread.
         </p>
       </Section>
 
       <Section title="Ratings">
         <Choice
-          label="Rate books with"
+          label="Rate games with"
           value={prefs.ratingStyle}
           options={[
             { value: "half", label: "Half stars" },
@@ -692,7 +692,7 @@ export function PreferencesForm({
       <Section title="Appearance">
         <AccentPicker value={prefs.accent} onChange={(a) => update({ accent: a })} />
         <Choice
-          label="Books without a cover"
+          label="Games without a cover"
           value={prefs.coverArt}
           options={[
             { value: "drawn", label: "A drawn cover with the title" },
@@ -723,13 +723,13 @@ export function PreferencesForm({
         />
         <BackgroundPicker value={prefs.background} onChange={(b) => update({ background: b })} />
         <Choice
-          label="Behind a book's page"
-          value={prefs.bookBackdrop}
+          label="Behind a game's page"
+          value={prefs.gameBackdrop}
           options={[
             { value: "cover", label: "A soft wash of its cover's colours" },
             { value: "plain", label: "Nothing" },
           ]}
-          onChange={(v) => update({ bookBackdrop: v })}
+          onChange={(v) => update({ gameBackdrop: v })}
         />
       </Section>
 
@@ -773,17 +773,17 @@ export function PreferencesForm({
           value={prefs.longTextFont}
           options={[
             { value: "sans", label: "Same as everything else" },
-            { value: "serif", label: "Book-style serif" },
+            { value: "serif", label: "Game-style serif" },
           ]}
           onChange={(v) => update({ longTextFont: v })}
         />
         <Choice
           label="Headings"
-          hint="Page titles, book titles and card titles."
+          hint="Page titles, game titles and card titles."
           value={prefs.headingFont}
           options={[
             { value: "sans", label: "Same as everything else" },
-            { value: "serif", label: "Book-style serif" },
+            { value: "serif", label: "Game-style serif" },
             { value: "rounded", label: "Rounded" },
           ]}
           onChange={(v) => update({ headingFont: v })}
@@ -798,7 +798,7 @@ export function PreferencesForm({
           options={[
             { value: "library", label: "Library" },
             { value: "stats", label: "Stats" },
-            { value: "add", label: "Add book" },
+            { value: "add", label: "Add game" },
             { value: "reading", label: "Now reading" },
           ]}
           onChange={(v) => update({ startPage: v })}
@@ -827,9 +827,9 @@ export function PreferencesForm({
               onChange={(shown) => update({ hiddenNav: toggleIn(prefs.hiddenNav, item, !shown) })}
             />
           ))}
-          {prefs.hiddenNav.includes("quotes") && !prefs.hiddenBookPageCards.includes("quotes") && (
+          {prefs.hiddenNav.includes("quotes") && !prefs.hiddenGamePageCards.includes("quotes") && (
             <p className="text-xs text-muted-foreground">
-              The Quotes card still shows on book pages. You can hide it under Book page below.
+              The Quotes card still shows on game pages. You can hide it under Game page below.
             </p>
           )}
         </div>
@@ -843,7 +843,7 @@ export function PreferencesForm({
             onChange={(on) => update({ hiddenNav: toggleIn(prefs.hiddenNav, "room", !on) })}
           />
           <p className="pl-6 text-xs text-muted-foreground">
-            Your books as a pixel-art house, with an avatar who lives there. Turned off, the Room tab goes away.
+            Your games as a pixel-art house, with an avatar who lives there. Turned off, the Room tab goes away.
           </p>
         </div>
         {!prefs.hiddenNav.includes("room") && (
@@ -855,24 +855,24 @@ export function PreferencesForm({
         )}
       </Section>
 
-      <Section title="Book page" id="book-page">
-        <BookPageCardList prefs={prefs} update={update} />
+      <Section title="Game page" id="game-page">
+        <GamePageCardList prefs={prefs} update={update} />
         <Choice
           label="Long descriptions"
-          value={prefs.bookDescription}
+          value={prefs.gameDescription}
           options={[
             { value: "full", label: "In full" },
             { value: "clamp", label: "First 4 lines, with More" },
           ]}
-          onChange={(v) => update({ bookDescription: v })}
+          onChange={(v) => update({ gameDescription: v })}
         />
         <Choice
           label="Shelves card"
-          hint="What the Shelves card lists on a book."
+          hint="What the Shelves card lists on a game."
           value={prefs.shelvesCard}
           options={[
             { value: "all", label: "Every shelf" },
-            { value: "mine", label: "Only this book's shelves, plus Add" },
+            { value: "mine", label: "Only this game's shelves, plus Add" },
           ]}
           onChange={(v) => update({ shelvesCard: v })}
         />
@@ -916,8 +916,8 @@ export function PreferencesForm({
           label="Genres and Formats count"
           value={prefs.statsBreakdown}
           options={[
-            { value: "library", label: "Every book in the library" },
-            { value: "period", label: "Books I read in the period" },
+            { value: "library", label: "Every game in the library" },
+            { value: "period", label: "Games I read in the period" },
           ]}
           onChange={(v) => update({ statsBreakdown: v })}
         />
@@ -938,30 +938,30 @@ export function PreferencesForm({
           </div>
           <Choice
             label="Pages read means"
-            hint="Books you finish without logging still add their page count."
+            hint="Games you finish without logging still add their page count."
             value={prefs.statsPagesRead}
             options={[
-              { value: "finished", label: "Whole books when I finish" },
+              { value: "finished", label: "Whole games when I finish" },
               { value: "logged", label: "Pages I logged" },
             ]}
             onChange={(v) => update({ statsPagesRead: v })}
           />
           <Choice
-            label="Books I stop reading"
-            value={prefs.statsStoppedBooks}
+            label="Games I stop reading"
+            value={prefs.statsStoppedGames}
             options={[
               { value: "none", label: "Don't count" },
               { value: "pages", label: "Count the pages I read" },
-              { value: "book", label: "Count as a book" },
+              { value: "game", label: "Count as a game" },
             ]}
-            onChange={(v) => update({ statsStoppedBooks: v })}
+            onChange={(v) => update({ statsStoppedGames: v })}
           />
           <Choice
             label="Audiobooks"
             value={prefs.statsAudiobooks}
             options={[
               { value: "full", label: "Count fully" },
-              { value: "books", label: "Books, not pages" },
+              { value: "games", label: "Games, not pages" },
               { value: "out", label: "Leave out" },
             ]}
             onChange={(v) => update({ statsAudiobooks: v })}

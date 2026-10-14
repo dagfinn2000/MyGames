@@ -9,9 +9,9 @@ import { requireUserId } from "@/lib/actions/helpers";
 const goalSchema = z.object({
   year: z.coerce.number().int().min(1900).max(2200),
   // A pages goal runs into the thousands, so the cap is far above any
-  // sensible book count.
+  // sensible game count.
   target: z.coerce.number().int().min(0).max(1_000_000),
-  unit: z.nativeEnum(GoalUnit).catch(GoalUnit.BOOKS),
+  unit: z.nativeEnum(GoalUnit).catch(GoalUnit.GAMES),
   countRereads: z.boolean(),
 });
 
@@ -23,7 +23,7 @@ export interface GoalFormState {
 
 /**
  * Sets (or clears, with target 0 / empty) the reading goal for a year,
- * along with what it counts: books or pages, with or without re-reads.
+ * along with what it counts: games or pages, with or without re-reads.
  * Any year can be saved, so next year's goal can be set in December and a
  * past one corrected; each year's goal is its own row.
  */

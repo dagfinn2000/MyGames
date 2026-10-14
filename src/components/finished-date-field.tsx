@@ -8,9 +8,9 @@ import { Label } from "@/components/ui/label";
 
 /**
  * A finish date with a "Don't remember" box beside it, for the add form
- * (a book added as Read) and the reading card. Ticking the box disables
+ * (a game added as Read) and the reading card. Ticking the box disables
  * the date, and a disabled input isn't submitted, so the server sees no
- * date and `finishedUnknown=on` and leaves the book undated instead of
+ * date and `finishedUnknown=on` and leaves the game undated instead of
  * stamping today. Unticking it with no date filled in puts today in, so
  * what the field shows is what gets saved.
  */
@@ -68,7 +68,7 @@ export function FinishedDateField({
       </label>
       {unknown && (
         <p id={`${id}-hint`} className="basis-full text-xs text-muted-foreground">
-          Counts in Books read, but not in any year&apos;s stats or goal.
+          Counts in Games read, but not in any year&apos;s stats or goal.
         </p>
       )}
     </div>

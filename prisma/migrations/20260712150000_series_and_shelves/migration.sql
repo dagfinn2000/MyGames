@@ -1,5 +1,5 @@
 -- AlterTable
-ALTER TABLE "Book" ADD COLUMN     "seriesName" TEXT,
+ALTER TABLE "Game" ADD COLUMN     "seriesName" TEXT,
 ADD COLUMN     "seriesNumber" DOUBLE PRECISION;
 
 -- CreateTable
@@ -13,25 +13,25 @@ CREATE TABLE "Shelf" (
 );
 
 -- CreateTable
-CREATE TABLE "_BookToShelf" (
+CREATE TABLE "_GameToShelf" (
     "A" TEXT NOT NULL,
     "B" TEXT NOT NULL,
 
-    CONSTRAINT "_BookToShelf_AB_pkey" PRIMARY KEY ("A","B")
+    CONSTRAINT "_GameToShelf_AB_pkey" PRIMARY KEY ("A","B")
 );
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Shelf_userId_name_key" ON "Shelf"("userId", "name");
 
 -- CreateIndex
-CREATE INDEX "_BookToShelf_B_index" ON "_BookToShelf"("B");
+CREATE INDEX "_GameToShelf_B_index" ON "_GameToShelf"("B");
 
 -- AddForeignKey
 ALTER TABLE "Shelf" ADD CONSTRAINT "Shelf_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "_BookToShelf" ADD CONSTRAINT "_BookToShelf_A_fkey" FOREIGN KEY ("A") REFERENCES "Book"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "_GameToShelf" ADD CONSTRAINT "_GameToShelf_A_fkey" FOREIGN KEY ("A") REFERENCES "Game"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "_BookToShelf" ADD CONSTRAINT "_BookToShelf_B_fkey" FOREIGN KEY ("B") REFERENCES "Shelf"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "_GameToShelf" ADD CONSTRAINT "_GameToShelf_B_fkey" FOREIGN KEY ("B") REFERENCES "Shelf"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 

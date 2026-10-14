@@ -22,19 +22,19 @@ import {
 } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Account · MyReads" };
+export const metadata = { title: "Account · MyGames" };
 
 export default async function AccountPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login"); // revoked session (see auth.ts)
   const userId = session.user.id;
 
-  const [user, bookCount, current, prefs, savedViews] = await Promise.all([
+  const [user, gameCount, current, prefs, savedViews] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: { username: true, createdAt: true, lastBackupAt: true },
     }),
-    prisma.book.count({ where: { userId } }),
+    prisma.game.count({ where: { userId } }),
     getCurrentUser(),
     getPreferences(),
     prisma.savedView.findMany({
@@ -59,7 +59,7 @@ export default async function AccountPage() {
         <CardContent>
           <p className="text-sm text-muted-foreground">
             Member since {formatDate(user.createdAt, prefs)} ·{" "}
-            {formatNumber(bookCount, prefs)} book{bookCount === 1 ? "" : "s"} in
+            {formatNumber(gameCount, prefs)} game{gameCount === 1 ? "" : "s"} in
             the library
           </p>
         </CardContent>
@@ -100,9 +100,9 @@ export default async function AccountPage() {
         </CardHeader>
         <CardContent className="grid gap-3">
           <p className="text-sm text-muted-foreground">
-            Download your library (books, quotes, shelves, goals — cover
+            Download your library (games, quotes, shelves, goals — cover
             images included) as a zip, or restore a backup (zip, or JSON
-            from older versions). Restoring merges: books you already have
+            from older versions). Restoring merges: games you already have
             are skipped.
           </p>
           <p className="text-sm" aria-live="polite">
@@ -123,7 +123,7 @@ export default async function AccountPage() {
         <CardContent className="grid gap-4">
           <p className="text-sm text-muted-foreground">
             Deleting your account removes your entire library from this
-            instance — permanently. A backup zip restores into any MyReads
+            instance — permanently. A backup zip restores into any MyGames
             instance, so grab one first if there&apos;s any doubt.
           </p>
           <div className="flex flex-wrap gap-2">
@@ -133,7 +133,7 @@ export default async function AccountPage() {
                 Download backup
               </a>
             </Button>
-            <DeleteAccount bookCount={bookCount} />
+            <DeleteAccount gameCount={gameCount} />
           </div>
         </CardContent>
       </Card>

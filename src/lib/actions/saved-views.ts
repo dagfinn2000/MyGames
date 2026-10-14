@@ -45,7 +45,7 @@ export async function saveView(
     update: { query: canonical },
     select: { id: true },
   });
-  revalidatePath("/books");
+  revalidatePath("/games");
   revalidatePath("/account");
   return { id: view.id };
 }
@@ -85,7 +85,7 @@ export async function renameView(id: string, name: string): Promise<{ error?: st
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return taken;
     throw err;
   }
-  revalidatePath("/books");
+  revalidatePath("/games");
   revalidatePath("/account");
   return {};
 }
@@ -99,6 +99,6 @@ export async function deleteView(id: string): Promise<void> {
     UPDATE "User"
     SET "preferences" = "preferences" || '{"defaultViewId": ""}'::jsonb
     WHERE "id" = ${userId} AND "preferences"->>'defaultViewId' = ${id}`;
-  revalidatePath("/books");
+  revalidatePath("/games");
   revalidatePath("/account");
 }

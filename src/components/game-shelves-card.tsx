@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useOptimistic, useRef, useState, useTransition } from "react";
-import { createShelf, toggleBookShelf } from "@/lib/actions/shelves";
+import { createShelf, toggleGameShelf } from "@/lib/actions/shelves";
 import type { ActionState } from "@/lib/actions/helpers";
 import { submitKeepingInput } from "@/lib/submit-form";
 import { usePreferences } from "@/components/preferences-provider";
@@ -22,21 +22,21 @@ import {
 } from "@/components/ui/select";
 
 /**
- * Shelf assignment on the book detail page: a checkbox per shelf plus an
- * inline "new shelf" creator that puts the book on the new shelf right away.
+ * Shelf assignment on the game detail page: a checkbox per shelf plus an
+ * inline "new shelf" creator that puts the game on the new shelf right away.
  * Toggles are optimistic so the checkboxes feel instant.
  *
- * With "Only this book's shelves" (Preferences > Book page) it lists just
- * the shelves the book is on, and the rest go in an "Add to a shelf" menu.
+ * With "Only this game's shelves" (Preferences > Game page) it lists just
+ * the shelves the game is on, and the rest go in an "Add to a shelf" menu.
  * A shelf ticked or unticked here stays listed until the page is left, so a
  * checkbox never vanishes from under the pointer or keyboard focus.
  */
-export function BookShelvesCard({
-  bookId,
+export function GameShelvesCard({
+  gameId,
   shelves,
   memberIds,
 }: {
-  bookId: string;
+  gameId: string;
   shelves: { id: string; name: string }[];
   memberIds: string[];
 }) {
@@ -70,7 +70,7 @@ export function BookShelvesCard({
     setKept((k) => (k.has(shelfId) ? k : new Set(k).add(shelfId)));
     startTransition(async () => {
       setOptimistic({ shelfId, member });
-      await toggleBookShelf(bookId, shelfId, member);
+      await toggleGameShelf(gameId, shelfId, member);
     });
   }
 
@@ -163,10 +163,10 @@ export function BookShelvesCard({
           onSubmit={submitKeepingInput(createAction)}
           className="flex gap-2"
         >
-          <input type="hidden" name="bookId" value={bookId} />
+          <input type="hidden" name="gameId" value={gameId} />
           <Input
             name="name"
-            placeholder="New shelf (adds this book to it)"
+            placeholder="New shelf (adds this game to it)"
             required
             maxLength={50}
             className="max-w-64"

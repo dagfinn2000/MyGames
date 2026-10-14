@@ -39,9 +39,9 @@ export async function Nav() {
           className="wordmark mr-1 flex items-center gap-2 text-lg sm:mr-4"
         >
           <BookOpen className="size-5" />
-          <span className="hidden min-[480px]:inline">MyReads</span>
+          <span className="hidden min-[480px]:inline">MyGames</span>
         </Link>
-        <NavLink href="/books" title="Library">
+        <NavLink href="/games" title="Library">
           <LibraryBig data-slot="icon" />
           <span className="hidden lg:inline">Library</span>
         </NavLink>
@@ -51,12 +51,12 @@ export async function Nav() {
             <span className="hidden lg:inline">Now reading</span>
           </NavLink>
         )}
-        <NavLink href="/books/new" title="Add book">
+        <NavLink href="/games/new" title="Add game">
           <Plus data-slot="icon" />
-          <span className="hidden lg:inline">Add book</span>
+          <span className="hidden lg:inline">Add game</span>
         </NavLink>
         {!hidden.has("check") && (
-          <NavLink href="/books/check" title="Do I own this?">
+          <NavLink href="/games/check" title="Do I own this?">
             <ScanSearch data-slot="icon" />
             <span className="hidden lg:inline">Check</span>
           </NavLink>

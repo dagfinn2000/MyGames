@@ -26,14 +26,14 @@ import {
 export interface ShelfInfo {
   id: string;
   name: string;
-  bookCount: number;
+  gameCount: number;
 }
 
 /**
  * Custom-shelf row on the library page: one chip per shelf (click to
  * filter, "All" to clear), a "+ New shelf" chip, a "Manage shelves" chip
  * (rename, merge, reorder, hide, delete), and a delete button on the
- * active shelf (confirm dialog — deleting a shelf never touches its books).
+ * active shelf (confirm dialog — deleting a shelf never touches its games).
  *
  * Chips follow the reader's own order (shelfOrder; shelves not in it
  * follow by name) and leave out hidden shelves, except the one on screen.
@@ -80,7 +80,7 @@ export function ShelfChips({
     if (shelfId) params.set("shelfId", shelfId);
     else params.delete("shelfId");
     const qs = params.toString();
-    return `/books${qs ? `?${qs}` : ""}`;
+    return `/games${qs ? `?${qs}` : ""}`;
   }
 
   return (
@@ -107,7 +107,7 @@ export function ShelfChips({
           >
             {shelf.name}
             <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">
-              {shelf.bookCount}
+              {shelf.gameCount}
             </span>
           </Link>
           {shelf.id === activeShelfId && (
@@ -125,7 +125,7 @@ export function ShelfChips({
                 <DialogHeader>
                   <DialogTitle>Delete shelf “{shelf.name}”?</DialogTitle>
                   <DialogDescription>
-                    The {shelf.bookCount} book{shelf.bookCount === 1 ? "" : "s"} on
+                    The {shelf.gameCount} game{shelf.gameCount === 1 ? "" : "s"} on
                     it stay in your library — only the shelf goes away.
                   </DialogDescription>
                 </DialogHeader>
@@ -162,7 +162,7 @@ export function ShelfChips({
           <DialogHeader>
             <DialogTitle>New shelf</DialogTitle>
             <DialogDescription>
-              A freeform group like “Sanderson” or “Fantasy”. Assign books from
+              A freeform group like “Sanderson” or “Fantasy”. Assign games from
               their detail pages.
             </DialogDescription>
           </DialogHeader>

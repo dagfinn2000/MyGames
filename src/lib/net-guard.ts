@@ -1,7 +1,7 @@
 /**
  * Guards outbound fetches of user-supplied URLs against SSRF.
  *
- * The book form accepts any image URL and the server downloads it into the
+ * The game form accepts any image URL and the server downloads it into the
  * cover cache. Without a check that makes the app a probe into whatever else
  * is on its network — a self-hosted instance usually sits on a home LAN with
  * a router admin page, a NAS, and other containers reachable by name.

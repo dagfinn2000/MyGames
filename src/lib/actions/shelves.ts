@@ -11,8 +11,8 @@ import { requireUserId } from "@/lib/actions/helpers";
 import type { ActionState } from "@/lib/actions/helpers";
 
 /**
- * Create a custom shelf. If the form carries a `bookId`, the book is put on
- * the new shelf immediately — that's the "new shelf" input on the book
+ * Create a custom shelf. If the form carries a `gameId`, the game is put on
+ * the new shelf immediately — that's the "new shelf" input on the game
  * detail page; the library page creates empty shelves.
  */
 export async function createShelf(
@@ -35,21 +35,21 @@ export async function createShelf(
   });
   if (existing) return { error: `You already have a shelf called "${existing.name}"` };
 
-  const bookId = formData.get("bookId");
+  const gameId = formData.get("gameId");
   await prisma.shelf.create({
     data: {
       userId,
       name,
-      // connect is safe even from a form-supplied id: the book must also
+      // connect is safe even from a form-supplied id: the game must also
       // belong to this user or the connect simply fails.
-      ...(typeof bookId === "string" && bookId
-        ? { books: { connect: { id: bookId, userId } } }
+      ...(typeof gameId === "string" && gameId
+        ? { games: { connect: { id: gameId, userId } } }
         : {}),
     },
   });
 
-  revalidatePath("/books");
-  if (bookId) revalidatePath(`/books/${bookId}`);
+  revalidatePath("/games");
+  if (gameId) revalidatePath(`/games/${gameId}`);
   return { success: true };
 }
 
@@ -60,14 +60,14 @@ export interface ShelfRenameResult {
   /** The shelf that has the name now: this one, or the one it merged into. */
   shelfId?: string;
   name?: string;
-  /** After a merge, how many books the merged shelf holds. */
+  /** After a merge, how many games the merged shelf holds. */
   count?: number;
 }
 
 /**
  * Rename a shelf. A name another of the reader's shelves already has (in
- * any case) merges the two: the books join that shelf, this one goes, and
- * saved views that filtered on it follow the books. Changing only the case
+ * any case) merges the two: the games join that shelf, this one goes, and
+ * saved views that filtered on it follow the games. Changing only the case
  * of a shelf's own name just renames it.
  */
 export async function renameShelf(shelfId: string, name: string): Promise<ShelfRenameResult> {
@@ -102,28 +102,28 @@ export async function renameShelf(shelfId: string, name: string): Promise<ShelfR
       }
       throw err;
     }
-    revalidatePath("/books");
+    revalidatePath("/games");
     revalidatePath("/account");
     return { shelfId: source.id, name: newName };
   }
 
   const count = await prisma.$transaction(
     async (tx) => {
-      const moving = await tx.book.findMany({
+      const moving = await tx.game.findMany({
         where: { userId, shelves: { some: { id: source.id } } },
         select: { id: true },
       });
-      const already = await tx.book.findMany({
+      const already = await tx.game.findMany({
         where: { userId, shelves: { some: { id: target.id } } },
         select: { id: true },
       });
-      // Books on both shelves are already where they need to be.
+      // Games on both shelves are already where they need to be.
       const onTarget = new Set(already.map((b) => b.id));
       const toConnect = moving.map((b) => b.id).filter((id) => !onTarget.has(id));
       for (const part of chunk(toConnect, BULK_CHUNK)) {
         await tx.shelf.update({
           where: { id: target.id },
-          data: { books: { connect: part.map((id) => ({ id })) } },
+          data: { games: { connect: part.map((id) => ({ id })) } },
         });
       }
 
@@ -144,44 +144,44 @@ export async function renameShelf(shelfId: string, name: string): Promise<ShelfR
         });
       }
 
-      return tx.book.count({ where: { userId, shelves: { some: { id: target.id } } } });
+      return tx.game.count({ where: { userId, shelves: { some: { id: target.id } } } });
     },
     { timeout: 60_000 },
   );
 
-  revalidatePath("/books");
+  revalidatePath("/games");
   revalidatePath("/account");
   return { merged: true, shelfId: target.id, name: target.name, count };
 }
 
-/** Delete a shelf. Books on it are untouched — only the grouping goes. */
+/** Delete a shelf. Games on it are untouched — only the grouping goes. */
 export async function deleteShelf(shelfId: string): Promise<void> {
   const userId = await requireUserId();
   await prisma.shelf.deleteMany({ where: { id: shelfId, userId } });
-  revalidatePath("/books");
+  revalidatePath("/games");
 }
 
-/** Put a book on / take it off a shelf (ownership-checked on both sides). */
-export async function toggleBookShelf(
-  bookId: string,
+/** Put a game on / take it off a shelf (ownership-checked on both sides). */
+export async function toggleGameShelf(
+  gameId: string,
   shelfId: string,
   member: boolean,
 ): Promise<void> {
   const userId = await requireUserId();
 
-  const [book, shelf] = await Promise.all([
-    prisma.book.findFirst({ where: { id: bookId, userId }, select: { id: true } }),
+  const [game, shelf] = await Promise.all([
+    prisma.game.findFirst({ where: { id: gameId, userId }, select: { id: true } }),
     prisma.shelf.findFirst({ where: { id: shelfId, userId }, select: { id: true } }),
   ]);
-  if (!book || !shelf) return;
+  if (!game || !shelf) return;
 
-  await prisma.book.update({
-    where: { id: bookId },
+  await prisma.game.update({
+    where: { id: gameId },
     data: {
       shelves: member ? { connect: { id: shelfId } } : { disconnect: { id: shelfId } },
     },
   });
 
-  revalidatePath("/books");
-  revalidatePath(`/books/${bookId}`);
+  revalidatePath("/games");
+  revalidatePath(`/games/${gameId}`);
 }

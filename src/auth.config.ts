@@ -26,9 +26,9 @@ export const authConfig = {
      * callback only sees the decoded JWT — it cannot tell a live session from
      * one revoked by a password change or a deleted account, because Auth.js
      * does not run the DB-backed `jwt` callback here. Bouncing "logged in"
-     * visitors from /login to /books therefore sent revoked sessions into a
+     * visitors from /login to /games therefore sent revoked sessions into a
      * loop: the page resolves the real session, finds nothing and sends the
-     * client to /login, which this callback sent straight back to /books.
+     * client to /login, which this callback sent straight back to /games.
      *
      * Sending an already-signed-in visitor to the library is still done — by
      * the login page itself, which resolves the session properly and can tell

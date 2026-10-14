@@ -14,7 +14,7 @@ function split(initial: string | undefined): [string, string] {
 /**
  * Audiobook length as hours and minutes, sent as one hidden `lengthMinutes`
  * value. The boxes are controlled so a form reset after a failed save can't
- * leave them showing something other than what gets sent. While the book
+ * leave them showing something other than what gets sent. While the game
  * isn't an audiobook the fieldset is hidden and disabled (nothing is sent),
  * but the typed values stay for switching back before saving.
  */

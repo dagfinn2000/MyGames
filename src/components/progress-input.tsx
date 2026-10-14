@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 /**
- * The progress box in the book's own unit: a page number, a percent, or
+ * The progress box in the game's own unit: a page number, a percent, or
  * time listened (h:mm). Controlled: the caller keeps the text, so the step
  * buttons and a reset after logging are plain state changes, and the box
  * never remounts under a keyboard user. Whatever the unit, what gets saved
@@ -118,20 +118,20 @@ export function ProgressField({
 
 /** The lines under a progress box: why the text can't be saved, the page it
  *  is saved as (percent and time), and a hint when the chosen unit needs
- *  something the book doesn't have yet. */
+ *  something the game doesn't have yet. */
 export function ProgressNotes({
   id,
   info,
   text,
-  bookId,
+  gameId,
   showSaved = true,
   className,
 }: {
   id: string;
   info: UnitInfo;
   text: string;
-  bookId: string;
-  /** Off while the box just shows where the book is. */
+  gameId: string;
+  /** Off while the box just shows where the game is. */
   showSaved?: boolean;
   className?: string;
 }) {
@@ -153,7 +153,7 @@ export function ProgressNotes({
       {hint && (
         <p className="text-muted-foreground">
           {hint.before}
-          <Link href={`/books/${bookId}/edit`} className="underline underline-offset-2 hover:text-foreground">
+          <Link href={`/games/${gameId}/edit`} className="underline underline-offset-2 hover:text-foreground">
             Edit page
           </Link>
           {hint.after}
@@ -169,11 +169,11 @@ export function ProgressNotes({
  * in a hidden field; the box itself has no name.
  */
 export function CurrentPageField({
-  bookId,
+  gameId,
   info,
   initialPage,
 }: {
-  bookId: string;
+  gameId: string;
   info: UnitInfo;
   initialPage: number | null;
 }) {
@@ -192,7 +192,7 @@ export function CurrentPageField({
         id="currentPage"
         info={info}
         text={text}
-        bookId={bookId}
+        gameId={gameId}
         showSaved={edited}
         className="max-w-56"
       />

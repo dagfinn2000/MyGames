@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import JSZip from "jszip";
-import { BookOwnership, PrismaClient, ReadingStatus } from "@prisma/client";
+import { GameOwnership, PrismaClient, ReadingStatus } from "@prisma/client";
 
 /**
  * Export a library, restore it into an empty account, and check that what
@@ -60,7 +60,7 @@ describe("export -> import round trip", () => {
       data: { userId: sourceUserId, year: 2026, target: 24 },
     });
 
-    await prisma.book.create({
+    await prisma.game.create({
       data: {
         userId: sourceUserId,
         title: "The Final Empire",
@@ -72,7 +72,7 @@ describe("export -> import round trip", () => {
         publishedDate: "2006",
         tags: ["fantasy", "epic"],
         format: "PHYSICAL",
-        ownership: BookOwnership.OWNED,
+        ownership: GameOwnership.OWNED,
         seriesName: "Mistborn",
         seriesNumber: 1,
         status: ReadingStatus.READ,
@@ -111,14 +111,14 @@ describe("export -> import round trip", () => {
     });
 
     const payload = await exportLibrary();
-    expect(payload.format).toBe("myreads-export");
-    expect(payload.books).toHaveLength(1);
+    expect(payload.format).toBe("mygames-export");
+    expect(payload.games).toHaveLength(1);
 
     const summary = await importLibrary(targetUserId, payload);
     expect(summary).toMatchObject({
-      booksCreated: 1,
-      booksSkipped: 0,
-      booksInvalid: 0,
+      gamesCreated: 1,
+      gamesSkipped: 0,
+      gamesInvalid: 0,
       shelvesCreated: 1,
       quotesRestored: 1,
       readsRestored: 1,
@@ -127,7 +127,7 @@ describe("export -> import round trip", () => {
       goalsRestored: 1,
     });
 
-    const restored = await prisma.book.findFirstOrThrow({
+    const restored = await prisma.game.findFirstOrThrow({
       where: { userId: targetUserId },
       include: { shelves: true, quotes: true, reads: true, progress: true, loans: true },
     });
@@ -143,7 +143,7 @@ describe("export -> import round trip", () => {
     expect([...restored.tags].sort()).toEqual(["epic", "fantasy"]);
     expect(restored.seriesName).toBe("Mistborn");
     expect(restored.seriesNumber).toBe(1);
-    expect(restored.ownership).toBe(BookOwnership.OWNED);
+    expect(restored.ownership).toBe(GameOwnership.OWNED);
 
     // Personal reading data
     expect(restored.status).toBe(ReadingStatus.READ);
@@ -177,22 +177,22 @@ describe("export -> import round trip", () => {
   it("still writes the legacy `owned` boolean for older instances", async () => {
     // The export format promises an older build can read this file, and
     // `owned` is the only ownership vocabulary such a build has.
-    await prisma.book.create({
+    await prisma.game.create({
       data: {
         userId: sourceUserId,
         title: "Borrowed one",
         searchText: "borrowed one",
-        ownership: BookOwnership.BORROWED,
+        ownership: GameOwnership.BORROWED,
       },
     });
 
     const payload = await exportLibrary();
-    expect(payload.books[0].ownership).toBe("BORROWED");
-    expect(payload.books[0].owned).toBe(false);
+    expect(payload.games[0].ownership).toBe("BORROWED");
+    expect(payload.games[0].owned).toBe(false);
   });
 
   it("does not leak the internal columns into the backup", async () => {
-    await prisma.book.create({
+    await prisma.game.create({
       data: {
         userId: sourceUserId,
         title: "Elantris",
@@ -205,22 +205,22 @@ describe("export -> import round trip", () => {
     const payload = await exportLibrary();
     // userId would tie a backup to an account it may be restored away from;
     // searchText and reviewSearchText are derived and rebuilt on import.
-    expect(payload.books[0]).not.toHaveProperty("userId");
-    expect(payload.books[0]).not.toHaveProperty("searchText");
-    expect(payload.books[0]).not.toHaveProperty("reviewSearchText");
-    expect(payload.books[0].review).toBe("Good");
+    expect(payload.games[0]).not.toHaveProperty("userId");
+    expect(payload.games[0]).not.toHaveProperty("searchText");
+    expect(payload.games[0]).not.toHaveProperty("reviewSearchText");
+    expect(payload.games[0].review).toBe("Good");
   });
 
   it("survives a library with nothing in it", async () => {
     const payload = await exportLibrary();
-    expect(payload.books).toEqual([]);
+    expect(payload.games).toEqual([]);
 
     const summary = await importLibrary(targetUserId, payload);
-    expect(summary).toMatchObject({ booksCreated: 0, booksInvalid: 0 });
+    expect(summary).toMatchObject({ gamesCreated: 0, gamesInvalid: 0 });
   });
 
   it("is idempotent: restoring the same backup twice changes nothing", async () => {
-    await prisma.book.create({
+    await prisma.game.create({
       data: {
         userId: sourceUserId,
         title: "Warbreaker",
@@ -234,8 +234,8 @@ describe("export -> import round trip", () => {
     await importLibrary(targetUserId, payload);
     const second = await importLibrary(targetUserId, payload);
 
-    expect(second).toMatchObject({ booksCreated: 0, booksSkipped: 1 });
-    expect(await prisma.book.count({ where: { userId: targetUserId } })).toBe(1);
+    expect(second).toMatchObject({ gamesCreated: 0, gamesSkipped: 1 });
+    expect(await prisma.game.count({ where: { userId: targetUserId } })).toBe(1);
   });
 
   it("carries settings, saved views and goal options across", async () => {
@@ -282,7 +282,7 @@ describe("export -> import round trip", () => {
     });
 
     const payload = await exportLibrary();
-    // An older MyReads reads every readingGoals entry as a book count.
+    // An older MyGames reads every readingGoals entry as a game count.
     expect(payload.readingGoals).toEqual([]);
     expect(payload.pageGoals).toEqual([{ year: 2026, target: 9000, countRereads: false }]);
 

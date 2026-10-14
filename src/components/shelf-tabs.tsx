@@ -38,7 +38,7 @@ export function ShelfTabs({
         return (
           <Link
             key={key}
-            href={`/books${qs ? `?${qs}` : ""}`}
+            href={`/games${qs ? `?${qs}` : ""}`}
             className={cn(
               "-mb-px flex items-center gap-1.5 border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground",
               active && "border-primary font-medium text-foreground",

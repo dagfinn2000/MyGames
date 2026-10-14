@@ -129,7 +129,7 @@ export function GoalCard({
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Set a goal for the year: finish that many books (or pages) and earn a gold medal.
+            Set a goal for the year: finish that many games (or pages) and earn a gold medal.
           </p>
         )}
 

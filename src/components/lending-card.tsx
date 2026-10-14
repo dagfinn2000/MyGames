@@ -1,9 +1,9 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import type { BookOwnership, Loan } from "@prisma/client";
+import type { GameOwnership, Loan } from "@prisma/client";
 import { HandHeart, Trash2, Undo2 } from "lucide-react";
-import { deleteLoan, lendBook, returnLoan } from "@/lib/actions/loans";
+import { deleteLoan, lendGame, returnLoan } from "@/lib/actions/loans";
 import type { ActionState } from "@/lib/actions/helpers";
 import { formatDate, toDateInputValue } from "@/lib/display";
 import { usePreferences } from "@/components/preferences-provider";
@@ -15,23 +15,23 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 /**
- * Lending panel on the book detail page: who has your copy right now, a form
+ * Lending panel on the game detail page: who has your copy right now, a form
  * to lend it out, and the history of everyone who has borrowed it.
  *
- * The open loan (no `returnedAt`) is what makes a book "lent out", so it gets
+ * The open loan (no `returnedAt`) is what makes a game "lent out", so it gets
  * the prominent treatment; returned loans collapse into a quiet list.
  *
- * Only a copy you own can be lent. A borrowed or given-away book says so
- * instead of offering "Lend out", and a wishlist book has no card at all
+ * Only a copy you own can be lent. A borrowed or given-away game says so
+ * instead of offering "Lend out", and a wishlist game has no card at all
  * unless it has loans on record. Loans already made always show.
  */
 export function LendingCard({
-  bookId,
+  gameId,
   ownership,
   loans,
 }: {
-  bookId: string;
-  ownership: BookOwnership;
+  gameId: string;
+  ownership: GameOwnership;
   /** Newest first. */
   loans: Loan[];
 }) {
@@ -41,7 +41,7 @@ export function LendingCard({
 
   const [state, formAction, pending] = useActionState(
     async (prev: ActionState, formData: FormData): Promise<ActionState> => {
-      const result = await lendBook(bookId, prev, formData);
+      const result = await lendGame(gameId, prev, formData);
       if (result.success) setShowForm(false);
       return result;
     },

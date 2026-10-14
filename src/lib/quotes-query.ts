@@ -16,15 +16,15 @@ const quoteRowSelect = {
   page: true,
   note: true,
   createdAt: true,
-  bookId: true,
-  book: { select: { id: true, title: true, authors: true, coverUrl: true } },
+  gameId: true,
+  game: { select: { id: true, title: true, authors: true, coverUrl: true } },
 } satisfies Prisma.QuoteSelect;
 
 export type QuoteRow = Prisma.QuoteGetPayload<{ select: typeof quoteRowSelect }>;
-export type QuoteBook = QuoteRow["book"];
+export type QuoteGame = QuoteRow["game"];
 
 /**
- * The `where` for the quotes page. Everything goes through the book's
+ * The `where` for the quotes page. Everything goes through the game's
  * owner, so another reader's shelf id or tag in the URL matches nothing.
  */
 export function buildQuoteWhere(
@@ -33,18 +33,18 @@ export function buildQuoteWhere(
 ): Prisma.QuoteWhereInput {
   const terms = searchTerms(p.q);
   return {
-    book: {
+    game: {
       userId,
       ...(p.tag && { tags: { has: p.tag } }),
       ...(p.shelfId && { shelves: { some: { id: p.shelfId } } }),
     },
     ...(p.q && {
       OR: [
-        // The quote itself is matched as a phrase; the book by its words,
+        // The quote itself is matched as a phrase; the game by its words,
         // accent-insensitively, like the library search.
         { text: { contains: escapeLike(p.q), mode: "insensitive" as const } },
         { note: { contains: escapeLike(p.q), mode: "insensitive" as const } },
-        { book: { is: { AND: terms.map((t) => ({ searchText: { contains: t } })) } } },
+        { game: { is: { AND: terms.map((t) => ({ searchText: { contains: t } })) } } },
       ],
     }),
   };
@@ -64,16 +64,16 @@ export async function loadQuotes(
   total: number;
   shown: number;
   list: QuoteRow[] | null;
-  groups: { book: QuoteBook; quotes: QuoteRow[]; total: number }[] | null;
+  groups: { game: QuoteGame; quotes: QuoteRow[]; total: number }[] | null;
 }> {
   const keys = await prisma.quote.findMany({
     where: buildQuoteWhere(userId, p),
     select: {
       id: true,
-      bookId: true,
+      gameId: true,
       page: true,
       createdAt: true,
-      book: { select: { title: true, authors: true } },
+      game: { select: { title: true, authors: true } },
     },
     // A fixed input order, so nothing downstream depends on how Postgres
     // happened to return the rows.
@@ -88,7 +88,7 @@ export async function loadQuotes(
   const rows =
     ids.length > 0
       ? await prisma.quote.findMany({
-          where: { id: { in: ids }, book: { userId } },
+          where: { id: { in: ids }, game: { userId } },
           select: quoteRowSelect,
         })
       : [];
@@ -103,14 +103,14 @@ export async function loadQuotes(
     groups: sliced
       ? sliced.flatMap((g) => {
           const quotes = rowsFor(g.quotes);
-          return quotes.length > 0 ? [{ book: quotes[0].book, quotes, total: g.total }] : [];
+          return quotes.length > 0 ? [{ game: quotes[0].game, quotes, total: g.total }] : [];
         })
       : null,
   };
 }
 
 /**
- * What the From filter offers: the shelves and tags whose books have
+ * What the From filter offers: the shelves and tags whose games have
  * quotes, so no choice leads to an empty page. The shelf currently picked
  * is included even when it no longer has any, so its name still shows.
  */
@@ -123,7 +123,7 @@ export async function quoteSources(
       where: {
         userId,
         OR: [
-          { books: { some: { userId, quotes: { some: {} } } } },
+          { games: { some: { userId, quotes: { some: {} } } } },
           ...(opts.shelfId ? [{ id: opts.shelfId }] : []),
         ],
       },
@@ -131,9 +131,9 @@ export async function quoteSources(
     }),
     prisma.$queryRaw<{ tag: string }[]>`
       SELECT DISTINCT t AS tag
-      FROM "Book" b, LATERAL unnest(b."tags") AS t
+      FROM "Game" b, LATERAL unnest(b."tags") AS t
       WHERE b."userId" = ${userId}
-        AND EXISTS (SELECT 1 FROM "Quote" q WHERE q."bookId" = b."id")`,
+        AND EXISTS (SELECT 1 FROM "Quote" q WHERE q."gameId" = b."id")`,
   ]);
   const compare = new Intl.Collator(opts.alphabet).compare;
   return {

@@ -1,14 +1,14 @@
 /**
  * The library's view preference — which sort/direction/grouping the user
- * last chose, plus how the books are drawn (card size, grid or list, card
+ * last chose, plus how the games are drawn (card size, grid or list, card
  * style, 3D covers, and which details each card shows). Saved on the User
  * row (User.libraryView) whenever it changes in the filter bar. Sort and
- * grouping are applied by the books page when the URL carries no explicit
+ * grouping are applied by the games page when the URL carries no explicit
  * view params, so clicking away and back doesn't reset the view; the
  * display settings always apply.
  *
  * The value lists here are the source of truth shared by the filter bar's
- * dropdowns, the save action's validation, and the books page's fallback —
+ * dropdowns, the save action's validation, and the games page's fallback —
  * add new sorts/groupings here first.
  */
 
@@ -41,7 +41,7 @@ export const LIBRARY_DIRS = ["asc", "desc"] as const;
 
 export type LibrarySortKey = (typeof LIBRARY_SORTS)[number];
 // Not LibraryGroup: components/library-view.tsx uses that name for a group
-// of books.
+// of games.
 export type LibraryGroupKey = (typeof LIBRARY_GROUPS)[number];
 export type LibraryDir = (typeof LIBRARY_DIRS)[number];
 
@@ -65,16 +65,16 @@ export function naturalDir(sort: string): LibraryDir {
   return Object.hasOwn(NATURAL_DIRS, sort) ? NATURAL_DIRS[sort as LibrarySortKey] : "desc";
 }
 
-/** The date a list row shows next to the book, if any. */
+/** The date a list row shows next to the game, if any. */
 export const ROW_DATES = ["none", "added", "finished"] as const;
 
 /** How big the covers are, which sets how many fit across. */
 export const CARD_SIZES = ["small", "medium", "large"] as const;
 
-/** Cover grid, or one compact row per book. */
+/** Cover grid, or one compact row per game. */
 export const LIBRARY_LAYOUTS = ["grid", "list"] as const;
 
-/** How the grid draws each book: a framed card with its details, the bare
+/** How the grid draws each game: a framed card with its details, the bare
  *  cover and title, or covers standing on a shelf. */
 export const CARD_STYLES = ["cards", "covers", "shelf"] as const;
 
@@ -87,13 +87,13 @@ export type LibraryView = {
   cardSize: (typeof CARD_SIZES)[number];
   layout: (typeof LIBRARY_LAYOUTS)[number];
   cardStyle: (typeof CARD_STYLES)[number];
-  /** Covers drawn as little books (spine, page edges, shadow), here and on
+  /** Covers drawn as little games (spine, page edges, shadow), here and on
    *  every other page; see globals.css. */
   cover3d: boolean;
   showRating: boolean;
   showStatus: boolean;
   showSeries: boolean;
-  /** A Wishlist, Borrowed or Given away badge (nothing for owned books). */
+  /** A Wishlist, Borrowed or Given away badge (nothing for owned games). */
   showOwnership: boolean;
   /** List layout only. */
   rowDate: (typeof ROW_DATES)[number];

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AVATAR_W, HELD_BOOK, SEAT_OFFSET, avatarArt, seatedTop } from "@/components/avatar-art";
+import { AVATAR_W, HELD_GAME, SEAT_OFFSET, avatarArt, seatedTop } from "@/components/avatar-art";
 import { armchairArt } from "@/components/room-art";
 import type { Art } from "@/components/room-art";
 import {
@@ -130,16 +130,16 @@ describe("avatarArt", () => {
     expect(wrong).toEqual([]);
   });
 
-  it("holds the book where the room puts its link", () => {
+  it("holds the game where the room puts its link", () => {
     const { sit } = avatarArt(DEFAULT_AVATAR);
-    const book = [...cells(sit)].filter(([, paint]) => paint.startsWith("book") || paint.startsWith("paper"));
-    expect(book.length).toBeGreaterThan(20);
-    for (const [key] of book) {
+    const game = [...cells(sit)].filter(([, paint]) => paint.startsWith("game") || paint.startsWith("paper"));
+    expect(game.length).toBeGreaterThan(20);
+    for (const [key] of game) {
       const [x, y] = key.split(",").map(Number);
-      expect(x).toBeGreaterThanOrEqual(HELD_BOOK.x);
-      expect(x).toBeLessThan(HELD_BOOK.x + HELD_BOOK.w);
-      expect(y).toBeGreaterThanOrEqual(HELD_BOOK.y);
-      expect(y).toBeLessThan(HELD_BOOK.y + HELD_BOOK.h);
+      expect(x).toBeGreaterThanOrEqual(HELD_GAME.x);
+      expect(x).toBeLessThan(HELD_GAME.x + HELD_GAME.w);
+      expect(y).toBeGreaterThanOrEqual(HELD_GAME.y);
+      expect(y).toBeLessThan(HELD_GAME.y + HELD_GAME.h);
     }
   });
 

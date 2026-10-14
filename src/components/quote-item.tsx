@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { formatDate } from "@/lib/display";
-import { BookCover } from "@/components/book-card";
+import { GameCover } from "@/components/game-card";
 import { usePreferences } from "@/components/preferences-provider";
 import { DeleteQuoteButton, QuoteForm } from "@/components/quotes-card";
 import { Button } from "@/components/ui/button";
@@ -16,15 +16,15 @@ export interface QuoteItemQuote {
   page: number | null;
   note: string | null;
   createdAt: Date;
-  book: { id: string; title: string; authors: string[]; coverUrl: string | null };
+  game: { id: string; title: string; authors: string[]; coverUrl: string | null };
 }
 
 /**
- * One quote on the quotes page, with the same pencil and trash as the book
- * page. Under a book heading (`showBook` off) the book line gives way to the
+ * One quote on the quotes page, with the same pencil and trash as the game
+ * page. Under a game heading (`showGame` off) the game line gives way to the
  * page and the date it was added.
  */
-export function QuoteItem({ quote, showBook }: { quote: QuoteItemQuote; showBook: boolean }) {
+export function QuoteItem({ quote, showGame }: { quote: QuoteItemQuote; showGame: boolean }) {
   const prefs = usePreferences();
   const [editing, setEditing] = useState(false);
   const editRef = useRef<HTMLButtonElement>(null);
@@ -46,7 +46,7 @@ export function QuoteItem({ quote, showBook }: { quote: QuoteItemQuote; showBook
   return (
     <Card>
       {/* grid-cols-1 here too: the card's inner track must also clamp, or
-          the truncate on the book line never engages. */}
+          the truncate on the game line never engages. */}
       <CardContent className="grid grid-cols-1 gap-3 pt-0">
         {editing ? (
           <QuoteForm quote={quote} onDone={close} />
@@ -61,18 +61,18 @@ export function QuoteItem({ quote, showBook }: { quote: QuoteItemQuote; showBook
               </p>
             )}
             <div className="flex min-w-0 items-center gap-2">
-              {showBook ? (
+              {showGame ? (
                 <Link
-                  href={`/books/${quote.book.id}`}
+                  href={`/games/${quote.game.id}`}
                   className="group flex min-w-0 flex-1 items-center gap-2.5 text-sm"
                 >
-                  <BookCover book={quote.book} className="aspect-[2/3] w-7 shrink-0" />
+                  <GameCover game={quote.game} className="aspect-[2/3] w-7 shrink-0" />
                   <span className="min-w-0">
                     <span className="block truncate font-medium group-hover:underline">
-                      {quote.book.title}
+                      {quote.game.title}
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {quote.book.authors.join(", ")}
+                      {quote.game.authors.join(", ")}
                       {quote.page != null && ` · p. ${quote.page}`}
                       {` · ${added}`}
                     </span>

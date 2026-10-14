@@ -18,7 +18,7 @@ import {
 
 /**
  * Tag housekeeping: rename a tag everywhere (renaming onto an existing tag
- * merges them) or remove one from every book. Lives behind a small icon
+ * merges them) or remove one from every game. Lives behind a small icon
  * button next to the tag filter. Either can also become a rule for future
  * imports: subjects by the old name come in under the new one, or a
  * removed tag is never imported again (Preferences lists the rules).
@@ -60,7 +60,7 @@ export function ManageTagsDialog({
       const res = await renameTag(from, to, { remember });
       setMessage(
         res.error ??
-          `${merging ? "Merged into" : "Renamed to"} “${to}” on ${res.count} book${res.count === 1 ? "" : "s"}.${
+          `${merging ? "Merged into" : "Renamed to"} “${to}” on ${res.count} game${res.count === 1 ? "" : "s"}.${
             res.ruleSaved ? " Future imports will use it too." : ""
           }`,
       );
@@ -74,7 +74,7 @@ export function ManageTagsDialog({
       const res = await deleteTag(tag, { neverImport });
       setMessage(
         res.error ??
-          `Removed “${tag}” from ${res.count} book${res.count === 1 ? "" : "s"}.${
+          `Removed “${tag}” from ${res.count} game${res.count === 1 ? "" : "s"}.${
             res.ruleSaved ? " It won't be imported again." : ""
           }`,
       );
@@ -109,8 +109,8 @@ export function ManageTagsDialog({
             Rename or remove tags across your whole library. Renaming a tag to
             an existing one merges them. Rules for future imports are listed
             in{" "}
-            <Link href="/account#new-books" className="underline underline-offset-2">
-              Account › Preferences › New books
+            <Link href="/account#new-games" className="underline underline-offset-2">
+              Account › Preferences › New games
             </Link>
             .
           </DialogDescription>
@@ -118,7 +118,7 @@ export function ManageTagsDialog({
 
         {tags.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No tags yet — tag some books first.
+            No tags yet — tag some games first.
           </p>
         ) : (
           <ul className="grid max-h-80 gap-1 overflow-y-auto pr-1">
@@ -178,7 +178,7 @@ export function ManageTagsDialog({
                 ) : confirmingDelete === tag ? (
                   <>
                     <span className="flex-1 truncate text-sm">
-                      Remove “{tag}” from {tagCounts[tag]} book
+                      Remove “{tag}” from {tagCounts[tag]} game
                       {tagCounts[tag] === 1 ? "" : "s"}?
                     </span>
                     <Button size="sm" variant="destructive" className="h-8" disabled={pending} onClick={() => submitDelete(tag)}>
@@ -228,8 +228,8 @@ export function ManageTagsDialog({
                       size="icon"
                       variant="ghost"
                       className="size-8 hover:text-destructive"
-                      title={`Remove “${tag}” from all books`}
-                      aria-label={`Remove “${tag}” from all books`}
+                      title={`Remove “${tag}” from all games`}
+                      aria-label={`Remove “${tag}” from all games`}
                       onClick={() => {
                         reset();
                         setConfirmingDelete(tag);

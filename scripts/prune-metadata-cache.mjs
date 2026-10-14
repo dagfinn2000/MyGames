@@ -19,10 +19,10 @@ try {
   const { count } = await prisma.metadataCache.deleteMany({
     where: { expiresAt: { lt: new Date() } },
   });
-  console.log(`[myreads] pruned ${count} expired metadata cache row(s)`);
+  console.log(`[mygames] pruned ${count} expired metadata cache row(s)`);
 } catch (err) {
   // Never fail a container start over cache housekeeping.
-  console.warn(`[myreads] metadata cache prune skipped: ${err.message}`);
+  console.warn(`[mygames] metadata cache prune skipped: ${err.message}`);
 } finally {
   await prisma.$disconnect();
 }

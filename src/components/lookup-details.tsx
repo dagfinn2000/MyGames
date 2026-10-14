@@ -3,20 +3,20 @@
 import { useId, useRef, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import {
-  catalogueBookValues,
+  catalogueGameValues,
   diffAgainstForm,
   type CatalogueDiffRow,
   type CatalogueField,
   type CatalogueValues,
 } from "@/lib/catalogue-values";
 import { isbnVariants, looksLikeIsbn, normalizeIsbn } from "@/lib/isbn";
-import type { BookDetails, BookMetadata } from "@/lib/metadata/types";
+import type { GameDetails, GameMetadata } from "@/lib/metadata/types";
 import type { TagImportSettings } from "@/lib/tag-rules";
 import { foldForSearch } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 const TOO_MANY = "Too many lookups this minute. Try again in a moment.";
-const UNREACHABLE = "Couldn't reach the book catalogues.";
+const UNREACHABLE = "Couldn't reach the game catalogues.";
 
 /** A lookup that ends with something to say instead of values. */
 class LookupMessage extends Error {}
@@ -33,13 +33,13 @@ async function getJson<T>(url: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-async function search(q: string): Promise<BookMetadata[]> {
-  return (await getJson<{ results?: BookMetadata[] }>(`/api/metadata/search?q=${encodeURIComponent(q)}`))
+async function search(q: string): Promise<GameMetadata[]> {
+  return (await getJson<{ results?: GameMetadata[] }>(`/api/metadata/search?q=${encodeURIComponent(q)}`))
     .results ?? [];
 }
 
 /**
- * What the catalogues say about the book in the form. With an ISBN, that
+ * What the catalogues say about the game in the form. With an ISBN, that
  * edition's search row (the first row if none has the same ISBN); with
  * only an Open Library id, just the details; with neither, a search by
  * title and first author whose first row counts only if its title is the
@@ -55,7 +55,7 @@ async function lookUpCatalogue(
   const title = current.title.trim();
   const author = current.authors.split(",")[0]?.trim() ?? "";
 
-  let row: BookMetadata | null = null;
+  let row: GameMetadata | null = null;
   if (isbn) {
     const variants = isbnVariants(isbn);
     const rows = await search(isbn);
@@ -65,7 +65,7 @@ async function lookUpCatalogue(
     const q = [title, author].filter(Boolean).join(" ");
     const first = q.length >= 3 ? (await search(q))[0] : undefined;
     if (!first || foldForSearch(first.title.trim()) !== foldForSearch(title)) {
-      throw new LookupMessage("Couldn't find this exact book. Add its ISBN and try again.");
+      throw new LookupMessage("Couldn't find this exact game. Add its ISBN and try again.");
     }
     row = first;
   }
@@ -78,15 +78,15 @@ async function lookUpCatalogue(
   params.set("title", title || row?.title || "");
   const detailsAuthor = author || row?.authors[0];
   if (detailsAuthor) params.set("author", detailsAuthor);
-  let details: BookDetails | null = null;
+  let details: GameDetails | null = null;
   try {
-    details = (await getJson<{ details: BookDetails }>(`/api/metadata/details?${params}`)).details;
+    details = (await getJson<{ details: GameDetails }>(`/api/metadata/details?${params}`)).details;
   } catch (e) {
     // The search row alone is still worth offering.
     if (!row) throw e;
   }
 
-  const values = catalogueBookValues(row, details, settings, isbn || undefined);
+  const values = catalogueGameValues(row, details, settings, isbn || undefined);
   // An Open Library row found by title carries the ISBN of any edition of
   // the work, which may not be this copy's.
   if (!isbn && row?.source === "openlibrary") values.isbn = "";
@@ -98,7 +98,7 @@ function shorten(s: string, max = 200): string {
 }
 
 /**
- * "Look up details" on the edit page: asks the catalogues about the book
+ * "Look up details" on the edit page: asks the catalogues about the game
  * and offers what they know as ticked or unticked rows. Empty fields come
  * ticked; anything that would replace what the reader typed comes
  * unticked. Filling puts the values into the form, which still has to be
@@ -129,7 +129,7 @@ export function LookupDetails({
     try {
       const offered = diffAgainstForm(current, await lookUpCatalogue(current, settings));
       if (offered.length === 0) {
-        setMessage("The catalogue has nothing new for this book.");
+        setMessage("The catalogue has nothing new for this game.");
       } else {
         setRows(offered);
         setTicked(new Set(offered.filter((r) => r.checked).map((r) => r.field)));

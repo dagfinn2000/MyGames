@@ -14,7 +14,7 @@ import type {
   RoomWood,
 } from "@/lib/room-styles";
 import { ReadingStatus } from "@prisma/client";
-import { BookLink } from "@/components/book-link";
+import { GameLink } from "@/components/game-link";
 import {
   BOOKEND,
   CANDLESTICK,
@@ -25,7 +25,7 @@ import {
   GLOBE,
   LOGS,
   MANTEL_CLOCK,
-  OPEN_BOOK,
+  OPEN_GAME,
   ORNAMENT_ART,
   Glow,
   PENDULUM,
@@ -54,14 +54,14 @@ import {
   type HouseGeometry,
   type Rect,
 } from "@/components/room-art";
-import { HELD_BOOK, SEAT_OFFSET, seatedTop } from "@/components/avatar-art";
+import { HELD_GAME, SEAT_OFFSET, seatedTop } from "@/components/avatar-art";
 import { SeatedAvatar, SleepingPet, Walker, useAvatar, type Avatar } from "@/components/room-avatar";
 import { ExtraView } from "@/components/room-extras";
 import { RoomPieceView } from "@/components/room-rooms";
 import type { AvatarLook } from "@/lib/avatar";
 import type { CatCoat, DogCoat, Pet } from "@/lib/pets";
 import { chimneyFoot, chimneyRise, roofCrown, roofHeight, shellArt, type Moving, type Shell } from "@/components/room-shells";
-import { isClosingBook } from "@/lib/cover-flight";
+import { isClosingGame } from "@/lib/cover-flight";
 import { OWNERSHIP_LABELS, STATUS_LABELS } from "@/lib/display";
 import {
   BEAM,
@@ -95,7 +95,7 @@ import {
   type HousePlan,
   type Movable,
   type Piece,
-  type RoomBook,
+  type RoomGame,
   type RoomKind,
 } from "@/lib/room";
 import { drawnSpineColour, spineColour } from "@/lib/spine-colour";
@@ -144,7 +144,7 @@ const LADDER = ladderArt(CASE_HEIGHT - 3, 4);
 // never goes stale. "" marks a cover that can't be read (another site's
 // image without CORS), which then keeps its drawn colour.
 
-const COLOUR_KEY = "myreads:spine-colours";
+const COLOUR_KEY = "mygames:spine-colours";
 const MAX_COLOURS = 5000;
 let colours: Record<string, string> | null = null;
 const listeners = new Set<() => void>();
@@ -212,7 +212,7 @@ function readCover(url: string): Promise<string | null> {
 }
 
 /** Reads the covers that have no colour yet, a few at a time, and saves
- *  what it finds in batches so the shelves don't redraw for every book. */
+ *  what it finds in batches so the shelves don't redraw for every game. */
 function useCoverColours(urls: string[]): Record<string, string> {
   const known = useSyncExternalStore(subscribeColours, loadColours, () => NO_COLOURS);
   const wanted = urls.join("\n");
@@ -260,9 +260,9 @@ interface Layout {
   maxInner: number;
   floors: Piece[][];
   cat: boolean;
-  /** Each bookcase's shelves, as indexes into the books. */
+  /** Each bookcase's shelves, as indexes into the games. */
   cases: number[][][];
-  /** The first and last book index in each floor, for the arrow keys'
+  /** The first and last game index in each floor, for the arrow keys'
    *  focus to redraw only the floors it touches. [-1, -1] for none. */
   floorRange: [number, number][];
 }
@@ -307,16 +307,16 @@ function houseGeometry(
 
 const sceneHeight = (geo: HouseGeometry) => geo.floorsTop + geo.floorCount * STOREY + BEAM + FOUNDATION + GROUND;
 
-function layoutRoom(books: RoomBook[], width: number, style: RoomStyle, arrangement: Arrangement): Layout {
+function layoutRoom(games: RoomGame[], width: number, style: RoomStyle, arrangement: Arrangement): Layout {
   const scale = scaleFor(width);
-  const shelves = shelve(books.map((b) => spineFor(b).width));
+  const shelves = shelve(games.map((b) => spineFor(b).width));
   const count = caseCount(shelves.length);
   const cases = Array.from({ length: count }, (_, i) =>
     Array.from({ length: SHELVES_PER_CASE }, (_, j) => shelves[i * SHELVES_PER_CASE + j] ?? []),
   );
   const yard = yardFor(scale);
   const maxInner = Math.floor(width / scale) - 2 * yard - 2 * WALL;
-  const plan = planHouse(count, books.length, maxInner, arrangement);
+  const plan = planHouse(count, games.length, maxInner, arrangement);
   // The chimney stands over the fireplace, on whichever floor that is.
   const hearth = plan.floors.flat().find((p) => p.kind === "hearth");
   const geo = houseGeometry(style, yard, plan.inner + 2 * WALL, plan.floors.length, hearth ? hearth.x : null);
@@ -335,35 +335,35 @@ const within = (current: number, [first, last]: readonly [number, number]) =>
 
 // ── Words ────────────────────────────────────────────────────────────────
 
-/** Why a book is an outline on the shelf rather than a spine. */
-function awayReason(book: RoomBook): string | null {
-  if (book.lentTo) return `Lent to ${book.lentTo}`;
-  if (book.ownership === "WISHLIST") return "On your wishlist";
-  if (book.ownership === "GIVEN_AWAY") return OWNERSHIP_LABELS.GIVEN_AWAY;
+/** Why a game is an outline on the shelf rather than a spine. */
+function awayReason(game: RoomGame): string | null {
+  if (game.lentTo) return `Lent to ${game.lentTo}`;
+  if (game.ownership === "WISHLIST") return "On your wishlist";
+  if (game.ownership === "GIVEN_AWAY") return OWNERSHIP_LABELS.GIVEN_AWAY;
   return null;
 }
 
-function statusLine(book: RoomBook): string {
-  const parts: string[] = [STATUS_LABELS[book.status]];
-  if (book.status === ReadingStatus.READING && book.currentPage && book.pageCount) {
-    parts[0] += `, page ${book.currentPage} of ${book.pageCount}`;
+function statusLine(game: RoomGame): string {
+  const parts: string[] = [STATUS_LABELS[game.status]];
+  if (game.status === ReadingStatus.READING && game.currentPage && game.pageCount) {
+    parts[0] += `, page ${game.currentPage} of ${game.pageCount}`;
   }
-  const away = awayReason(book);
+  const away = awayReason(game);
   if (away) parts.push(away);
   return parts.join(" · ");
 }
 
-function spineLabel(book: RoomBook): string {
-  return `${book.title}${book.author ? `, by ${book.author}` : ""}. ${statusLine(book)}`;
+function spineLabel(game: RoomGame): string {
+  return `${game.title}${game.author ? `, by ${game.author}` : ""}. ${statusLine(game)}`;
 }
 
-function colourOf(book: RoomBook, known: Record<string, string>): string {
-  return (book.coverUrl && known[book.coverUrl]) || drawnSpineColour(book.title);
+function colourOf(game: RoomGame, known: Record<string, string>): string {
+  return (game.coverUrl && known[game.coverUrl]) || drawnSpineColour(game.title);
 }
 
-interface OpenBook {
+interface OpenGame {
   index: number;
-  book: RoomBook;
+  game: RoomGame;
   colour: string;
 }
 
@@ -404,31 +404,31 @@ const FLOOR_NAMES = ["ground floor", "first floor", "second floor", "third floor
 const floorName = (fromGround: number) => FLOOR_NAMES[fromGround] ?? `floor ${fromGround}`;
 
 /**
- * The library as a cozy pixel-art house: every book a spine on a shelf, in
+ * The library as a cozy pixel-art house: every game a spine on a shelf, in
  * the order a bookshelf files them, and a house that gains bookcases,
  * furniture and floors as the library grows (lib/room.ts lays it out,
  * room-art.tsx draws the furniture and room-shells.ts the house, in the
  * style chosen in Decorate).
  *
  * Spines take their cover's main colour, or the drawn cover's colour for a
- * book without an image. Covers are read as their floor scrolls into view,
+ * game without an image. Covers are read as their floor scrolls into view,
  * so a big library doesn't fetch every cover at once. Hovering or focusing
- * a spine shows its title; clicking opens the book, whose page then has an
+ * a spine shows its title; clicking opens the game, whose page then has an
  * X that flies it back onto its shelf. The shelves are one stop for Tab,
- * with the arrow keys moving from book to book.
+ * with the arrow keys moving from game to game.
  *
  * While `arranging`, the furniture has handles to drag it about, or move
  * it with the arrow keys; `onArrange` gets where it now stands.
  *
  * The reader's `avatar` wanders the floor with the fireplace, its `pet`
- * at its heels, and sits in the armchair with the book they're reading,
+ * at its heels, and sits in the armchair with the game they're reading,
  * if there is one, the pet asleep at its feet.
  *
  * It is drawn in the browser only: how many bookcases fit side by side
  * depends on the width it has.
  */
 export function ReadingRoom({
-  books,
+  games,
   decor = PLAIN_DECOR,
   arrangement = NO_ARRANGEMENT,
   arranging = false,
@@ -438,7 +438,7 @@ export function ReadingRoom({
   avatar = null,
   pet = "none",
 }: {
-  books: RoomBook[];
+  games: RoomGame[];
   decor?: RoomDecor;
   avatar?: AvatarLook | null;
   /** The animal at the avatar's heels. */
@@ -458,9 +458,9 @@ export function ReadingRoom({
   const [seen, setSeen] = useState<ReadonlySet<number>>(() => new Set());
   const [tip, setTip] = useState<{ index: number; left: number; top: number } | null>(null);
   const [note, setNote] = useState<{ text: string; shown: boolean } | null>(null);
-  // Back from a book's X: the books are already on their shelves as the
+  // Back from a game's X: the games are already on their shelves as the
   // spine flies home, rather than settling onto them again.
-  const [returning] = useState(isClosingBook);
+  const [returning] = useState(isClosingGame);
 
   useEffect(() => {
     const el = wrap.current;
@@ -472,8 +472,8 @@ export function ReadingRoom({
 
   const style = decor.style;
   const layout = useMemo(
-    () => (width ? layoutRoom(books, width, style, arrangement) : null),
-    [books, width, style, arrangement],
+    () => (width ? layoutRoom(games, width, style, arrangement) : null),
+    [games, width, style, arrangement],
   );
   const { paper, floor, ceiling, own } = decor;
   const shell = useMemo(
@@ -483,7 +483,7 @@ export function ReadingRoom({
   useEffect(() => {
     if (layout) onPlan?.(layout.plan);
   }, [layout, onPlan]);
-  const reading = books.findIndex((b) => b.status === ReadingStatus.READING && isOnShelf(b));
+  const reading = games.findIndex((b) => b.status === ReadingStatus.READING && isOnShelf(b));
   const figure = useAvatar(avatar, pet);
 
   // Which floors have come near the screen: their covers get read.
@@ -504,23 +504,23 @@ export function ReadingRoom({
   const covers = useMemo(() => {
     if (!layout) return [];
     const urls = new Set<string>();
-    if (reading >= 0 && books[reading].coverUrl) urls.add(books[reading].coverUrl!);
+    if (reading >= 0 && games[reading].coverUrl) urls.add(games[reading].coverUrl!);
     layout.floors.forEach((floor, f) => {
       if (!seen.has(f)) return;
       for (const piece of floor) {
         if (piece.kind !== "case") continue;
         for (const i of layout.cases[piece.caseIndex!].flat()) {
-          if (books[i].coverUrl) urls.add(books[i].coverUrl!);
+          if (games[i].coverUrl) urls.add(games[i].coverUrl!);
         }
       }
     });
     return [...urls];
-  }, [layout, seen, books, reading]);
+  }, [layout, seen, games, reading]);
   const known = useCoverColours(covers);
 
-  const openBook = useMemo<OpenBook | null>(
-    () => (reading >= 0 ? { index: reading, book: books[reading], colour: colourOf(books[reading], known) } : null),
-    [books, reading, known],
+  const openGame = useMemo<OpenGame | null>(
+    () => (reading >= 0 ? { index: reading, game: games[reading], colour: colourOf(games[reading], known) } : null),
+    [games, reading, known],
   );
 
   // A note about the last move goes after a while.
@@ -538,7 +538,7 @@ export function ReadingRoom({
     const wanted = places?.find((p) => p.kind === kind);
     if (!places || !wanted) return false;
     const next: Arrangement = { ...arrangement, places };
-    const plan = planHouse(layout.caseTotal, books.length, layout.maxInner, next);
+    const plan = planHouse(layout.caseTotal, games.length, layout.maxInner, next);
     const landed = placementsOf(plan).find((p) => p.kind === kind);
     const name = FURNITURE_LABELS[kind];
     if (!landed || landed.floor !== wanted.floor || landed.slot !== wanted.slot) {
@@ -554,24 +554,24 @@ export function ReadingRoom({
     return true;
   };
 
-  /** Shows the label over a spine (or the open book) being pointed at or
+  /** Shows the label over a spine (or the open game) being pointed at or
    *  focused. */
   const showTip = (el: Element | null) => {
-    const target = el?.closest<HTMLElement>("[data-book]");
+    const target = el?.closest<HTMLElement>("[data-game]");
     const box = scene.current?.getBoundingClientRect();
     if (!target || !box || arranging) return setTip(null);
     const rect = target.getBoundingClientRect();
-    // Centred over the book, but kept inside the scene at its edges.
+    // Centred over the game, but kept inside the scene at its edges.
     const half = Math.min(TIP_HALF_WIDTH, box.width / 2);
     setTip({
-      index: Number(target.dataset.book),
+      index: Number(target.dataset.game),
       left: Math.min(Math.max(rect.left + rect.width / 2 - box.left, half), box.width - half),
       top: rect.top - box.top,
     });
   };
 
-  /** Arrow keys move along the shelves: left and right through the books in
-   *  order, up and down to the nearest book on the shelf above or below. */
+  /** Arrow keys move along the shelves: left and right through the games in
+   *  order, up and down to the nearest game on the shelf above or below. */
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (arranging && e.key === "Escape") {
       e.preventDefault();
@@ -593,7 +593,7 @@ export function ReadingRoom({
       const rows = spines
         .map((el) => ({ el, rect: el.getBoundingClientRect() }))
         .filter(({ rect }) => (up ? rect.bottom <= here.top + 1 : rect.top >= here.bottom - 1));
-      // The nearest shelf in that direction, then the book closest across.
+      // The nearest shelf in that direction, then the game closest across.
       const shelfY = up
         ? Math.max(...rows.map((r) => r.rect.bottom))
         : Math.min(...rows.map((r) => r.rect.bottom));
@@ -616,7 +616,7 @@ export function ReadingRoom({
 
   const { scale: s, geo, sceneH } = layout;
   const at = (x: number, y: number): React.CSSProperties => ({ left: x * s, top: y * s });
-  const tipBook = tip ? books[tip.index] : null;
+  const tipGame = tip ? games[tip.index] : null;
 
   return (
     <div ref={wrap} className="room-wrap">
@@ -685,13 +685,13 @@ export function ReadingRoom({
             left={geo.houseX + WALL}
             width={geo.houseW - 2 * WALL}
             scale={s}
-            books={books}
+            games={games}
             cases={layout.cases}
             known={known}
             current={within(current, layout.floorRange[f])}
             onCurrent={setCurrent}
             cat={layout.cat}
-            openBook={openBook}
+            openGame={openGame}
             hanging={decor.hanging}
             arranging={arranging}
             avatar={figure}
@@ -709,7 +709,7 @@ export function ReadingRoom({
         )}
 
         <p id="room-keys" className="sr-only">
-          Use the arrow keys to move from book to book, and Enter to open one.
+          Use the arrow keys to move from game to game, and Enter to open one.
         </p>
         <p id="room-arrange-keys" className="sr-only">
           Drag a piece of furniture to move it, or use the arrow keys. Press Escape when you&apos;re done.
@@ -722,11 +722,11 @@ export function ReadingRoom({
             {note.text}
           </p>
         )}
-        {tipBook && tip && (
+        {tipGame && tip && (
           <div className="room-tip" style={{ left: tip.left, top: tip.top }} aria-hidden="true">
-            <p className="font-heading font-medium">{tipBook.title}</p>
-            {tipBook.author && <p className="text-muted-foreground">{tipBook.author}</p>}
-            <p className="text-muted-foreground">{statusLine(tipBook)}</p>
+            <p className="font-heading font-medium">{tipGame.title}</p>
+            {tipGame.author && <p className="text-muted-foreground">{tipGame.author}</p>}
+            <p className="text-muted-foreground">{statusLine(tipGame)}</p>
           </div>
         )}
       </div>
@@ -907,13 +907,13 @@ const Floor = memo(function Floor({
   left,
   width,
   scale: s,
-  books,
+  games,
   cases,
   known,
   current,
   onCurrent,
   cat,
-  openBook,
+  openGame,
   hanging,
   arranging,
   avatar,
@@ -924,15 +924,15 @@ const Floor = memo(function Floor({
   left: number;
   width: number;
   scale: number;
-  books: RoomBook[];
+  games: RoomGame[];
   cases: number[][][];
   known: Record<string, string>;
   current: number;
   onCurrent: (index: number) => void;
   cat: boolean;
-  openBook: OpenBook | null;
+  openGame: OpenGame | null;
   hanging: RoomHanging;
-  /** While the furniture is being moved, the books stay put. */
+  /** While the furniture is being moved, the games stay put. */
   arranging: boolean;
   avatar: Avatar | null;
 }) {
@@ -956,7 +956,7 @@ const Floor = memo(function Floor({
               key={`case-${n}`}
               index={n}
               shelves={shelves}
-              books={books}
+              games={games}
               x={x}
               y={floorLine - CASE_HEIGHT}
               scale={s}
@@ -975,15 +975,15 @@ const Floor = memo(function Floor({
             ceiling={BEAM}
             scale={s}
             cat={cat}
-            openBook={openBook}
+            openGame={openGame}
             hanging={hanging}
             avatar={avatar}
           />
         );
       })}
-      {/* Up and about while no book is being read; out of the way while
+      {/* Up and about while no game is being read; out of the way while
           the furniture moves. */}
-      {avatar && hearth && !openBook && !arranging && (
+      {avatar && hearth && !openGame && !arranging && (
         <Walker avatar={avatar} width={width} home={hearth.x + 40} floorLine={floorLine} scale={s} />
       )}
     </div>
@@ -993,7 +993,7 @@ const Floor = memo(function Floor({
 const Bookcase = memo(function Bookcase({
   index,
   shelves,
-  books,
+  games,
   x,
   y,
   scale: s,
@@ -1003,12 +1003,12 @@ const Bookcase = memo(function Bookcase({
 }: {
   index: number;
   shelves: number[][];
-  books: RoomBook[];
+  games: RoomGame[];
   x: number;
   y: number;
   scale: number;
   known: Record<string, string>;
-  /** The book that takes Tab focus, if it is in this bookcase; else -1. */
+  /** The game that takes Tab focus, if it is in this bookcase; else -1. */
   current: number;
   onCurrent: (index: number) => void;
 }) {
@@ -1016,7 +1016,7 @@ const Bookcase = memo(function Bookcase({
     <div className="room-abs" style={{ left: x * s, top: y * s }}>
       <Sprite art={BOOKCASE} scale={s} className="block" />
       {shelves.map((shelf, j) => {
-        const used = shelf.reduce((sum, i) => sum + spineFor(books[i]).width, 0);
+        const used = shelf.reduce((sum, i) => sum + spineFor(games[i]).width, 0);
         const dressing = dressShelf(index * SHELVES_PER_CASE + j, used);
         const slotTop = CASE_CROWN + j * (SHELF_SLOT + SHELF_BOARD);
         return (
@@ -1027,28 +1027,28 @@ const Bookcase = memo(function Bookcase({
             style={{ left: 3 * s, top: slotTop * s, width: 40 * s, height: SHELF_SLOT * s }}
           >
             {shelf.map((i, k) => {
-              const book = books[i];
-              const spine = spineFor(book);
+              const game = games[i];
+              const spine = spineFor(game);
               return (
-                <li key={book.id} className="contents">
-                  <BookLink
-                    bookId={book.id}
+                <li key={game.id} className="contents">
+                  <GameLink
+                    gameId={game.id}
                     prefetch={false}
                     className="room-spine"
                     data-spine=""
-                    data-book={i}
+                    data-game={i}
                     data-flight-cover=""
                     data-pattern={spine.pattern}
-                    data-away={isOnShelf(book) ? undefined : ""}
-                    data-reading={book.status === ReadingStatus.READING ? "" : undefined}
+                    data-away={isOnShelf(game) ? undefined : ""}
+                    data-reading={game.status === ReadingStatus.READING ? "" : undefined}
                     tabIndex={i === current ? 0 : -1}
-                    aria-label={spineLabel(book)}
+                    aria-label={spineLabel(game)}
                     onFocus={() => onCurrent(i)}
                     style={
                       {
                         width: spine.width * s,
                         height: spine.height * s,
-                        "--spine": colourOf(book, known),
+                        "--spine": colourOf(game, known),
                         "--i": Math.min(k, 12),
                       } as React.CSSProperties
                     }
@@ -1152,7 +1152,7 @@ function Furniture({
   ceiling,
   scale: s,
   cat,
-  openBook,
+  openGame,
   hanging,
   avatar,
 }: {
@@ -1162,7 +1162,7 @@ function Furniture({
   ceiling: number;
   scale: number;
   cat: boolean;
-  openBook: OpenBook | null;
+  openGame: OpenGame | null;
   hanging: RoomHanging;
   avatar: Avatar | null;
 }) {
@@ -1183,7 +1183,7 @@ function Furniture({
     case "hearth": {
       const fireTop = floorLine - FIREPLACE.h;
       const chairTop = floorLine - ARMCHAIR.h;
-      const seated = avatar && openBook;
+      const seated = avatar && openGame;
       const hung = hanging === "none" ? null : HANGINGS[hanging];
       return (
         <>
@@ -1216,7 +1216,7 @@ function Furniture({
               avatar={avatar}
               x={x + 50 + SEAT_OFFSET.x}
               y={chairTop + seatedTop(avatar.art.sit)}
-              spine={openBook.colour}
+              spine={openGame.colour}
               scale={s}
             />
           )}
@@ -1240,31 +1240,31 @@ function Furniture({
             style={{ left: (x + 89) * s, top: (floorLine - SIDE_TABLE.h - TEACUP.h - 4) * s }}
           />
           {seated && (
-            <BookLink
-              bookId={openBook.book.id}
+            <GameLink
+              gameId={openGame.game.id}
               prefetch={false}
-              className="room-abs room-held-book"
-              data-book={openBook.index}
-              aria-label={`Reading in the armchair: ${spineLabel(openBook.book)}`}
+              className="room-abs room-held-game"
+              data-game={openGame.index}
+              aria-label={`Reading in the armchair: ${spineLabel(openGame.game)}`}
               style={{
-                left: (x + 50 + SEAT_OFFSET.x + HELD_BOOK.x) * s,
-                top: (chairTop + seatedTop(avatar.art.sit) + HELD_BOOK.y) * s,
-                width: HELD_BOOK.w * s,
-                height: HELD_BOOK.h * s,
+                left: (x + 50 + SEAT_OFFSET.x + HELD_GAME.x) * s,
+                top: (chairTop + seatedTop(avatar.art.sit) + HELD_GAME.y) * s,
+                width: HELD_GAME.w * s,
+                height: HELD_GAME.h * s,
               }}
             />
           )}
-          {openBook && !seated && (
-            <BookLink
-              bookId={openBook.book.id}
+          {openGame && !seated && (
+            <GameLink
+              gameId={openGame.game.id}
               prefetch={false}
-              className="room-abs room-open-book"
-              data-book={openBook.index}
-              aria-label={`On the side table: ${spineLabel(openBook.book)}`}
-              style={{ left: (x + 80) * s, top: (floorLine - SIDE_TABLE.h - OPEN_BOOK.h) * s, "--spine": openBook.colour } as React.CSSProperties}
+              className="room-abs room-open-game"
+              data-game={openGame.index}
+              aria-label={`On the side table: ${spineLabel(openGame.game)}`}
+              style={{ left: (x + 80) * s, top: (floorLine - SIDE_TABLE.h - OPEN_GAME.h) * s, "--spine": openGame.colour } as React.CSSProperties}
             >
-              <Sprite art={OPEN_BOOK} scale={s} className="block" />
-            </BookLink>
+              <Sprite art={OPEN_GAME} scale={s} className="block" />
+            </GameLink>
           )}
           {stand(LAMP, 93)}
           <Glow x={x + 99} y={floorLine - 54} r={30} scale={s} />
@@ -1360,7 +1360,7 @@ const PREVIEW_SPINES: Rect[] = (() => {
 })();
 
 /** A small picture of one floor of the house in a style: the fireplace,
- *  armchair and lamp, and a bookcase of books. */
+ *  armchair and lamp, and a bookcase of games. */
 function previewArt(style: RoomStyle, hanging: RoomHanging): { w: number; h: number; rects: Rect[] } {
   const inner = 2 * PAD + PIECE_WIDTH.hearth + GAP + PIECE_WIDTH.case;
   const geo = houseGeometry(style, yardFor(3), inner + 2 * WALL, 1, PAD);

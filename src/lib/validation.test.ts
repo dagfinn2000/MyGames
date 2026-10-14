@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookSchema, isAllowedCoverUrl, pastReadSchema, readingSchema } from "@/lib/validation";
+import { gameSchema, isAllowedCoverUrl, pastReadSchema, readingSchema } from "@/lib/validation";
 
 const minimalForm = {
   title: "T",
@@ -9,9 +9,9 @@ const minimalForm = {
   ownership: "OWNED",
 };
 
-describe("bookSchema tags", () => {
+describe("gameSchema tags", () => {
   it("splits, trims, and lowercases the comma-separated field", () => {
-    const parsed = bookSchema.parse({
+    const parsed = gameSchema.parse({
       ...minimalForm,
       tags: " Fantasy , Sci-Fi ,",
     });
@@ -20,8 +20,8 @@ describe("bookSchema tags", () => {
 
   it("dedupes tags that collide after lowercasing", () => {
     // Metadata subjects often differ only in case — "Fiction, fiction"
-    // must not land twice (duplicate React keys on the book page).
-    const parsed = bookSchema.parse({
+    // must not land twice (duplicate React keys on the game page).
+    const parsed = gameSchema.parse({
       ...minimalForm,
       tags: "Fiction, fiction, FICTION, fantasy",
     });
@@ -44,30 +44,30 @@ describe("isAllowedCoverUrl", () => {
   });
 });
 
-describe("bookSchema seriesNumber", () => {
+describe("gameSchema seriesNumber", () => {
   it("saves a blank field as no number, not #0", () => {
-    expect(bookSchema.parse({ ...minimalForm, seriesNumber: "" }).seriesNumber).toBeNull();
-    expect(bookSchema.parse({ ...minimalForm, seriesNumber: "  " }).seriesNumber).toBeNull();
-    expect(bookSchema.parse(minimalForm).seriesNumber).toBeUndefined();
+    expect(gameSchema.parse({ ...minimalForm, seriesNumber: "" }).seriesNumber).toBeNull();
+    expect(gameSchema.parse({ ...minimalForm, seriesNumber: "  " }).seriesNumber).toBeNull();
+    expect(gameSchema.parse(minimalForm).seriesNumber).toBeUndefined();
   });
 
   it("keeps real numbers, including a deliberate 0 and halves", () => {
-    expect(bookSchema.parse({ ...minimalForm, seriesNumber: "0" }).seriesNumber).toBe(0);
-    expect(bookSchema.parse({ ...minimalForm, seriesNumber: "2.5" }).seriesNumber).toBe(2.5);
+    expect(gameSchema.parse({ ...minimalForm, seriesNumber: "0" }).seriesNumber).toBe(0);
+    expect(gameSchema.parse({ ...minimalForm, seriesNumber: "2.5" }).seriesNumber).toBe(2.5);
   });
 });
 
-describe("bookSchema lengthMinutes", () => {
+describe("gameSchema lengthMinutes", () => {
   it("saves a blank length as not known", () => {
-    expect(bookSchema.parse({ ...minimalForm, lengthMinutes: "" }).lengthMinutes).toBeNull();
-    expect(bookSchema.parse(minimalForm).lengthMinutes).toBeUndefined();
-    expect(bookSchema.parse({ ...minimalForm, lengthMinutes: "700" }).lengthMinutes).toBe(700);
+    expect(gameSchema.parse({ ...minimalForm, lengthMinutes: "" }).lengthMinutes).toBeNull();
+    expect(gameSchema.parse(minimalForm).lengthMinutes).toBeUndefined();
+    expect(gameSchema.parse({ ...minimalForm, lengthMinutes: "700" }).lengthMinutes).toBe(700);
   });
 
   it("reports a length out of range instead of dropping it", () => {
-    const zero = bookSchema.safeParse({ ...minimalForm, lengthMinutes: "0" });
+    const zero = gameSchema.safeParse({ ...minimalForm, lengthMinutes: "0" });
     expect(zero.error?.issues[0]?.message).toBe("Length must be at least 1 minute");
-    const huge = bookSchema.safeParse({ ...minimalForm, lengthMinutes: "60001" });
+    const huge = gameSchema.safeParse({ ...minimalForm, lengthMinutes: "60001" });
     expect(huge.error?.issues[0]?.message).toBe("Length must be at most 1,000 hours");
   });
 });

@@ -1,10 +1,10 @@
 /**
  * Sorting and grouping for the library page. Pure functions over a minimal
- * book shape, kept out of the page component so the shelf-filing rules —
+ * game shape, kept out of the page component so the shelf-filing rules —
  * surname sorting, series blocks — are unit-testable.
  */
 
-import { BookFormat, BookOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
 import { calendarDay } from "@/lib/dates";
 import { FORMAT_LABELS, OWNERSHIP_LABELS, STATUS_LABELS } from "@/lib/display";
 import type { RatingStyle } from "@/lib/preferences";
@@ -12,7 +12,7 @@ import { nextInSeries, seriesKey, type SeriesMember } from "@/lib/series";
 
 /** The fields the sorts read; the page's Prisma select satisfies this
  *  structurally. */
-export interface SortableBook {
+export interface SortableGame {
   title: string;
   authors: string[];
   rating: number | null;
@@ -28,28 +28,28 @@ export interface SortableBook {
 }
 
 /** The fields the groupings read on top of those. */
-export interface GroupableBook extends SortableBook {
+export interface GroupableGame extends SortableGame {
   status: ReadingStatus;
-  format: BookFormat;
-  ownership: BookOwnership;
+  format: GameFormat;
+  ownership: GameOwnership;
   tags: string[];
-  /** The shelves the book is on. Only needed to group by shelf. */
+  /** The shelves the game is on. Only needed to group by shelf. */
   shelves?: { id: string; name: string }[];
 }
 
-export interface BookGroup<T> {
+export interface GameGroup<T> {
   /** Stable and unique among the groups, for React keys. */
   key: string;
   title: string;
-  books: T[];
-  /** Replaces the plain count next to the title ("5 books · 3 read"). */
+  games: T[];
+  /** Replaces the plain count next to the title ("5 games · 3 read"). */
   detail?: string;
   /** A warning after it ("#3 missing"). */
   note?: string;
 }
 
 /** The reader's sorting rules (Preferences). Everything optional: leaving
- *  them out sorts the way MyReads always has. */
+ *  them out sorts the way MyGames always has. */
 export interface SortOptions {
   /** File "The Hobbit" under H. */
   ignoreArticles?: boolean;
@@ -133,8 +133,8 @@ export function publishedYear(s: string | null | undefined): number | null {
  *  sorts as a block by its name, standalones slot in by title), ordered by
  *  series number inside the block — Mistborn #1 right before Mistborn #2. */
 function seriesShelfOrder(
-  a: SortableBook,
-  b: SortableBook,
+  a: SortableGame,
+  b: SortableGame,
   opts: SortOptions,
   compare: (a: string, b: string) => number,
 ): number {
@@ -148,9 +148,9 @@ function seriesShelfOrder(
   );
 }
 
-/** Each sort's value for one book; null is "no value", which always sorts
+/** Each sort's value for one game; null is "no value", which always sorts
  *  last. A rating, page count or date of 0 means not filled in. */
-const SORT_VALUES: Record<string, (b: SortableBook, opts: SortOptions) => string | number | null> = {
+const SORT_VALUES: Record<string, (b: SortableGame, opts: SortOptions) => string | number | null> = {
   createdAt: (b) => b.createdAt.getTime(),
   title: (b, opts) => titleSortKey(b.title, opts),
   rating: (b) => b.rating || null,
@@ -165,28 +165,28 @@ const SORT_VALUES: Record<string, (b: SortableBook, opts: SortOptions) => string
  *  the filtered fetch is simpler than fighting Prisma over array columns
  *  (author sort) and nulls-last semantics.
  *
- *  Books without a value (unrated, unfinished, no page count) come last
+ *  Games without a value (unrated, unfinished, no page count) come last
  *  whichever way round, and ties go by author, then title, A to Z. */
-export function sortBooks<T extends SortableBook>(
-  books: T[],
+export function sortGames<T extends SortableGame>(
+  games: T[],
   sort: string,
   dir: string,
   opts: SortOptions = {},
 ): T[] {
   const mul = dir === "asc" ? 1 : -1;
   const compare = comparer(opts);
-  // Each key worked out once per book, not once per comparison.
+  // Each key worked out once per game, not once per comparison.
   const author = new Map(
-    books.map((b) => [b, b.authors[0] ? authorSortKey(b.authors[0], opts) : null]),
+    games.map((b) => [b, b.authors[0] ? authorSortKey(b.authors[0], opts) : null]),
   );
   /** Nulls last, else `cmp` (already signed). */
   const nullsLast = <V>(a: V | null, b: V | null, cmp: (a: V, b: V) => number) =>
     a === null ? (b === null ? 0 : 1) : b === null ? -1 : cmp(a, b);
 
-  // Author sort: `dir` flips the author order only; within an author, books
+  // Author sort: `dir` flips the author order only; within an author, games
   // keep shelf order (series grouped, in series order) in both directions.
   if (sort === "author") {
-    return [...books].sort(
+    return [...games].sort(
       (a, b) =>
         nullsLast(author.get(a)!, author.get(b)!, (x, y) => mul * compare(x, y)) ||
         seriesShelfOrder(a, b, opts, compare),
@@ -194,12 +194,12 @@ export function sortBooks<T extends SortableBook>(
   }
 
   const valueOf = Object.hasOwn(SORT_VALUES, sort) ? SORT_VALUES[sort] : SORT_VALUES.createdAt;
-  const value = new Map(books.map((b) => [b, valueOf(b, opts)]));
-  const title = new Map(books.map((b) => [b, titleSortKey(b.title, opts)]));
+  const value = new Map(games.map((b) => [b, valueOf(b, opts)]));
+  const title = new Map(games.map((b) => [b, titleSortKey(b.title, opts)]));
   const byValue = (x: string | number, y: string | number) =>
     mul *
     (typeof x === "string" && typeof y === "string" ? compare(x, y) : (x as number) - (y as number));
-  return [...books].sort(
+  return [...games].sort(
     (a, b) =>
       nullsLast(value.get(a)!, value.get(b)!, byValue) ||
       nullsLast(author.get(a)!, author.get(b)!, compare) ||
@@ -223,102 +223,102 @@ const STATUS_ORDER: ReadingStatus[] = [
   ReadingStatus.DNF,
 ];
 
-/** Ownership sections: the books you have, then the rest. */
-const OWNERSHIP_ORDER: BookOwnership[] = [
-  BookOwnership.OWNED,
-  BookOwnership.BORROWED,
-  BookOwnership.WISHLIST,
-  BookOwnership.GIVEN_AWAY,
+/** Ownership sections: the games you have, then the rest. */
+const OWNERSHIP_ORDER: GameOwnership[] = [
+  GameOwnership.OWNED,
+  GameOwnership.BORROWED,
+  GameOwnership.WISHLIST,
+  GameOwnership.GIVEN_AWAY,
 ];
 
-/** Books filed into sections in a fixed order, keyed `prefix:value`. Empty
- *  sections are dropped; books keep their incoming (sorted) order. */
+/** Games filed into sections in a fixed order, keyed `prefix:value`. Empty
+ *  sections are dropped; games keep their incoming (sorted) order. */
 function fixedSections<T, V extends string>(
-  books: T[],
+  games: T[],
   prefix: string,
   order: readonly V[],
   valueOf: (b: T) => V,
   label: (v: V) => string,
-): BookGroup<T>[] {
+): GameGroup<T>[] {
   return order
     .map((v) => ({
       key: `${prefix}:${v}`,
       title: label(v),
-      books: books.filter((b) => valueOf(b) === v),
+      games: games.filter((b) => valueOf(b) === v),
     }))
-    .filter((g) => g.books.length > 0);
+    .filter((g) => g.games.length > 0);
 }
 
-/** Sections for the group-by views. Books keep the order they came in
+/** Sections for the group-by views. Games keep the order they came in
  *  (the chosen sort) inside each section, except series, which are in
  *  series order. Sections without a value ("Not in a series", "No tags")
- *  come last. Tag and shelf sections can hold the same book more than once
- *  over: a book with three tags is under each. */
-export function groupBooks<T extends GroupableBook>(
-  books: T[],
+ *  come last. Tag and shelf sections can hold the same game more than once
+ *  over: a game with three tags is under each. */
+export function groupGames<T extends GroupableGame>(
+  games: T[],
   group: string,
   opts: SortOptions = {},
-): BookGroup<T>[] | null {
+): GameGroup<T>[] | null {
   const compare = comparer(opts);
 
   if (group === "author") {
     const map = new Map<string, T[]>();
     const noAuthor: T[] = [];
-    for (const b of books) {
+    for (const b of games) {
       const name = b.authors[0];
       if (name) map.set(name, [...(map.get(name) ?? []), b]);
       else noAuthor.push(b);
     }
     // Same surname-first order as the author sort, so the two views agree,
-    // books without an author last in both.
-    const sections: BookGroup<T>[] = [...map.entries()]
+    // games without an author last in both.
+    const sections: GameGroup<T>[] = [...map.entries()]
       .sort((a, b) => compare(authorSortKey(a[0], opts), authorSortKey(b[0], opts)))
-      .map(([title, groupBooks]) => ({ key: `author:${title}`, title, books: groupBooks }));
+      .map(([title, groupGames]) => ({ key: `author:${title}`, title, games: groupGames }));
     if (noAuthor.length > 0) {
-      sections.push({ key: "author:none", title: "Unknown author", books: noAuthor });
+      sections.push({ key: "author:none", title: "Unknown author", games: noAuthor });
     }
     return sections;
   }
 
   if (group === "series") {
     // Keyed like the series filter, so "Dune" and "dune " are one series.
-    // The section is titled the way its first book spells it.
-    const map = new Map<string, { title: string; books: T[] }>();
+    // The section is titled the way its first game spells it.
+    const map = new Map<string, { title: string; games: T[] }>();
     const noSeries: T[] = [];
-    for (const b of books) {
+    for (const b of games) {
       if (!b.seriesName?.trim()) {
         noSeries.push(b);
         continue;
       }
       const key = seriesKey(b.seriesName);
-      const entry = map.get(key) ?? { title: b.seriesName.trim(), books: [] };
-      entry.books.push(b);
+      const entry = map.get(key) ?? { title: b.seriesName.trim(), games: [] };
+      entry.games.push(b);
       map.set(key, entry);
     }
-    const sections: BookGroup<T>[] = [...map.entries()]
+    const sections: GameGroup<T>[] = [...map.entries()]
       .sort((a, b) => compare(titleSortKey(a[1].title, opts), titleSortKey(b[1].title, opts)))
-      .map(([key, { title, books: groupBooks }]) => ({
+      .map(([key, { title, games: groupGames }]) => ({
         key: `series:${key}`,
         title,
-        books: [...groupBooks].sort(
+        games: [...groupGames].sort(
           (a, b) =>
             (a.seriesNumber ?? Infinity) - (b.seriesNumber ?? Infinity) ||
             compare(titleSortKey(a.title, opts), titleSortKey(b.title, opts)),
         ),
       }));
     if (noSeries.length > 0) {
-      sections.push({ key: "series:none", title: "Not in a series", books: noSeries });
+      sections.push({ key: "series:none", title: "Not in a series", games: noSeries });
     }
     return sections;
   }
 
   if (group === "yearFinished") {
-    // A Read book's current finish, by the calendar day Stats would count
+    // A Read game's current finish, by the calendar day Stats would count
     // it on. Re-reads finished earlier stay with the latest pass.
     const years = new Map<string, T[]>();
     const undated: T[] = [];
     const unfinished: T[] = [];
-    for (const b of books) {
+    for (const b of games) {
       if (b.status !== ReadingStatus.READ) unfinished.push(b);
       else if (!b.dateFinished) undated.push(b);
       else {
@@ -326,27 +326,27 @@ export function groupBooks<T extends GroupableBook>(
         years.set(year, [...(years.get(year) ?? []), b]);
       }
     }
-    const sections: BookGroup<T>[] = [...years.entries()]
+    const sections: GameGroup<T>[] = [...years.entries()]
       .sort((a, b) => Number(b[0]) - Number(a[0]))
-      .map(([year, groupBooks]) => ({ key: `year:${year}`, title: year, books: groupBooks }));
+      .map(([year, groupGames]) => ({ key: `year:${year}`, title: year, games: groupGames }));
     if (undated.length > 0) {
-      sections.push({ key: "year:undated", title: "Finished, date not known", books: undated });
+      sections.push({ key: "year:undated", title: "Finished, date not known", games: undated });
     }
     if (unfinished.length > 0) {
-      sections.push({ key: "year:none", title: "Not finished", books: unfinished });
+      sections.push({ key: "year:none", title: "Not finished", games: unfinished });
     }
     return sections;
   }
 
   if (group === "status") {
-    return fixedSections(books, "status", STATUS_ORDER, (b) => b.status, (s) => STATUS_LABELS[s]);
+    return fixedSections(games, "status", STATUS_ORDER, (b) => b.status, (s) => STATUS_LABELS[s]);
   }
 
   if (group === "format") {
     return fixedSections(
-      books,
+      games,
       "format",
-      Object.values(BookFormat),
+      Object.values(GameFormat),
       (b) => b.format,
       (f) => FORMAT_LABELS[f],
     );
@@ -354,7 +354,7 @@ export function groupBooks<T extends GroupableBook>(
 
   if (group === "ownership") {
     return fixedSections(
-      books,
+      games,
       "ownership",
       OWNERSHIP_ORDER,
       (b) => b.ownership,
@@ -365,26 +365,26 @@ export function groupBooks<T extends GroupableBook>(
   if (group === "tag") {
     const map = new Map<string, T[]>();
     const untagged: T[] = [];
-    for (const b of books) {
+    for (const b of games) {
       if (b.tags.length === 0) untagged.push(b);
       for (const t of new Set(b.tags)) map.set(t, [...(map.get(t) ?? []), b]);
     }
-    const sections: BookGroup<T>[] = [...map.entries()]
+    const sections: GameGroup<T>[] = [...map.entries()]
       .sort((a, b) => compare(a[0], b[0]))
-      .map(([tag, groupBooks]) => ({ key: `tag:${tag}`, title: tag, books: groupBooks }));
-    if (untagged.length > 0) sections.push({ key: "tag:none", title: "No tags", books: untagged });
+      .map(([tag, groupGames]) => ({ key: `tag:${tag}`, title: tag, games: groupGames }));
+    if (untagged.length > 0) sections.push({ key: "tag:none", title: "No tags", games: untagged });
     return sections;
   }
 
   if (group === "shelf") {
-    const map = new Map<string, { name: string; books: T[] }>();
+    const map = new Map<string, { name: string; games: T[] }>();
     const unshelved: T[] = [];
-    for (const b of books) {
+    for (const b of games) {
       const shelves = b.shelves ?? [];
       if (shelves.length === 0) unshelved.push(b);
       for (const s of shelves) {
-        const entry = map.get(s.id) ?? { name: s.name, books: [] };
-        entry.books.push(b);
+        const entry = map.get(s.id) ?? { name: s.name, games: [] };
+        entry.games.push(b);
         map.set(s.id, entry);
       }
     }
@@ -395,29 +395,29 @@ export function groupBooks<T extends GroupableBook>(
       const i = order.indexOf(id);
       return i === -1 ? order.length : i;
     };
-    const sections: BookGroup<T>[] = [...map.entries()]
+    const sections: GameGroup<T>[] = [...map.entries()]
       .sort((a, b) => rank(a[0]) - rank(b[0]) || compare(a[1].name, b[1].name))
-      .map(([id, { name, books: groupBooks }]) => ({
+      .map(([id, { name, games: groupGames }]) => ({
         key: `shelf:${id}`,
         title: name,
-        books: groupBooks,
+        games: groupGames,
       }));
     if (unshelved.length > 0) {
-      sections.push({ key: "shelf:none", title: "Not on a shelf", books: unshelved });
+      sections.push({ key: "shelf:none", title: "Not on a shelf", games: unshelved });
     }
     return sections;
   }
 
   if (group === "rating") {
-    const sections: BookGroup<T>[] = [];
+    const sections: GameGroup<T>[] = [];
     for (let v = 10; v >= 1; v--) {
-      const rated = books.filter((b) => b.rating === v);
+      const rated = games.filter((b) => b.rating === v);
       if (rated.length > 0) {
-        sections.push({ key: `rating:${v}`, title: ratingLabel(v, opts.ratingStyle), books: rated });
+        sections.push({ key: `rating:${v}`, title: ratingLabel(v, opts.ratingStyle), games: rated });
       }
     }
-    const unrated = books.filter((b) => !b.rating || b.rating < 1 || b.rating > 10);
-    if (unrated.length > 0) sections.push({ key: "rating:none", title: "Unrated", books: unrated });
+    const unrated = games.filter((b) => !b.rating || b.rating < 1 || b.rating > 10);
+    if (unrated.length > 0) sections.push({ key: "rating:none", title: "Unrated", games: unrated });
     return sections;
   }
 
@@ -425,24 +425,24 @@ export function groupBooks<T extends GroupableBook>(
 }
 
 /**
- * Fills grouped sections in order until `limit` books are placed. A book in
+ * Fills grouped sections in order until `limit` games are placed. A game in
  * two tag sections takes two places, so the budget counts entries. Sections
  * keep their real size in `total`, so a partly shown one still says how
- * many books it holds.
+ * many games it holds.
  */
 export function sliceGroups<T>(
-  groups: BookGroup<T>[],
+  groups: GameGroup<T>[],
   limit: number,
-): { groups: (BookGroup<T> & { total: number })[]; shownEntries: number; totalEntries: number } {
+): { groups: (GameGroup<T> & { total: number })[]; shownEntries: number; totalEntries: number } {
   let budget = limit;
   let shownEntries = 0;
   let totalEntries = 0;
-  const out: (BookGroup<T> & { total: number })[] = [];
+  const out: (GameGroup<T> & { total: number })[] = [];
   for (const g of groups) {
-    totalEntries += g.books.length;
+    totalEntries += g.games.length;
     if (budget <= 0) continue;
-    const shown = g.books.slice(0, budget);
-    out.push({ ...g, books: shown, total: g.books.length });
+    const shown = g.games.slice(0, budget);
+    out.push({ ...g, games: shown, total: g.games.length });
     shownEntries += shown.length;
     budget -= shown.length;
   }
@@ -459,39 +459,39 @@ export interface SeriesProgress {
   reading: number | null;
   /** What's next by the shared rule (series.ts), when nothing is being read. */
   next: number | null;
-  /** Whole numbers from 1 up to the highest one with no book. */
+  /** Whole numbers from 1 up to the highest one with no game. */
   missing: number[];
 }
 
 /** Gaps are only looked for this far: a typo'd #9000 shouldn't list them all. */
 const MAX_SERIES_NUMBER = 10_000;
 
-export function seriesProgress(books: SeriesMember[]): SeriesProgress {
-  const read = books.filter((b) => b.status === ReadingStatus.READ || b.timesRead > 0).length;
-  const reading = books
+export function seriesProgress(games: SeriesMember[]): SeriesProgress {
+  const read = games.filter((b) => b.status === ReadingStatus.READ || b.timesRead > 0).length;
+  const reading = games
     .filter((b) => b.status === ReadingStatus.READING && b.seriesNumber !== null)
     .reduce<number | null>((low, b) => (low === null || b.seriesNumber! < low ? b.seriesNumber! : low), null);
-  const next = reading === null ? (nextInSeries(books)?.seriesNumber ?? null) : null;
+  const next = reading === null ? (nextInSeries(games)?.seriesNumber ?? null) : null;
 
   // Only whole numbers fill a gap: #1.5 is a novella between #1 and #2,
   // not either of them. A #0 prequel never makes #1 look missing.
-  const numbers = books.map((b) => b.seriesNumber).filter((n): n is number => n !== null);
+  const numbers = games.map((b) => b.seriesNumber).filter((n): n is number => n !== null);
   const have = new Set(numbers.filter((n) => Number.isInteger(n)));
   const highest = Math.min(Math.max(0, ...numbers), MAX_SERIES_NUMBER);
   const missing: number[] = [];
   for (let n = 1; n < highest; n++) if (!have.has(n)) missing.push(n);
 
-  return { total: books.length, read, reading, next, missing };
+  return { total: games.length, read, reading, next, missing };
 }
 
 /**
- * A series heading's detail and note: "5 books · 3 read · next #4" (or
- * "2 of 5 books" when the filters on screen show only some), and
+ * A series heading's detail and note: "5 games · 3 read · next #4" (or
+ * "2 of 5 games" when the filters on screen show only some), and
  * "#3 missing" when a number is skipped.
  */
 export function seriesHeading(p: SeriesProgress, shown: number): { detail: string; note?: string } {
-  const books = `${p.total} book${p.total === 1 ? "" : "s"}`;
-  const bits = [shown < p.total ? `${shown} of ${books}` : books];
+  const games = `${p.total} game${p.total === 1 ? "" : "s"}`;
+  const bits = [shown < p.total ? `${shown} of ${games}` : games];
   if (p.total > 0 && p.read === p.total) bits.push("all read");
   else {
     bits.push(`${p.read} read`);

@@ -10,48 +10,48 @@ import type { ActionState } from "@/lib/actions/helpers";
  *  quote would sort after every other. */
 function pastTheEnd(page: number | null | undefined, pageCount: number | null): string | null {
   return page && pageCount != null && page > pageCount
-    ? `Page ${page} is past the end of the book (${pageCount} pages)`
+    ? `Page ${page} is past the end of the game (${pageCount} pages)`
     : null;
 }
 
-/** Add a quote/highlight to a book (the form carries the bookId). */
+/** Add a quote/highlight to a game (the form carries the gameId). */
 export async function addQuote(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   const userId = await requireUserId();
 
-  const bookId = formData.get("bookId");
-  if (typeof bookId !== "string" || !bookId) return { error: "Book not found" };
-  const book = await prisma.book.findFirst({
-    where: { id: bookId, userId },
+  const gameId = formData.get("gameId");
+  if (typeof gameId !== "string" || !gameId) return { error: "Game not found" };
+  const game = await prisma.game.findFirst({
+    where: { id: gameId, userId },
     select: { id: true, pageCount: true },
   });
-  if (!book) return { error: "Book not found" };
+  if (!game) return { error: "Game not found" };
 
   const parsed = quoteSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
   const data = parsed.data;
-  const pageError = pastTheEnd(data.page, book.pageCount);
+  const pageError = pastTheEnd(data.page, game.pageCount);
   if (pageError) return { error: pageError };
 
   await prisma.quote.create({
     data: {
-      bookId,
+      gameId,
       text: data.text,
       page: data.page || null, // 0 = no page reference
       note: data.note ?? null,
     },
   });
 
-  revalidatePath(`/books/${bookId}`);
+  revalidatePath(`/games/${gameId}`);
   revalidatePath("/quotes");
   return { success: true };
 }
 
-/** Edit an existing quote (ownership checked through the book). */
+/** Edit an existing quote (ownership checked through the game). */
 export async function updateQuote(
   quoteId: string,
   _prev: ActionState,
@@ -60,8 +60,8 @@ export async function updateQuote(
   const userId = await requireUserId();
 
   const existing = await prisma.quote.findFirst({
-    where: { id: quoteId, book: { userId } },
-    select: { bookId: true, book: { select: { pageCount: true } } },
+    where: { id: quoteId, game: { userId } },
+    select: { gameId: true, game: { select: { pageCount: true } } },
   });
   if (!existing) return { error: "Quote not found" };
 
@@ -70,7 +70,7 @@ export async function updateQuote(
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
   const data = parsed.data;
-  const pageError = pastTheEnd(data.page, existing.book.pageCount);
+  const pageError = pastTheEnd(data.page, existing.game.pageCount);
   if (pageError) return { error: pageError };
 
   await prisma.quote.update({
@@ -82,22 +82,22 @@ export async function updateQuote(
     },
   });
 
-  revalidatePath(`/books/${existing.bookId}`);
+  revalidatePath(`/games/${existing.gameId}`);
   revalidatePath("/quotes");
   return { success: true };
 }
 
-/** Delete a quote (ownership checked through the book). */
+/** Delete a quote (ownership checked through the game). */
 export async function deleteQuote(quoteId: string): Promise<void> {
   const userId = await requireUserId();
 
   const existing = await prisma.quote.findFirst({
-    where: { id: quoteId, book: { userId } },
-    select: { bookId: true },
+    where: { id: quoteId, game: { userId } },
+    select: { gameId: true },
   });
   if (!existing) return;
 
   await prisma.quote.delete({ where: { id: quoteId } });
-  revalidatePath(`/books/${existing.bookId}`);
+  revalidatePath(`/games/${existing.gameId}`);
   revalidatePath("/quotes");
 }

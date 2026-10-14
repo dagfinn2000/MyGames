@@ -51,7 +51,7 @@ describe("currentPassEntries", () => {
   });
 
   it("goes by the start date's calendar day in the reader's zone", () => {
-    // Started typed as 12 October (midnight UTC); the book was added at
+    // Started typed as 12 October (midnight UTC); the game was added at
     // 08:30 that morning in Tokyo, still 11 October in UTC.
     const added = e(50, new Date("2026-10-11T23:30:00Z"));
     const earlier = e(20, new Date("2026-10-11T12:00:00Z")); // 11 Oct in Tokyo too
@@ -67,7 +67,7 @@ describe("currentPassEntries", () => {
 });
 
 describe("dailyPageTotals", () => {
-  const e = (bookId: string, page: number, date: Date) => ({ bookId, page, date });
+  const e = (gameId: string, page: number, date: Date) => ({ gameId, page, date });
 
   it("credits each increase to the later entry's day; the first entry is inert", () => {
     const totals = dailyPageTotals([
@@ -89,7 +89,7 @@ describe("dailyPageTotals", () => {
     expect(totals.get("2026-01-03")).toBe(30);
   });
 
-  it("sums across books and keeps their logs independent", () => {
+  it("sums across games and keeps their logs independent", () => {
     const totals = dailyPageTotals([
       e("a", 0, day(2026, 1, 1)),
       e("a", 25, day(2026, 1, 2)), // +25
@@ -100,7 +100,7 @@ describe("dailyPageTotals", () => {
     expect(totals.get("2026-01-01")).toBeUndefined();
   });
 
-  it("sorts each book's log by date before walking it", () => {
+  it("sorts each game's log by date before walking it", () => {
     const totals = dailyPageTotals([
       e("a", 90, day(2026, 1, 3)),
       e("a", 30, day(2026, 1, 1)),

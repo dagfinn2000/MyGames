@@ -42,7 +42,7 @@ const pageField = z.coerce
   .min(1, "Log at least page 1")
   .max(MAX_PAGE, "That page is too high");
 
-/** The position as typed, in the book's unit, so messages can say it back
+/** The position as typed, in the game's unit, so messages can say it back
  *  as typed. Only ever shown; anything odd is dropped, never refused. */
 const typedValue = z.number().int().min(0).max(1_000_000).optional().catch(undefined);
 
@@ -62,9 +62,9 @@ export const moveTargetSchema = z.enum(["READ", "DNF"]);
 
 /**
  * What the client hands back to undo Finished or Stopped. It only names the
- * move; the server works out the rest from the book. `finishedAt` is the
- * finish moment the move wrote, so an undo can't land on a book finished
- * again since. `page` restores the page of a book with no reading log,
+ * move; the server works out the rest from the game. `finishedAt` is the
+ * finish moment the move wrote, so an undo can't land on a game finished
+ * again since. `page` restores the page of a game with no reading log,
  * which a finish clears and nothing else remembers.
  */
 export const undoMoveSchema = z.object({
@@ -194,7 +194,7 @@ export function placeInLog<T extends LogPoint>(
 /**
  * The pass an entry belongs to: from the latest page-0 anchor at or before
  * it up to the next anchor. `previous` is the entry just before the pass;
- * `isCurrent` is true for the latest pass, the one the book's page follows.
+ * `isCurrent` is true for the latest pass, the one the game's page follows.
  */
 export function passAround<T extends LogPoint>(
   entries: T[], // sorted by date, then page
@@ -226,7 +226,7 @@ export function passAround<T extends LogPoint>(
 }
 
 /**
- * Positions for one message, in the book's unit. A position given with the
+ * Positions for one message, in the game's unit. A position given with the
  * value the reader typed reads as typed, when that value still saves as its
  * page: percent and time don't convert back exactly, and 5:11 shouldn't
  * come back as 5:12. Two different pages that would read the same (42% for

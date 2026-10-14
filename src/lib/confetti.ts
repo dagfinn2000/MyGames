@@ -6,7 +6,7 @@ const PIECES = 90;
 
 /**
  * A short burst of confetti from `origin` (an element, or the top middle of
- * the screen when there is none), for finishing a book or reaching the
+ * the screen when there is none), for finishing a game or reaching the
  * reading goal. Drawn on a canvas laid over the page for the length of the
  * burst, then removed; nothing to install and nothing left behind. Does
  * nothing when animations are off or the device asks for reduced motion.

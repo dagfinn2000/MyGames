@@ -1,6 +1,6 @@
 import { looksLikeIsbn, normalizeIsbn } from "@/lib/isbn";
 import { cachedLookup } from "./cache";
-import type { BookDetails, BookMetadata } from "./types";
+import type { GameDetails, GameMetadata } from "./types";
 
 /**
  * Open Library client — the primary (and keyless) metadata source.
@@ -8,7 +8,7 @@ import type { BookDetails, BookMetadata } from "./types";
  *
  * Open Library asks API consumers to send an identifying User-Agent.
  */
-const UA = "myreads/1.0 (self-hosted personal library)";
+const UA = "mygames/1.0 (self-hosted personal library)";
 
 const SEARCH_FIELDS = [
   "key",
@@ -47,7 +47,7 @@ function pickIsbn(isbns: string[] | undefined): string | null {
 export async function searchOpenLibrary(
   query: string,
   limit = 10,
-): Promise<BookMetadata[]> {
+): Promise<GameMetadata[]> {
   const data = await cachedLookup<OlSearchResponse>(
     "ol-search",
     // The limit is part of the key: the import search (10) and the cover
@@ -69,7 +69,7 @@ export async function searchOpenLibrary(
   );
 
   // null means the request failed and nothing was cached: an outage, which
-  // searchBooks needs to tell apart from "no matches".
+  // searchGames needs to tell apart from "no matches".
   if (data === null) throw new Error("Open Library unavailable");
   return (data.docs ?? [])
     .filter((d) => d.title)
@@ -96,13 +96,13 @@ interface OlWork {
 
 /**
  * Fetches description + subjects for one work — done lazily when the user
- * picks a search result, since it's an extra request per book.
- * Subjects on Open Library are noisy ("Accessible book", century-spanning
+ * picks a search result, since it's an extra request per game.
+ * Subjects on Open Library are noisy ("Accessible game", century-spanning
  * lists), so only a few short ones are kept as tag suggestions.
  */
 export async function getOpenLibraryDetails(
   openLibraryId: string,
-): Promise<BookDetails> {
+): Promise<GameDetails> {
   const work = await cachedLookup<OlWork>(
     "ol-work",
     openLibraryId,
@@ -137,7 +137,7 @@ interface OlEdition {
 /**
  * One edition by ISBN: its own page count (search rows only carry the
  * median across every edition of the work) and the work it belongs to,
- * which finds an Open Library id for a book that came from another
+ * which finds an Open Library id for a game that came from another
  * catalogue. Null when Open Library has no such edition or can't be
  * reached; a 404 is not cached, so an edition added later is found then.
  */

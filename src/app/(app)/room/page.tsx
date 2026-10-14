@@ -4,17 +4,17 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getPreferences } from "@/lib/current-user";
 import { formatNumber } from "@/lib/display";
-import { sortBooks } from "@/lib/library-sort";
-import { caseCount, shelve, spineFor, type RoomBook } from "@/lib/room";
+import { sortGames } from "@/lib/library-sort";
+import { caseCount, shelve, spineFor, type RoomGame } from "@/lib/room";
 import { RoomView } from "@/components/room-view";
 import { RoomSwitch } from "@/components/room-switch";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Reading room · MyReads" };
+export const metadata = { title: "Reading room · MyGames" };
 
 /**
  * The reading room: the whole library as a little pixel-art house, every
- * book a spine on a shelf, filed by author the way a bookshelf is. The
+ * game a spine on a shelf, filed by author the way a bookshelf is. The
  * house grows with the library (components/reading-room.tsx), and is
  * decorated as the reader likes (components/room-view.tsx).
  */
@@ -29,7 +29,7 @@ export default async function ReadingRoomPage() {
       <div className="mx-auto grid max-w-md justify-items-center gap-3 py-16 text-center">
         <h1 className="text-2xl font-semibold tracking-tight">Reading room</h1>
         <p className="text-sm text-muted-foreground">
-          The reading room is turned off, so your books aren&apos;t drawn as a house here, and the Room tab is
+          The reading room is turned off, so your games aren&apos;t drawn as a house here, and the Room tab is
           hidden.
         </p>
         <RoomSwitch hiddenNav={prefs.hiddenNav} on />
@@ -37,7 +37,7 @@ export default async function ReadingRoomPage() {
     );
   }
 
-  const rows = await prisma.book.findMany({
+  const rows = await prisma.game.findMany({
     where: { userId },
     select: {
       id: true,
@@ -50,7 +50,7 @@ export default async function ReadingRoomPage() {
       ownership: true,
       seriesName: true,
       seriesNumber: true,
-      // The rest of what sortBooks reads; only the author order is used.
+      // The rest of what sortGames reads; only the author order is used.
       rating: true,
       dateFinished: true,
       dateStarted: true,
@@ -66,13 +66,13 @@ export default async function ReadingRoomPage() {
     },
   });
 
-  const sorted = sortBooks(rows, "author", "asc", {
+  const sorted = sortGames(rows, "author", "asc", {
     ignoreArticles: prefs.ignoreArticles,
     authorOrder: prefs.authorOrder,
     alphabet: prefs.sortAlphabet,
   });
   // Only what the room draws goes to the browser.
-  const books: RoomBook[] = sorted.map((b) => ({
+  const games: RoomGame[] = sorted.map((b) => ({
     id: b.id,
     title: b.title,
     author: b.authors.join(", "),
@@ -83,12 +83,12 @@ export default async function ReadingRoomPage() {
     ownership: b.ownership,
     lentTo: b.loans[0]?.borrower ?? null,
   }));
-  const cases = caseCount(shelve(books.map((b) => spineFor(b).width)).length);
+  const cases = caseCount(shelve(games.map((b) => spineFor(b).width)).length);
 
   return (
     <div className="grid gap-4">
       <RoomView
-        books={books}
+        games={games}
         decor={{
           style: prefs.roomStyle,
           walls: prefs.roomWalls,
@@ -112,25 +112,25 @@ export default async function ReadingRoomPage() {
         rooms={prefs.roomRooms}
         extras={prefs.roomExtras}
         summary={
-          books.length > 0
-            ? `${books.length === 1 ? "1 book" : `${formatNumber(books.length, prefs)} books`} on ${
+          games.length > 0
+            ? `${games.length === 1 ? "1 game" : `${formatNumber(games.length, prefs)} games`} on ${
                 cases === 1 ? "1 bookcase" : `${formatNumber(cases, prefs)} bookcases`
               }`
             : null
         }
       />
-      {books.length === 0 ? (
+      {games.length === 0 ? (
         <p className="text-center text-sm text-muted-foreground">
           The shelves are waiting.{" "}
-          <Link href="/books/new" className="underline underline-offset-2 hover:text-foreground">
-            Add a book
+          <Link href="/games/new" className="underline underline-offset-2 hover:text-foreground">
+            Add a game
           </Link>{" "}
           and it will be the first spine on them.
         </p>
       ) : (
         <p className="mx-auto max-w-prose text-center text-xs text-muted-foreground">
-          Books are filed by author. An outline keeps the place of a book that isn&apos;t on the
-          shelf right now: wished for, lent out or given away. A red ribbon marks a book
+          Games are filed by author. An outline keeps the place of a game that isn&apos;t on the
+          shelf right now: wished for, lent out or given away. A red ribbon marks a game
           you&apos;re reading. The room gets more furniture as your library grows, and
           Decorate changes its style and colours, adds rooms and furniture, moves it
           about, and makes the little you who lives there.

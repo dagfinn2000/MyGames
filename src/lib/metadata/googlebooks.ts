@@ -1,8 +1,8 @@
 import { cachedLookup } from "./cache";
-import type { BookDetails, BookMetadata } from "./types";
+import type { GameDetails, GameMetadata } from "./types";
 
 /**
- * Google Books client — optional. Only active when GOOGLE_BOOKS_API_KEY is
+ * Google Games client — optional. Only active when GOOGLE_BOOKS_API_KEY is
  * set; used to (a) enrich Open Library picks with better descriptions and
  * page counts, and (b) as a search fallback when Open Library is down or
  * returns nothing.
@@ -29,7 +29,7 @@ interface GbResponse {
 }
 
 async function gbQuery(q: string, limit: number): Promise<GbResponse | null> {
-  const url = new URL("https://www.googleapis.com/books/v1/volumes");
+  const url = new URL("https://www.googleapis.com/games/v1/volumes");
   url.searchParams.set("q", q);
   url.searchParams.set("maxResults", String(limit));
   url.searchParams.set("key", process.env.GOOGLE_BOOKS_API_KEY!);
@@ -53,7 +53,7 @@ function httpsify(url: string | undefined): string | null {
   return url ? url.replace(/^http:/, "https:") : null;
 }
 
-function toMetadata(v: GbVolume): BookMetadata | null {
+function toMetadata(v: GbVolume): GameMetadata | null {
   const info = v.volumeInfo;
   if (!info?.title) return null;
   return {
@@ -74,7 +74,7 @@ function toMetadata(v: GbVolume): BookMetadata | null {
 export async function searchGoogleBooks(
   query: string,
   limit = 10,
-): Promise<BookMetadata[]> {
+): Promise<GameMetadata[]> {
   if (!googleBooksEnabled()) return [];
   // The limit is part of the key: the import search (10) and the cover
   // picker (6) must not overwrite each other's cached result lists.
@@ -82,10 +82,10 @@ export async function searchGoogleBooks(
     gbQuery(query, limit),
   );
   // null: failed and nothing cached (see searchOpenLibrary).
-  if (data === null) throw new Error("Google Books unavailable");
+  if (data === null) throw new Error("Google Games unavailable");
   return (data.items ?? [])
     .map(toMetadata)
-    .filter((m): m is BookMetadata => m !== null);
+    .filter((m): m is GameMetadata => m !== null);
 }
 
 /**
@@ -96,7 +96,7 @@ export async function getGoogleBooksDetails(params: {
   isbn?: string | null;
   title?: string | null;
   author?: string | null;
-}): Promise<BookDetails | null> {
+}): Promise<GameDetails | null> {
   if (!googleBooksEnabled()) return null;
 
   let q: string;

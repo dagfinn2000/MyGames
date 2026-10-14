@@ -17,7 +17,7 @@ const UNUSABLE_HINT = "Tags with a comma can't be filtered. Rename it in Manage 
 
 /**
  * The library's tag filter: a checklist of every tag, each one ticked to
- * include it or switched to "Not" to leave it out, and whether a book needs
+ * include it or switched to "Not" to leave it out, and whether a game needs
  * any or all of the ticked ones. Every click applies straight away, like the
  * other filters, and the list stays open for the next one.
  *
@@ -199,7 +199,7 @@ export function TagFilter({
                   <button
                     type="button"
                     aria-pressed={state === "not"}
-                    aria-label={`Leave out books tagged ${t}`}
+                    aria-label={`Leave out games tagged ${t}`}
                     disabled={unusable}
                     onClick={() =>
                       apply({ ...sel, ...setTagState(sel, t, state === "not" ? "off" : "not") })

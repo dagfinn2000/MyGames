@@ -12,20 +12,20 @@ import {
   quotesHref,
 } from "@/lib/quote-order";
 import { loadQuotes, quoteSources } from "@/lib/quotes-query";
-import { BookCover } from "@/components/book-card";
+import { GameCover } from "@/components/game-card";
 import { QuoteItem } from "@/components/quote-item";
 import { QuotesToolbar } from "@/components/quotes-toolbar";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Quotes · MyReads" };
+export const metadata = { title: "Quotes · MyGames" };
 
 /**
- * Every quote in the library on one page — the commonplace book view.
- * Newest first, oldest first, by book or shuffled, optionally grouped
- * under each book (its quotes then in page order), and narrowed to one
+ * Every quote in the library on one page — the commonplace game view.
+ * Newest first, oldest first, by game or shuffled, optionally grouped
+ * under each game (its quotes then in page order), and narrowed to one
  * shelf or tag. Search covers the quote text, the personal note, and the
- * book (via its searchText blob, so authors and series match too).
+ * game (via its searchText blob, so authors and series match too).
  */
 export default async function QuotesPage({
   searchParams,
@@ -91,30 +91,30 @@ export default async function QuotesPage({
               ? "No quotes match these filters."
               : params.q
                 ? "No quotes match that search."
-                : "No quotes yet — add passages worth keeping from any book page."}
+                : "No quotes yet — add passages worth keeping from any game page."}
           </p>
           {fromFilter && (
             <Link
               href={quotesHref({ ...params, tag: "", shelfId: "", limit: undefined })}
               className="text-sm text-primary underline-offset-4 hover:underline"
             >
-              Show quotes from all books
+              Show quotes from all games
             </Link>
           )}
         </div>
       ) : groups ? (
         <div className="grid grid-cols-1 gap-6" data-quote-scope="">
-          {groups.map(({ book, quotes, total: count }) => (
-            <section key={book.id} aria-labelledby={`qb-${book.id}`} className="grid grid-cols-1 gap-3">
-              <h2 id={`qb-${book.id}`} className="flex min-w-0 items-center gap-3 border-b pb-2">
-                <Link href={`/books/${book.id}`} className="group flex min-w-0 items-center gap-3">
-                  <BookCover book={book} className="aspect-[2/3] w-10 shrink-0" />
+          {groups.map(({ game, quotes, total: count }) => (
+            <section key={game.id} aria-labelledby={`qb-${game.id}`} className="grid grid-cols-1 gap-3">
+              <h2 id={`qb-${game.id}`} className="flex min-w-0 items-center gap-3 border-b pb-2">
+                <Link href={`/games/${game.id}`} className="group flex min-w-0 items-center gap-3">
+                  <GameCover game={game} className="aspect-[2/3] w-10 shrink-0" />
                   <span className="min-w-0">
                     <span className="block truncate font-heading text-lg font-medium group-hover:underline">
-                      {book.title}
+                      {game.title}
                     </span>
                     <span className="block truncate text-sm font-normal text-muted-foreground">
-                      {book.authors.join(", ")}
+                      {game.authors.join(", ")}
                     </span>
                   </span>
                 </Link>
@@ -125,7 +125,7 @@ export default async function QuotesPage({
               <ul className="grid grid-cols-1 gap-3">
                 {quotes.map((quote) => (
                   <li key={quote.id}>
-                    <QuoteItem quote={quote} showBook={false} />
+                    <QuoteItem quote={quote} showGame={false} />
                   </li>
                 ))}
               </ul>
@@ -134,12 +134,12 @@ export default async function QuotesPage({
         </div>
       ) : (
         // grid-cols-1 (minmax(0,1fr)) caps the track at the container width;
-        // a bare `grid` would let a long nowrap book title stretch every
+        // a bare `grid` would let a long nowrap game title stretch every
         // quote card past the page edge instead of truncating.
         <ul className="grid grid-cols-1 gap-3" data-quote-scope="">
           {(list ?? []).map((quote) => (
             <li key={quote.id}>
-              <QuoteItem quote={quote} showBook />
+              <QuoteItem quote={quote} showGame />
             </li>
           ))}
         </ul>

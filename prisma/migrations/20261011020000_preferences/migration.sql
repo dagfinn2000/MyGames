@@ -2,8 +2,8 @@
 ALTER TABLE "User" ADD COLUMN "preferences" JSONB;
 
 -- Reading goals in pages, and goals that leave out re-reads
-CREATE TYPE "GoalUnit" AS ENUM ('BOOKS', 'PAGES');
-ALTER TABLE "ReadingGoal" ADD COLUMN "unit" "GoalUnit" NOT NULL DEFAULT 'BOOKS';
+CREATE TYPE "GoalUnit" AS ENUM ('GAMES', 'PAGES');
+ALTER TABLE "ReadingGoal" ADD COLUMN "unit" "GoalUnit" NOT NULL DEFAULT 'GAMES';
 ALTER TABLE "ReadingGoal" ADD COLUMN "countRereads" BOOLEAN NOT NULL DEFAULT true;
 
 -- Saved library views

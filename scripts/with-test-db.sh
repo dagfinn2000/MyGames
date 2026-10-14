@@ -18,9 +18,9 @@ if [ -n "${DATABASE_URL:-}" ]; then
   exec "$@"
 fi
 
-CONTAINER="myreads-test-db-$$"
+CONTAINER="mygames-test-db-$$"
 PORT="${TEST_DB_PORT:-55433}"
-export DATABASE_URL="postgresql://myreads:testpass@localhost:${PORT}/myreads_test"
+export DATABASE_URL="postgresql://mygames:testpass@localhost:${PORT}/mygames_test"
 
 cleanup() {
   docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
@@ -30,13 +30,13 @@ trap cleanup EXIT
 echo "[test-db] starting postgres on :${PORT}"
 docker run --rm -d --name "$CONTAINER" \
   -e POSTGRES_PASSWORD=testpass \
-  -e POSTGRES_USER=myreads \
-  -e POSTGRES_DB=myreads_test \
+  -e POSTGRES_USER=mygames \
+  -e POSTGRES_DB=mygames_test \
   -p "${PORT}:5432" \
   postgres:16-alpine >/dev/null
 
 echo "[test-db] waiting for readiness"
-until docker exec "$CONTAINER" pg_isready -U myreads -d myreads_test >/dev/null 2>&1; do
+until docker exec "$CONTAINER" pg_isready -U mygames -d mygames_test >/dev/null 2>&1; do
   sleep 1
 done
 

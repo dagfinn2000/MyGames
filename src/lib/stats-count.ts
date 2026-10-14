@@ -1,16 +1,16 @@
-import type { BookFormat, ReadingStatus } from "@prisma/client";
+import type { GameFormat, ReadingStatus } from "@prisma/client";
 import { calendarDay, dayKey } from "@/lib/dates";
 import { markRereads } from "@/lib/goals";
 import type { Preferences } from "@/lib/preferences";
 import type { DayWindow } from "@/lib/stats-period";
 
 /**
- * What counts toward Books read, Pages read and the reading goal: the one
+ * What counts toward Games read, Pages read and the reading goal: the one
  * place the "What counts" preferences are applied, so the stats cards, the
  * goal and the year in review can't disagree.
  *
- * Every time through a book is a pass. Finished passes are the archived
- * reads plus the current one on a Read book; a book you stopped reading has
+ * Every time through a game is a pass. Finished passes are the archived
+ * reads plus the current one on a Read game; a game you stopped reading has
  * a stopped pass; anything on the go (or back on the shelf with old log
  * entries) has an open pass, which only ever adds logged pages. A pass is
  * counted in a window of days by when it ended, or, for "Pages I logged",
@@ -19,15 +19,15 @@ import type { DayWindow } from "@/lib/stats-period";
 
 export type CountRules = Pick<
   Preferences,
-  "statsPagesRead" | "statsStoppedBooks" | "statsAudiobooks"
+  "statsPagesRead" | "statsStoppedGames" | "statsAudiobooks"
 >;
 
-/** The book fields counting needs. Callers can pass more; they come back
+/** The game fields counting needs. Callers can pass more; they come back
  *  on each pass. */
-export interface CountBook {
+export interface CountGame {
   id: string;
   status: ReadingStatus;
-  format: BookFormat;
+  format: GameFormat;
   pageCount: number | null;
   currentPage: number | null;
   dateStarted: Date | null;
@@ -37,29 +37,29 @@ export interface CountBook {
 
 /** An archived pass from the read history. */
 export interface CountRead {
-  bookId: string;
+  gameId: string;
   dateStarted: Date | null;
   dateFinished: Date | null;
   rating: number | null;
 }
 
-/** Pages logged in one book on one day (see lib/stats-query.ts). */
-export interface BookDayPages {
-  bookId: string;
+/** Pages logged in one game on one day (see lib/stats-query.ts). */
+export interface GameDayPages {
+  gameId: string;
   /** "2026-05-12", in the reader's zone. */
   day: string;
   pages: number;
-  /** Logged in the book's current pass, on or after its start, rather than
+  /** Logged in the game's current pass, on or after its start, rather than
    *  in an earlier one. */
   current: boolean;
 }
 
-export interface StatsInputs<B extends CountBook = CountBook> {
-  books: B[];
+export interface StatsInputs<B extends CountGame = CountGame> {
+  games: B[];
   /** Oldest first. */
   reads: CountRead[];
-  logDays: BookDayPages[];
-  /** The latest log entry of each book you stopped reading, which dates the
+  logDays: GameDayPages[];
+  /** The latest log entry of each game you stopped reading, which dates the
    *  stop when no date was given. */
   lastLogDates: ReadonlyMap<string, Date>;
 }
@@ -69,21 +69,21 @@ export interface DayPages {
   pages: number;
 }
 
-export interface Pass<B extends CountBook = CountBook> {
-  book: B;
+export interface Pass<B extends CountGame = CountGame> {
+  game: B;
   kind: "finished" | "stopped" | "open";
-  /** When the pass ended: the finish date, or when a stopped book was put
+  /** When the pass ended: the finish date, or when a stopped game was put
    *  down. Null when that isn't known; such a pass counts in all time only. */
   date: Date | null;
   /** `date` as a day key in the reader's zone. */
   day: string | null;
   dateStarted: Date | null;
-  /** The book had been finished before this pass. */
+  /** The game had been finished before this pass. */
   isReread: boolean;
   rating: number | null;
-  /** Counts toward Books read when it ends. */
-  countsAsBook: boolean;
-  /** Pages it adds when it ends: the whole book, or where a stopped book
+  /** Counts toward Games read when it ends. */
+  countsAsGame: boolean;
+  /** Pages it adds when it ends: the whole game, or where a stopped game
    *  was put down. */
   wholePages: number;
   /** Pages logged during this pass, by day. */
@@ -91,10 +91,10 @@ export interface Pass<B extends CountBook = CountBook> {
 }
 
 /** A pass counted in a window: what it adds there. */
-export interface Counted<B extends CountBook = CountBook> {
+export interface Counted<B extends CountGame = CountGame> {
   pass: Pass<B>;
   isReread: boolean;
-  books: number;
+  games: number;
   pages: number;
 }
 
@@ -145,48 +145,48 @@ function archivedPassFor(archived: Draft[], day: string): Draft | null {
   return archived[archived.length - 1] ?? null;
 }
 
-/** Every pass through every book, with the rules applied: audiobooks left
- *  out or stripped of pages, stopped books dropped or counted as books. */
-export function buildPasses<B extends CountBook>(
-  { books, reads, logDays, lastLogDates }: StatsInputs<B>,
+/** Every pass through every game, with the rules applied: audiobooks left
+ *  out or stripped of pages, stopped games dropped or counted as games. */
+export function buildPasses<B extends CountGame>(
+  { games, reads, logDays, lastLogDates }: StatsInputs<B>,
   rules: CountRules,
   timeZone: string,
 ): Pass<B>[] {
-  const readsByBook = groupBy(reads, (r) => r.bookId);
-  const logByBook = groupBy(logDays, (r) => r.bookId);
+  const readsByGame = groupBy(reads, (r) => r.gameId);
+  const logByGame = groupBy(logDays, (r) => r.gameId);
   const day = (d: Date | null) => (d ? calendarDay(d, timeZone) : null);
   const passes: Pass<B>[] = [];
 
-  for (const book of books) {
-    const audiobook = book.format === "AUDIOBOOK";
+  for (const game of games) {
+    const audiobook = game.format === "AUDIOBOOK";
     if (audiobook && rules.statsAudiobooks === "out") continue;
 
-    const archived: Draft[] = (readsByBook.get(book.id) ?? []).map((r) => ({
+    const archived: Draft[] = (readsByGame.get(game.id) ?? []).map((r) => ({
       kind: "finished",
       date: r.dateFinished,
       day: day(r.dateFinished),
       dateStarted: r.dateStarted,
       startDay: day(r.dateStarted),
-      // A pass without its own rating falls back to the book's rating.
-      rating: r.rating ?? book.rating,
+      // A pass without its own rating falls back to the game's rating.
+      rating: r.rating ?? game.rating,
       isReread: false,
       logged: [],
     }));
 
-    // A stopped book is dated by its finish date when one was given, else
+    // A stopped game is dated by its finish date when one was given, else
     // by its last log entry.
-    const lastLog = book.status === "DNF" ? (lastLogDates.get(book.id) ?? null) : null;
+    const lastLog = game.status === "DNF" ? (lastLogDates.get(game.id) ?? null) : null;
     const current: Draft = {
-      kind: book.status === "READ" ? "finished" : book.status === "DNF" ? "stopped" : "open",
+      kind: game.status === "READ" ? "finished" : game.status === "DNF" ? "stopped" : "open",
       date:
-        book.status === "READ" || book.status === "DNF" ? (book.dateFinished ?? lastLog) : null,
+        game.status === "READ" || game.status === "DNF" ? (game.dateFinished ?? lastLog) : null,
       day:
-        book.status === "READ" || book.status === "DNF"
-          ? (day(book.dateFinished) ?? (lastLog ? dayKey(lastLog, timeZone) : null))
+        game.status === "READ" || game.status === "DNF"
+          ? (day(game.dateFinished) ?? (lastLog ? dayKey(lastLog, timeZone) : null))
           : null,
-      dateStarted: book.dateStarted,
-      startDay: day(book.dateStarted),
-      rating: book.rating,
+      dateStarted: game.dateStarted,
+      startDay: day(game.dateStarted),
+      rating: game.rating,
       isReread: false,
       logged: [],
     };
@@ -197,8 +197,8 @@ export function buildPasses<B extends CountBook>(
     const dated = [...archived, current].filter((p) => p.kind === "finished" && p.date);
     const hasUndated = archived.some((p) => !p.date);
     for (const m of markRereads(
-      dated.map((p) => ({ bookId: book.id, dateFinished: p.date!, p })),
-      hasUndated ? new Set([book.id]) : new Set<string>(),
+      dated.map((p) => ({ gameId: game.id, dateFinished: p.date!, p })),
+      hasUndated ? new Set([game.id]) : new Set<string>(),
     )) {
       m.p.isReread = m.isReread;
     }
@@ -209,30 +209,30 @@ export function buildPasses<B extends CountBook>(
       });
     if (!current.date || current.kind !== "finished") current.isReread = archived.length > 0;
 
-    for (const row of logByBook.get(book.id) ?? []) {
+    for (const row of logByGame.get(game.id) ?? []) {
       const pass = row.current ? current : (archivedPassFor(archived, row.day) ?? current);
       pass.logged.push({ day: row.day, pages: row.pages });
     }
 
-    const noPages = audiobook && rules.statsAudiobooks === "books";
+    const noPages = audiobook && rules.statsAudiobooks === "games";
     for (const p of [...archived, current]) {
-      if (p.kind === "stopped" && rules.statsStoppedBooks === "none") continue;
+      if (p.kind === "stopped" && rules.statsStoppedGames === "none") continue;
       let wholePages = 0;
-      if (p.kind === "finished") wholePages = book.pageCount ?? 0;
+      if (p.kind === "finished") wholePages = game.pageCount ?? 0;
       if (p.kind === "stopped") {
         const logged = p.logged.reduce((sum, l) => sum + l.pages, 0);
-        wholePages = Math.min(book.currentPage ?? logged, book.pageCount ?? Infinity);
+        wholePages = Math.min(game.currentPage ?? logged, game.pageCount ?? Infinity);
       }
       passes.push({
-        book,
+        game,
         kind: p.kind,
         date: p.date,
         day: p.day,
         dateStarted: p.dateStarted,
         isReread: p.isReread,
         rating: p.rating,
-        countsAsBook:
-          p.kind === "finished" || (p.kind === "stopped" && rules.statsStoppedBooks === "book"),
+        countsAsGame:
+          p.kind === "finished" || (p.kind === "stopped" && rules.statsStoppedGames === "game"),
         wholePages: noPages ? 0 : wholePages,
         logged: noPages ? [] : p.logged,
       });
@@ -248,13 +248,13 @@ export function inWindow(day: string | null, window: DayWindow): boolean {
 }
 
 /**
- * What each pass adds in a window. A pass adds a book when it ends there.
- * Pages are the whole book when it ends there, or with "Pages I logged" the
- * pages logged on days in the window, plus the whole book for a pass that
- * ends there with nothing logged (a book finished without logging still
+ * What each pass adds in a window. A pass adds a game when it ends there.
+ * Pages are the whole game when it ends there, or with "Pages I logged" the
+ * pages logged on days in the window, plus the whole game for a pass that
+ * ends there with nothing logged (a game finished without logging still
  * adds its page count). Passes adding nothing are left out.
  */
-export function countWindow<B extends CountBook>(
+export function countWindow<B extends CountGame>(
   passes: Pass<B>[],
   window: DayWindow,
   rules: Pick<CountRules, "statsPagesRead">,
@@ -262,7 +262,7 @@ export function countWindow<B extends CountBook>(
   const counted: Counted<B>[] = [];
   for (const pass of passes) {
     const endsHere = pass.kind !== "open" && inWindow(pass.day, window);
-    const books = endsHere && pass.countsAsBook ? 1 : 0;
+    const games = endsHere && pass.countsAsGame ? 1 : 0;
     let pages = 0;
     if (rules.statsPagesRead === "logged") {
       for (const l of pass.logged) if (inWindow(l.day, window)) pages += l.pages;
@@ -270,47 +270,47 @@ export function countWindow<B extends CountBook>(
     } else if (endsHere) {
       pages = pass.wholePages;
     }
-    if (books > 0 || pages > 0) counted.push({ pass, isReread: pass.isReread, books, pages });
+    if (games > 0 || pages > 0) counted.push({ pass, isReread: pass.isReread, games, pages });
   }
   return counted;
 }
 
 /** Totals for a window's counted passes. */
 export function tally(items: Counted[]): {
-  books: number;
+  games: number;
   pages: number;
-  /** Finished re-reads among the books. */
+  /** Finished re-reads among the games. */
   rereads: number;
-  /** Stopped books counted as books. */
+  /** Stopped games counted as games. */
   putDown: number;
 } {
-  let books = 0;
+  let games = 0;
   let pages = 0;
   let rereads = 0;
   let putDown = 0;
   for (const i of items) {
-    books += i.books;
+    games += i.games;
     pages += i.pages;
-    if (i.books > 0 && i.pass.kind === "finished" && i.isReread) rereads++;
-    if (i.books > 0 && i.pass.kind === "stopped") putDown++;
+    if (i.games > 0 && i.pass.kind === "finished" && i.isReread) rereads++;
+    if (i.games > 0 && i.pass.kind === "stopped") putDown++;
   }
-  return { books, pages, rereads, putDown };
+  return { games, pages, rereads, putDown };
 }
 
-/** All-time Books read: books on the Read shelf (each once, however many
- *  times read), plus stopped books when they count as books. */
-export function booksReadAllTime(
-  books: Pick<CountBook, "status" | "format">[],
-  rules: Pick<CountRules, "statsStoppedBooks" | "statsAudiobooks">,
-): { books: number; putDown: number } {
+/** All-time Games read: games on the Read shelf (each once, however many
+ *  times read), plus stopped games when they count as games. */
+export function gamesReadAllTime(
+  games: Pick<CountGame, "status" | "format">[],
+  rules: Pick<CountRules, "statsStoppedGames" | "statsAudiobooks">,
+): { games: number; putDown: number } {
   let read = 0;
   let putDown = 0;
-  for (const b of books) {
+  for (const b of games) {
     if (rules.statsAudiobooks === "out" && b.format === "AUDIOBOOK") continue;
     if (b.status === "READ") read++;
-    if (b.status === "DNF" && rules.statsStoppedBooks === "book") putDown++;
+    if (b.status === "DNF" && rules.statsStoppedGames === "game") putDown++;
   }
-  return { books: read + putDown, putDown };
+  return { games: read + putDown, putDown };
 }
 
 /**
@@ -321,29 +321,29 @@ export function ruleNotes(
   rules: CountRules,
   counts: { rereads?: number; putDown?: number } = {},
   fmt: (n: number) => string = String,
-): { pagesSuffix: string; pages: string[]; books: string[] } {
+): { pagesSuffix: string; pages: string[]; games: string[] } {
   const pages: string[] = [];
-  if (rules.statsPagesRead === "finished") pages.push("whole books when finished");
-  if (rules.statsStoppedBooks !== "none") pages.push("includes pages of books you stopped");
-  if (rules.statsAudiobooks === "books") pages.push("no audiobook pages");
+  if (rules.statsPagesRead === "finished") pages.push("whole games when finished");
+  if (rules.statsStoppedGames !== "none") pages.push("includes pages of games you stopped");
+  if (rules.statsAudiobooks === "games") pages.push("no audiobook pages");
   if (rules.statsAudiobooks === "out") pages.push("audiobooks left out");
 
-  const books: string[] = [];
+  const games: string[] = [];
   const { rereads = 0, putDown = 0 } = counts;
-  if (rereads > 0) books.push(`includes ${fmt(rereads)} ${rereads === 1 ? "re-read" : "re-reads"}`);
-  if (putDown > 0) books.push(`includes ${fmt(putDown)} put down`);
-  if (rules.statsAudiobooks === "out") books.push("audiobooks left out");
+  if (rereads > 0) games.push(`includes ${fmt(rereads)} ${rereads === 1 ? "re-read" : "re-reads"}`);
+  if (putDown > 0) games.push(`includes ${fmt(putDown)} put down`);
+  if (rules.statsAudiobooks === "out") games.push("audiobooks left out");
 
   return {
     pagesSuffix: rules.statsPagesRead === "logged" ? " · as logged" : "",
     pages,
-    books,
+    games,
   };
 }
 
 /** The goal card's footnote on what a pages goal counts. */
 export function goalRuleLine(rules: Pick<CountRules, "statsPagesRead">): string {
   return rules.statsPagesRead === "logged"
-    ? "A pages goal counts the pages you log, plus whole books you finish without logging."
-    : "A pages goal adds up the page counts of the books you finish.";
+    ? "A pages goal counts the pages you log, plus whole games you finish without logging."
+    : "A pages goal adds up the page counts of the games you finish.";
 }

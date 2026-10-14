@@ -13,24 +13,24 @@ const prisma = new PrismaClient();
 let userId: string;
 let otherUserId: string;
 
-const PREFS = { quotesOrder: "newest", quotesGroupByBook: false } as const;
+const PREFS = { quotesOrder: "newest", quotesGroupByGame: false } as const;
 const SORT = {};
 
 function params(over: Partial<QuotesParams> = {}): QuotesParams {
   return { ...parseQuotesParams({}, PREFS), ...over };
 }
 
-async function makeBook(owner: string, over: Record<string, unknown> = {}) {
-  return prisma.book.create({
+async function makeGame(owner: string, over: Record<string, unknown> = {}) {
+  return prisma.game.create({
     data: { userId: owner, title: "Untitled", searchText: "untitled", ...over },
   });
 }
 
-async function addQuotes(bookId: string, quotes: { text: string; page?: number; note?: string; at?: string }[]) {
+async function addQuotes(gameId: string, quotes: { text: string; page?: number; note?: string; at?: string }[]) {
   for (const q of quotes) {
     await prisma.quote.create({
       data: {
-        bookId,
+        gameId,
         text: q.text,
         page: q.page ?? null,
         note: q.note ?? null,
@@ -57,13 +57,13 @@ afterEach(async () => {
 describe("loadQuotes", () => {
   it("never shows another reader's quotes, even with their shelf or tag", async () => {
     const theirShelf = await prisma.shelf.create({ data: { userId: otherUserId, name: "Theirs" } });
-    const theirs = await makeBook(otherUserId, {
-      title: "Their Book",
+    const theirs = await makeGame(otherUserId, {
+      title: "Their Game",
       tags: ["secret"],
       shelves: { connect: { id: theirShelf.id } },
     });
     await addQuotes(theirs.id, [{ text: "Not yours" }]);
-    const mine = await makeBook(userId, { title: "My Book", tags: ["secret"] });
+    const mine = await makeGame(userId, { title: "My Game", tags: ["secret"] });
     await addQuotes(mine.id, [{ text: "Mine" }]);
 
     const all = await loadQuotes(userId, params(), SORT);
@@ -77,12 +77,12 @@ describe("loadQuotes", () => {
 
   it("filters by tag or by shelf", async () => {
     const shelf = await prisma.shelf.create({ data: { userId, name: "Favourites" } });
-    const fantasy = await makeBook(userId, { title: "Dragons", tags: ["fantasy"] });
-    const shelved = await makeBook(userId, {
+    const fantasy = await makeGame(userId, { title: "Dragons", tags: ["fantasy"] });
+    const shelved = await makeGame(userId, {
       title: "Shelved",
       shelves: { connect: { id: shelf.id } },
     });
-    const plain = await makeBook(userId, { title: "Plain" });
+    const plain = await makeGame(userId, { title: "Plain" });
     await addQuotes(fantasy.id, [{ text: "Here be dragons" }]);
     await addQuotes(shelved.id, [{ text: "On the shelf" }]);
     await addQuotes(plain.id, [{ text: "Nothing special" }]);
@@ -93,14 +93,14 @@ describe("loadQuotes", () => {
     expect(byShelf.list!.map((q) => q.text)).toEqual(["On the shelf"]);
   });
 
-  it("searches the quote, its note, and the book", async () => {
-    const book = await makeBook(userId, {
+  it("searches the quote, its note, and the game", async () => {
+    const game = await makeGame(userId, {
       title: "Brontë",
       authors: ["Emily Brontë"],
       searchText: "wuthering heights emily bronte",
     });
-    const other = await makeBook(userId, { title: "Other" });
-    await addQuotes(book.id, [{ text: "Whatever our souls are made of" }]);
+    const other = await makeGame(userId, { title: "Other" });
+    await addQuotes(game.id, [{ text: "Whatever our souls are made of" }]);
     await addQuotes(other.id, [
       { text: "Something about moors" },
       { text: "Plain", note: "remember the MOORS" },
@@ -115,10 +115,10 @@ describe("loadQuotes", () => {
   });
 
   it("counts every match while showing up to the limit", async () => {
-    const book = await makeBook(userId);
+    const game = await makeGame(userId);
     await prisma.quote.createMany({
       data: Array.from({ length: 205 }, (_, i) => ({
-        bookId: book.id,
+        gameId: game.id,
         text: `Quote ${i}`,
         createdAt: new Date(Date.UTC(2026, 0, 1, 0, i)),
       })),
@@ -136,9 +136,9 @@ describe("loadQuotes", () => {
   });
 
   it("keeps a shuffle stable as more are shown", async () => {
-    const book = await makeBook(userId);
+    const game = await makeGame(userId);
     await prisma.quote.createMany({
-      data: Array.from({ length: 250 }, (_, i) => ({ bookId: book.id, text: `Q${i}` })),
+      data: Array.from({ length: 250 }, (_, i) => ({ gameId: game.id, text: `Q${i}` })),
     });
 
     const shuffle = (limit: number, seed = 777) =>
@@ -155,9 +155,9 @@ describe("loadQuotes", () => {
     expect(page1).not.toEqual(newest);
   });
 
-  it("groups by book with real totals and page order", async () => {
-    const a = await makeBook(userId, { title: "Alpha" });
-    const b = await makeBook(userId, { title: "Beta" });
+  it("groups by game with real totals and page order", async () => {
+    const a = await makeGame(userId, { title: "Alpha" });
+    const b = await makeGame(userId, { title: "Beta" });
     await addQuotes(a.id, [
       { text: "a-late", page: 90, at: "2026-01-01T00:00:00Z" },
       { text: "a-unpaged", at: "2026-01-02T00:00:00Z" },
@@ -169,15 +169,15 @@ describe("loadQuotes", () => {
     expect(grouped.list).toBeNull();
     expect(grouped.total).toBe(4);
     expect(
-      grouped.groups!.map((g) => [g.book.title, g.total, g.quotes.map((q) => q.text)]),
+      grouped.groups!.map((g) => [g.game.title, g.total, g.quotes.map((q) => q.text)]),
     ).toEqual([
       // Newest: Beta's quote is the newest of all.
       ["Beta", 1, ["b-only"]],
       ["Alpha", 3, ["a-early", "a-late", "a-unpaged"]],
     ]);
 
-    const byBook = await loadQuotes(userId, params({ group: true, order: "book" }), SORT);
-    expect(byBook.groups!.map((g) => g.book.title)).toEqual(["Alpha", "Beta"]);
+    const byGame = await loadQuotes(userId, params({ group: true, order: "game" }), SORT);
+    expect(byGame.groups!.map((g) => g.game.title)).toEqual(["Alpha", "Beta"]);
   });
 });
 
@@ -188,17 +188,17 @@ describe("quoteSources", () => {
       prisma.shelf.create({ data: { userId, name: "Empty" } }),
       prisma.shelf.create({ data: { userId: otherUserId, name: "Theirs" } }),
     ]);
-    const quoted = await makeBook(userId, {
+    const quoted = await makeGame(userId, {
       tags: ["poetry", "classics"],
       shelves: { connect: { id: withQuotes.id } },
     });
-    await makeBook(userId, { tags: ["unquoted"], shelves: { connect: { id: empty.id } } });
-    const theirBook = await makeBook(otherUserId, {
+    await makeGame(userId, { tags: ["unquoted"], shelves: { connect: { id: empty.id } } });
+    const theirGame = await makeGame(otherUserId, {
       tags: ["their-tag"],
       shelves: { connect: { id: theirs.id } },
     });
     await addQuotes(quoted.id, [{ text: "A" }, { text: "B" }]);
-    await addQuotes(theirBook.id, [{ text: "C" }]);
+    await addQuotes(theirGame.id, [{ text: "C" }]);
 
     const sources = await quoteSources(userId);
     expect(sources.shelves).toEqual([{ id: withQuotes.id, name: "Has quotes" }]);

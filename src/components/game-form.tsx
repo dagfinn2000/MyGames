@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { BookFormat, BookOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
 import { BookOpen } from "lucide-react";
 import type { ActionState } from "@/lib/actions/helpers";
 import type { CatalogueDiffRow, CatalogueValues } from "@/lib/catalogue-values";
@@ -28,8 +28,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-/** String-typed initial values — everything a book form can prefill. */
-export interface BookFormValues {
+/** String-typed initial values — everything a game form can prefill. */
+export interface GameFormValues {
   title?: string;
   authors?: string; // comma-separated
   isbn?: string;
@@ -41,29 +41,29 @@ export interface BookFormValues {
   tags?: string; // comma-separated
   seriesName?: string;
   seriesNumber?: string;
-  format?: BookFormat;
-  ownership?: BookOwnership;
+  format?: GameFormat;
+  ownership?: GameOwnership;
   status?: ReadingStatus;
   openLibraryId?: string;
 }
 
 /** The add form's submit buttons, by where each goes afterwards. */
 const ADD_BUTTON_LABELS: Record<AfterAdd, string> = {
-  open: "Add book",
+  open: "Add game",
   another: "Add and add another",
   library: "Add and go to the library",
 };
 
 /**
- * Shared add/edit book form. The caller supplies the server action —
- * `createBook` for the add flow, a bound `updateBook` for editing.
+ * Shared add/edit game form. The caller supplies the server action —
+ * `createGame` for the add flow, a bound `updateGame` for editing.
  * `showStatus` is on for creation only; after that, status is managed from
  * the reading panel on the detail page. It also brings the shelf's own
  * fields (a finish date and rating for Read, a start date and page for
- * Currently Reading) and the add buttons that follow "After adding a book"
+ * Currently Reading) and the add buttons that follow "After adding a game"
  * in Preferences.
  */
-export function BookForm({
+export function GameForm({
   action,
   initial = {},
   submitLabel = "Save changes",
@@ -74,14 +74,14 @@ export function BookForm({
   lookup,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
-  initial?: BookFormValues;
+  initial?: GameFormValues;
   /** The edit form's button. The add form's buttons follow Preferences. */
   submitLabel?: string;
   showStatus?: boolean;
   /** Existing series names, offered as autocomplete suggestions. */
   seriesNames?: string[];
-  /** Called with the new book after "Add and add another". */
-  onAdded?: (book: { id: string; title: string }) => void;
+  /** Called with the new game after "Add and add another". */
+  onAdded?: (game: { id: string; title: string }) => void;
   autoFocusTitle?: boolean;
   /** Offers "Look up details" (the edit page), with the reader's settings
    *  for catalogue subjects. */
@@ -97,11 +97,11 @@ export function BookForm({
   // while the trigger keeps showing the reader's choice. Format also
   // decides whether the audiobook length shows (and is sent), and the shelf
   // which reading fields show.
-  const [format, setFormat] = useState<BookFormat>(
-    initial.format ?? BookFormat.PHYSICAL,
+  const [format, setFormat] = useState<GameFormat>(
+    initial.format ?? GameFormat.PHYSICAL,
   );
-  const [ownership, setOwnership] = useState<BookOwnership>(
-    initial.ownership ?? BookOwnership.OWNED,
+  const [ownership, setOwnership] = useState<GameOwnership>(
+    initial.ownership ?? GameOwnership.OWNED,
   );
 
   // Kept on every save (editing used to drop it), and filled in by Look up
@@ -109,8 +109,8 @@ export function BookForm({
   const [openLibraryId, setOpenLibraryId] = useState(initial.openLibraryId ?? "");
   const [status, setStatus] = useState<ReadingStatus>(initial.status ?? ReadingStatus.WANT_TO_READ);
 
-  // Each save returns a new state object, so this runs once per book added.
-  const reportAdded = useEffectEvent((book: { id: string; title: string }) => onAdded?.(book));
+  // Each save returns a new state object, so this runs once per game added.
+  const reportAdded = useEffectEvent((game: { id: string; title: string }) => onAdded?.(game));
   useEffect(() => {
     if (state.added) reportAdded(state.added);
   }, [state]);
@@ -291,12 +291,12 @@ export function BookForm({
           <div className="grid gap-2">
             <Label htmlFor="format">Format</Label>
             <input type="hidden" name="format" value={format} />
-            <Select value={format} onValueChange={(v) => setFormat(v as BookFormat)}>
+            <Select value={format} onValueChange={(v) => setFormat(v as GameFormat)}>
               <SelectTrigger id="format" className="w-36">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {Object.values(BookFormat).map((f) => (
+                {Object.values(GameFormat).map((f) => (
                   <SelectItem key={f} value={f}>
                     {FORMAT_LABELS[f]}
                   </SelectItem>
@@ -306,7 +306,7 @@ export function BookForm({
           </div>
           <AudiobookLengthField
             initialMinutes={initial.lengthMinutes}
-            hidden={format !== BookFormat.AUDIOBOOK}
+            hidden={format !== GameFormat.AUDIOBOOK}
           />
           {showStatus && (
             <div className="grid gap-2">
@@ -329,12 +329,12 @@ export function BookForm({
           <div className="grid gap-2">
             <Label htmlFor="ownership">Ownership</Label>
             <input type="hidden" name="ownership" value={ownership} />
-            <Select value={ownership} onValueChange={(v) => setOwnership(v as BookOwnership)}>
+            <Select value={ownership} onValueChange={(v) => setOwnership(v as GameOwnership)}>
               <SelectTrigger id="ownership">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {Object.values(BookOwnership).map((o) => (
+                {Object.values(GameOwnership).map((o) => (
                   <SelectItem key={o} value={o}>
                     {OWNERSHIP_LABELS[o]}
                   </SelectItem>
@@ -370,7 +370,7 @@ export function BookForm({
 }
 
 /**
- * What a new book on this shelf brings with it. Read: when it was finished
+ * What a new game on this shelf brings with it. Read: when it was finished
  * (or "Don't remember") and a rating. Currently Reading: when it was
  * started and the page reached. Want to Read and Did Not Finish need
  * nothing more.
@@ -427,9 +427,9 @@ function ShelfFields({ status }: { status: ReadingStatus }) {
 }
 
 /**
- * The add form's buttons. The first does what "After adding a book" says
+ * The add form's buttons. The first does what "After adding a game" says
  * (so Enter in a field does that too); the second offers adding another,
- * or opening the book when adding another is already the first. The
+ * or opening the game when adding another is already the first. The
  * pressed button's name and value travel with the form data.
  */
 function AddButtons() {

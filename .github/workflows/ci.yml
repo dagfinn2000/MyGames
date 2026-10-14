@@ -18,13 +18,13 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: myreads
+          POSTGRES_USER: mygames
           POSTGRES_PASSWORD: ci
-          POSTGRES_DB: myreads_test
+          POSTGRES_DB: mygames_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U myreads -d myreads_test"
+          --health-cmd "pg_isready -U mygames -d mygames_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
@@ -61,7 +61,7 @@ jobs:
       - name: Database tests
         run: npx prisma migrate deploy && npm run test:db
         env:
-          DATABASE_URL: postgresql://myreads:ci@localhost:5432/myreads_test
+          DATABASE_URL: postgresql://mygames:ci@localhost:5432/mygames_test
           COVERS_DIR: /tmp/ci-covers
 
       # A production build catches breakage the unit tests can't. The pages

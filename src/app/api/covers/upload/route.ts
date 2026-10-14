@@ -11,7 +11,7 @@ const MAX_BYTES = 10 * 1024 * 1024;
 
 /**
  * POST /api/covers/upload — saves a user-provided cover image (e.g. a photo
- * of the book you own) into the cover cache and returns its serving URL.
+ * of the game you own) into the cover cache and returns its serving URL.
  * The file lands in the same COVERS_DIR volume as downloaded covers, so
  * existing deploys need no new configuration.
  */
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
   }
 
   await fs.mkdir(coversDir(), { recursive: true });
-  // "upload-" prefix keeps these visually distinct from book-id covers; the
+  // "upload-" prefix keeps these visually distinct from game-id covers; the
   // random name means an abandoned form never collides with anything.
   const filename = `upload-${crypto.randomUUID()}.${ext}`;
   await fs.writeFile(coverFilePath(filename), buf);

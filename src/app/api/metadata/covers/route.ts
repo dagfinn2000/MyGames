@@ -5,8 +5,8 @@ import { getCoverCandidates } from "@/lib/metadata";
 
 /**
  * GET /api/metadata/covers?isbn=…&title=…&author=…
- * Backs the cover picker in the book form — returns candidate cover images
- * from Open Library, Google Books, and the National Library of Norway.
+ * Backs the cover picker in the game form — returns candidate cover images
+ * from Open Library, Google Games, and the National Library of Norway.
  */
 export async function GET(req: Request) {
   const guard = await guardMetadataRequest();

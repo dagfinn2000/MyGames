@@ -15,7 +15,7 @@ import { startTransition, type FormEvent } from "react";
  * a quote, say) resets itself then.
  *
  * The button that submitted goes along, as it does with a plain submit:
- * "Add book" and "Add and add another" differ only by it.
+ * "Add game" and "Add and add another" differ only by it.
  */
 export function submitKeepingInput(dispatch: (payload: FormData) => void) {
   return (event: FormEvent<HTMLFormElement>) => {

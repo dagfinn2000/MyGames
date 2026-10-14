@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BookOwnership, ReadingStatus } from "@prisma/client";
+import { GameOwnership, ReadingStatus } from "@prisma/client";
 import {
   chooseRandom,
   pickButtonTitle,
@@ -10,7 +10,7 @@ import {
 } from "@/lib/pick";
 
 const { WANT_TO_READ, READING, READ, DNF } = ReadingStatus;
-const { OWNED, WISHLIST, BORROWED, GIVEN_AWAY } = BookOwnership;
+const { OWNED, WISHLIST, BORROWED, GIVEN_AWAY } = GameOwnership;
 
 let n = 0;
 function row(over: Partial<PickRow> = {}): PickRow {
@@ -48,36 +48,36 @@ describe("pickPool tabs", () => {
     expect(pickPool([want, read], ALL)).toEqual([want]);
   });
 
-  it("falls back to every book on the All tab when none are Want to Read", () => {
+  it("falls back to every game on the All tab when none are Want to Read", () => {
     const rows = [row({ status: READ }), row({ status: DNF })];
     expect(pickPool(rows, ALL)).toEqual(rows);
   });
 
   it("never swaps a status tab for Want to Read", () => {
-    // The bug: on the Read tab the old pick opened a Want to Read book. The
+    // The bug: on the Read tab the old pick opened a Want to Read game. The
     // tab's own filter decides the rows; the pool must not narrow them.
     const rows = [row({ status: READ }), row({ status: READ })];
     expect(pickPool(rows, { ...ALL, tab: READ })).toEqual(rows);
   });
 });
 
-describe("pickPool: only books I have", () => {
+describe("pickPool: only games I have", () => {
   const rules = { ...ALL, tab: READ, onlyHave: true };
 
-  it("keeps owned and borrowed books, drops wishlist and given away", () => {
+  it("keeps owned and borrowed games, drops wishlist and given away", () => {
     const owned = row({ ownership: OWNED });
     const borrowed = row({ ownership: BORROWED });
     const rows = [owned, borrowed, row({ ownership: WISHLIST }), row({ ownership: GIVEN_AWAY })];
     expect(ids(pickPool(rows, rules))).toEqual([owned.id, borrowed.id]);
   });
 
-  it("drops a book that is lent out", () => {
+  it("drops a game that is lent out", () => {
     const home = row();
     expect(ids(pickPool([home, row({ lent: true })], rules))).toEqual([home.id]);
   });
 
   it("applies before the All tab's Want to Read preference", () => {
-    // Every Want to Read book is on the wishlist, so the pick falls back to
+    // Every Want to Read game is on the wishlist, so the pick falls back to
     // the rest instead of opening one you don't have.
     const read = row({ status: READ });
     const rows = [row({ ownership: WISHLIST }), read];
@@ -85,12 +85,12 @@ describe("pickPool: only books I have", () => {
   });
 });
 
-describe("pickPool: only the next book in a series", () => {
+describe("pickPool: only the next game in a series", () => {
   const rules = { ...ALL, tab: WANT_TO_READ, nextInSeries: true };
   const mist = (seriesNumber: number | null, over: Partial<PickRow> = {}) =>
     row({ seriesName: "Mistborn", seriesNumber, ...over });
 
-  it("keeps the next unread book and holds back later ones", () => {
+  it("keeps the next unread game and holds back later ones", () => {
     const one = mist(1, { status: READ });
     const two = mist(2);
     const three = mist(3);
@@ -103,7 +103,7 @@ describe("pickPool: only the next book in a series", () => {
     expect(ids(pickPool([two, three], rules))).toEqual([two.id]);
   });
 
-  it("never holds back a book that isn't Want to Read", () => {
+  it("never holds back a game that isn't Want to Read", () => {
     const one = mist(1);
     const reading = mist(3, { status: READING });
     expect(ids(pickPool([reading], { ...rules, tab: READING }, [one, reading]))).toEqual([
@@ -111,7 +111,7 @@ describe("pickPool: only the next book in a series", () => {
     ]);
   });
 
-  it("counts a re-read in progress as read, and a book being read as unread", () => {
+  it("counts a re-read in progress as read, and a game being read as unread", () => {
     expect(pickPool([mist(2)], rules, [mist(1, { status: READING, timesRead: 1 })])).toHaveLength(1);
     expect(pickPool([mist(2)], rules, [mist(1, { status: READING })])).toHaveLength(0);
   });
@@ -128,7 +128,7 @@ describe("pickPool: only the next book in a series", () => {
     expect(pickPool([two], rules, series)).toHaveLength(0);
   });
 
-  it("ignores unnumbered books both ways, and compares numbers as numbers", () => {
+  it("ignores unnumbered games both ways, and compares numbers as numbers", () => {
     const loose = mist(null);
     expect(pickPool([loose], rules, [mist(1)])).toEqual([loose]);
     expect(pickPool([mist(2)], rules, [mist(null)])).toHaveLength(1);
@@ -150,7 +150,7 @@ describe("pickPool: only the next book in a series", () => {
     expect(pickPool([one, two], { ...rules, onlyHave: true }, [one, two])).toEqual([]);
   });
 
-  it("falls back to other books on the All tab when every Want to Read waits", () => {
+  it("falls back to other games on the All tab when every Want to Read waits", () => {
     const read = row({ status: READ });
     const rows = [mist(2), read];
     expect(pickPool(rows, { ...ALL, nextInSeries: true }, [mist(1)])).toEqual([read]);
@@ -174,18 +174,18 @@ describe("pickButtonTitle", () => {
 
   it("says where the pick comes from", () => {
     expect(pickButtonTitle(null, off)).toBe(
-      "Open a random book, from Want to Read when there is one (respects your filters)",
+      "Open a random game, from Want to Read when there is one (respects your filters)",
     );
-    expect(pickButtonTitle(READ, off)).toBe("Open a random book from Read (respects your filters)");
+    expect(pickButtonTitle(READ, off)).toBe("Open a random game from Read (respects your filters)");
   });
 
   it("lists the switches that are on", () => {
     expect(pickButtonTitle(READING, { ...off, pickOnlyHave: true })).toBe(
-      "Open a random book from Currently Reading (respects your filters and only books you have)",
+      "Open a random game from Currently Reading (respects your filters and only games you have)",
     );
     expect(pickButtonTitle(null, { pickOnlyHave: true, pickNextInSeries: true })).toBe(
-      "Open a random book, from Want to Read when there is one (respects your filters, " +
-        "only books you have and only the next book in each series)",
+      "Open a random game, from Want to Read when there is one (respects your filters, " +
+        "only games you have and only the next game in each series)",
     );
   });
 });

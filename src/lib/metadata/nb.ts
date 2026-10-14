@@ -1,19 +1,19 @@
 import { cachedLookup } from "./cache";
-import type { BookMetadata } from "./types";
+import type { GameMetadata } from "./types";
 
 /**
  * National Library of Norway (Nasjonalbiblioteket) client — keyless, and by
  * far the best source for Norwegian editions: legal deposit means essentially
- * every book published in Norway is in the catalog with a cover scan.
+ * every game published in Norway is in the catalog with a cover scan.
  * https://api.nb.no/catalog/v1/items
  *
- * Deliberately polled *after* Open Library and Google Books in the search
+ * Deliberately polled *after* Open Library and Google Games in the search
  * chain; its main job is supplying Norwegian-edition covers and ISBN matches.
  *
- * Cover images for in-copyright books are only served as small thumbnails
+ * Cover images for in-copyright games are only served as small thumbnails
  * (~200px high) — larger IIIF sizes return 403.
  */
-const UA = "myreads/1.0 (self-hosted personal library)";
+const UA = "mygames/1.0 (self-hosted personal library)";
 
 interface NbItem {
   metadata?: {
@@ -57,7 +57,7 @@ function flipName(creator: string): string {
     : creator;
 }
 
-function toMetadata(item: NbItem): BookMetadata | null {
+function toMetadata(item: NbItem): GameMetadata | null {
   const md = item.metadata;
   if (!md?.title) return null;
   return {
@@ -78,7 +78,7 @@ function toMetadata(item: NbItem): BookMetadata | null {
 export async function searchNb(
   query: string,
   limit = 10,
-): Promise<BookMetadata[]> {
+): Promise<GameMetadata[]> {
   // The limit is part of the key: the import search (10) and the cover
   // picker (6) must not overwrite each other's cached result lists.
   const data = await cachedLookup<NbResponse>("nb-search", `${query}|${limit}`, () =>
@@ -88,13 +88,13 @@ export async function searchNb(
   if (data === null) throw new Error("nb.no unavailable");
   return (data._embedded?.items ?? [])
     .map(toMetadata)
-    .filter((m): m is BookMetadata => m !== null);
+    .filter((m): m is GameMetadata => m !== null);
 }
 
 /**
  * Looks up the cover for a specific edition by ISBN — exact matches only,
  * which is what makes nb.no valuable: scanning the barcode on a Norwegian
- * book yields the Norwegian cover, not the original edition's.
+ * game yields the Norwegian cover, not the original edition's.
  */
 export async function getNbCoverByIsbn(isbn: string): Promise<string | null> {
   const data = await cachedLookup<NbResponse>("nb-isbn", isbn, () =>

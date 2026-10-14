@@ -11,7 +11,7 @@ import {
 } from "@/lib/library-return";
 import { Button } from "@/components/ui/button";
 
-/** The note only changes as a book link is followed, which mounts a new page
+/** The note only changes as a game link is followed, which mounts a new page
  *  anyway, so there is nothing to subscribe to. */
 const subscribe = () => () => {};
 
@@ -24,7 +24,7 @@ function isEditable(el: Element | null): boolean {
 }
 
 /**
- * The X on a book's page, shown when the book was opened from the library
+ * The X on a game's page, shown when the game was opened from the library
  * or the reading room (lib/library-return.ts). It goes back to the library with the same
  * filters and scroll position, and the cover flies back into its card
  * (lib/cover-flight.ts). Escape does the same, unless a menu or dialog is
@@ -33,10 +33,10 @@ function isEditable(el: Element | null): boolean {
  * Rendered on the server as nothing: the note is in this tab's storage, so
  * the X appears once the page is running in the browser.
  */
-export function CloseBookButton({ bookId }: { bookId: string }) {
+export function CloseGameButton({ gameId }: { gameId: string }) {
   const router = useRouter();
   const raw = useSyncExternalStore(subscribe, readLibraryReturn, () => null);
-  const back = parseLibraryReturn(raw, bookId);
+  const back = parseLibraryReturn(raw, gameId);
   const closing = useRef(false);
 
   const close = () => {
@@ -72,7 +72,7 @@ export function CloseBookButton({ bookId }: { bookId: string }) {
       size="icon-lg"
       // The page's top right corner: beside the cover on a phone, beside
       // the title (which leaves room for it, globals.css) on a wider screen.
-      className="close-book absolute top-0 right-0 z-10 rounded-full bg-background/80 shadow-xs backdrop-blur-sm"
+      className="close-game absolute top-0 right-0 z-10 rounded-full bg-background/80 shadow-xs backdrop-blur-sm"
       onClick={close}
       title={`Back to ${place} (Esc)`}
       aria-label={`Close, back to ${place}`}

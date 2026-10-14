@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 
 /**
  * 404 page. Reached both by an unknown URL and by the `notFound()` calls on
- * the book, edit and year pages — asking for a book that isn't yours resolves
+ * the game, edit and year pages — asking for a game that isn't yours resolves
  * here, which is also what keeps those routes from confirming whether an id
  * exists at all.
  */
@@ -20,7 +20,7 @@ export default function NotFound() {
           </p>
         </div>
         <Button asChild>
-          <Link href="/books">Back to library</Link>
+          <Link href="/games">Back to library</Link>
         </Button>
       </div>
     </div>

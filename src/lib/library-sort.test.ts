@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { BookFormat, BookOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
 import {
   authorSortKey,
-  groupBooks,
+  groupGames,
   publishedYear,
   ratingLabel,
   seriesHeading,
   seriesProgress,
   sliceGroups,
-  sortBooks,
+  sortGames,
   titleSortKey,
-  type GroupableBook,
+  type GroupableGame,
 } from "@/lib/library-sort";
 
-function book(overrides: Partial<GroupableBook> & { title: string }): GroupableBook {
+function game(overrides: Partial<GroupableGame> & { title: string }): GroupableGame {
   return {
     authors: [],
     rating: null,
@@ -26,8 +26,8 @@ function book(overrides: Partial<GroupableBook> & { title: string }): GroupableB
     createdAt: new Date(0),
     updatedAt: new Date(0),
     status: ReadingStatus.WANT_TO_READ,
-    format: BookFormat.PHYSICAL,
-    ownership: BookOwnership.OWNED,
+    format: GameFormat.PHYSICAL,
+    ownership: GameOwnership.OWNED,
     tags: [],
     ...overrides,
   };
@@ -53,14 +53,14 @@ describe("authorSortKey", () => {
   });
 });
 
-describe("sortBooks by author", () => {
-  const leGuin = book({ title: "A Wizard of Earthsea", authors: ["Ursula K. Le Guin"] });
-  const vanGulik = book({ title: "The Chinese Maze Murders", authors: ["Robert van Gulik"] });
-  const homer = book({ title: "The Odyssey", authors: ["Homer"] });
-  const sanderson = book({ title: "Elantris", authors: ["Brandon Sanderson"] });
+describe("sortGames by author", () => {
+  const leGuin = game({ title: "A Wizard of Earthsea", authors: ["Ursula K. Le Guin"] });
+  const vanGulik = game({ title: "The Chinese Maze Murders", authors: ["Robert van Gulik"] });
+  const homer = game({ title: "The Odyssey", authors: ["Homer"] });
+  const sanderson = game({ title: "Elantris", authors: ["Brandon Sanderson"] });
 
   it("orders authors surname-first: Le Guin under L, van Gulik under V", () => {
-    const sorted = sortBooks([vanGulik, leGuin, sanderson, homer], "author", "asc");
+    const sorted = sortGames([vanGulik, leGuin, sanderson, homer], "author", "asc");
     expect(sorted.map((b) => b.title)).toEqual([
       "The Odyssey", // Homer
       "A Wizard of Earthsea", // Le Guin
@@ -70,19 +70,19 @@ describe("sortBooks by author", () => {
   });
 
   it("flips author order on desc but keeps shelf order within an author", () => {
-    const mistborn1 = book({
+    const mistborn1 = game({
       title: "The Final Empire",
       authors: ["Brandon Sanderson"],
       seriesName: "Mistborn",
       seriesNumber: 1,
     });
-    const mistborn2 = book({
+    const mistborn2 = game({
       title: "The Well of Ascension",
       authors: ["Brandon Sanderson"],
       seriesName: "Mistborn",
       seriesNumber: 2,
     });
-    const sorted = sortBooks([mistborn2, homer, mistborn1], "author", "desc");
+    const sorted = sortGames([mistborn2, homer, mistborn1], "author", "desc");
     expect(sorted.map((b) => b.title)).toEqual([
       "The Final Empire", // Sanderson before Homer on desc…
       "The Well of Ascension", // …but the series stays in reading order
@@ -91,28 +91,28 @@ describe("sortBooks by author", () => {
   });
 
   it("keeps a series together as a block, in series order, novellas slotted in", () => {
-    const one = book({
+    const one = game({
       title: "The Final Empire",
       authors: ["Brandon Sanderson"],
       seriesName: "Mistborn",
       seriesNumber: 1,
     });
-    const novella = book({
+    const novella = game({
       title: "Zz Secret History", // title alone would sort it last
       authors: ["Brandon Sanderson"],
       seriesName: "Mistborn",
       seriesNumber: 1.5,
     });
-    const two = book({
+    const two = game({
       title: "The Well of Ascension",
       authors: ["Brandon Sanderson"],
       seriesName: "Mistborn",
       seriesNumber: 2,
     });
-    const standalone = book({ title: "Elantris", authors: ["Brandon Sanderson"] });
-    const zzStandalone = book({ title: "Warbreaker", authors: ["Brandon Sanderson"] });
+    const standalone = game({ title: "Elantris", authors: ["Brandon Sanderson"] });
+    const zzStandalone = game({ title: "Warbreaker", authors: ["Brandon Sanderson"] });
 
-    const sorted = sortBooks([two, zzStandalone, novella, standalone, one], "author", "asc");
+    const sorted = sortGames([two, zzStandalone, novella, standalone, one], "author", "asc");
     expect(sorted.map((b) => b.title)).toEqual([
       "Elantris", // E before M(istborn)
       "The Final Empire", // Mistborn block: 1, 1.5, 2
@@ -123,10 +123,10 @@ describe("sortBooks by author", () => {
   });
 });
 
-describe("sortBooks by field", () => {
+describe("sortGames by field", () => {
   it("sorts by title", () => {
-    const sorted = sortBooks(
-      [book({ title: "Beta" }), book({ title: "Alpha" })],
+    const sorted = sortGames(
+      [game({ title: "Beta" }), game({ title: "Alpha" })],
       "title",
       "asc",
     );
@@ -134,11 +134,11 @@ describe("sortBooks by field", () => {
   });
 
   it("sorts by rating, unrated last", () => {
-    const sorted = sortBooks(
+    const sorted = sortGames(
       [
-        book({ title: "Mid", rating: 6 }),
-        book({ title: "Unrated" }),
-        book({ title: "Top", rating: 10 }),
+        game({ title: "Mid", rating: 6 }),
+        game({ title: "Unrated" }),
+        game({ title: "Top", rating: 10 }),
       ],
       "rating",
       "desc",
@@ -147,23 +147,23 @@ describe("sortBooks by field", () => {
   });
 
   it("falls back to createdAt for unknown sorts", () => {
-    const older = book({ title: "Older", createdAt: new Date(1000) });
-    const newer = book({ title: "Newer", createdAt: new Date(2000) });
-    expect(sortBooks([older, newer], "bogus", "desc")[0].title).toBe("Newer");
+    const older = game({ title: "Older", createdAt: new Date(1000) });
+    const newer = game({ title: "Newer", createdAt: new Date(2000) });
+    expect(sortGames([older, newer], "bogus", "desc")[0].title).toBe("Newer");
   });
 });
 
-describe("groupBooks", () => {
+describe("groupGames", () => {
   it("returns null for the flat view", () => {
-    expect(groupBooks([book({ title: "A" })], "none")).toBeNull();
+    expect(groupGames([game({ title: "A" })], "none")).toBeNull();
   });
 
-  it("groups by author in surname order, authorless books last", () => {
-    const groups = groupBooks(
+  it("groups by author in surname order, authorless games last", () => {
+    const groups = groupGames(
       [
-        book({ title: "V", authors: ["Robert van Gulik"] }),
-        book({ title: "X" }), // no author
-        book({ title: "L", authors: ["Ursula K. Le Guin"] }),
+        game({ title: "V", authors: ["Robert van Gulik"] }),
+        game({ title: "X" }), // no author
+        game({ title: "L", authors: ["Ursula K. Le Guin"] }),
       ],
       "author",
     );
@@ -175,48 +175,48 @@ describe("groupBooks", () => {
     ]);
   });
 
-  it("groups by series in reading order, non-series books trailing", () => {
-    const groups = groupBooks(
+  it("groups by series in reading order, non-series games trailing", () => {
+    const groups = groupGames(
       [
-        book({ title: "Standalone" }),
-        book({ title: "Two", seriesName: "Saga", seriesNumber: 2 }),
-        book({ title: "One", seriesName: "Saga", seriesNumber: 1 }),
-        book({ title: "Novella", seriesName: "Saga", seriesNumber: 1.5 }),
+        game({ title: "Standalone" }),
+        game({ title: "Two", seriesName: "Saga", seriesNumber: 2 }),
+        game({ title: "One", seriesName: "Saga", seriesNumber: 1 }),
+        game({ title: "Novella", seriesName: "Saga", seriesNumber: 1.5 }),
       ],
       "series",
     );
     expect(groups?.map((g) => g.title)).toEqual(["Saga", "Not in a series"]);
-    expect(groups?.[0].books.map((b) => b.title)).toEqual(["One", "Novella", "Two"]);
-    expect(groups?.[1].books.map((b) => b.title)).toEqual(["Standalone"]);
+    expect(groups?.[0].games.map((b) => b.title)).toEqual(["One", "Novella", "Two"]);
+    expect(groups?.[1].games.map((b) => b.title)).toEqual(["Standalone"]);
   });
 
   it("puts unnumbered series entries after numbered ones", () => {
-    const groups = groupBooks(
+    const groups = groupGames(
       [
-        book({ title: "Companion", seriesName: "Saga" }),
-        book({ title: "One", seriesName: "Saga", seriesNumber: 1 }),
+        game({ title: "Companion", seriesName: "Saga" }),
+        game({ title: "One", seriesName: "Saga", seriesNumber: 1 }),
       ],
       "series",
     );
-    expect(groups?.[0].books.map((b) => b.title)).toEqual(["One", "Companion"]);
+    expect(groups?.[0].games.map((b) => b.title)).toEqual(["One", "Companion"]);
   });
 });
 
 describe("sorting rules", () => {
-  const titles = (books: GroupableBook[]) => books.map((b) => b.title);
+  const titles = (games: GroupableGame[]) => games.map((b) => b.title);
 
   it("files titles past a leading article when asked", () => {
-    const books = [
-      book({ title: "The Hobbit" }),
-      book({ title: "Dune" }),
-      book({ title: "A Wizard of Earthsea" }),
+    const games = [
+      game({ title: "The Hobbit" }),
+      game({ title: "Dune" }),
+      game({ title: "A Wizard of Earthsea" }),
     ];
-    expect(titles(sortBooks(books, "title", "asc"))).toEqual([
+    expect(titles(sortGames(games, "title", "asc"))).toEqual([
       "A Wizard of Earthsea",
       "Dune",
       "The Hobbit",
     ]);
-    expect(titles(sortBooks(books, "title", "asc", { ignoreArticles: true }))).toEqual([
+    expect(titles(sortGames(games, "title", "asc", { ignoreArticles: true }))).toEqual([
       "Dune",
       "The Hobbit",
       "A Wizard of Earthsea",
@@ -238,12 +238,12 @@ describe("sorting rules", () => {
   });
 
   it("puts Æ, Ø and Å after Z in the Norwegian alphabet", () => {
-    const books = [
-      book({ title: "Åsgårdsreien" }),
-      book({ title: "Zorro" }),
-      book({ title: "Ærlig talt" }),
+    const games = [
+      game({ title: "Åsgårdsreien" }),
+      game({ title: "Zorro" }),
+      game({ title: "Ærlig talt" }),
     ];
-    expect(titles(sortBooks(books, "title", "asc", { alphabet: "nb" }))).toEqual([
+    expect(titles(sortGames(games, "title", "asc", { alphabet: "nb" }))).toEqual([
       "Zorro",
       "Ærlig talt",
       "Åsgårdsreien",
@@ -251,12 +251,12 @@ describe("sorting rules", () => {
   });
 });
 
-describe("books without a value, and ties", () => {
-  const titles = (books: GroupableBook[]) => books.map((b) => b.title);
+describe("games without a value, and ties", () => {
+  const titles = (games: GroupableGame[]) => games.map((b) => b.title);
   const day = (s: string) => new Date(`${s}T12:00:00Z`);
 
-  it("puts books with no value last, whichever way round", () => {
-    const cases: [string, Partial<GroupableBook>, Partial<GroupableBook>][] = [
+  it("puts games with no value last, whichever way round", () => {
+    const cases: [string, Partial<GroupableGame>, Partial<GroupableGame>][] = [
       ["rating", { rating: 4 }, { rating: 8 }],
       ["dateFinished", { dateFinished: day("2024-01-01") }, { dateFinished: day("2025-01-01") }],
       ["dateStarted", { dateStarted: day("2024-01-01") }, { dateStarted: day("2025-01-01") }],
@@ -264,30 +264,30 @@ describe("books without a value, and ties", () => {
       ["published", { publishedDate: "1999" }, { publishedDate: "2003-07" }],
     ];
     for (const [sort, low, high] of cases) {
-      const books = [
-        book({ title: "None" }),
-        book({ title: "High", ...high }),
-        book({ title: "Low", ...low }),
+      const games = [
+        game({ title: "None" }),
+        game({ title: "High", ...high }),
+        game({ title: "Low", ...low }),
       ];
-      expect(titles(sortBooks(books, sort, "desc")), sort).toEqual(["High", "Low", "None"]);
-      expect(titles(sortBooks(books, sort, "asc")), sort).toEqual(["Low", "High", "None"]);
+      expect(titles(sortGames(games, sort, "desc")), sort).toEqual(["High", "Low", "None"]);
+      expect(titles(sortGames(games, sort, "asc")), sort).toEqual(["Low", "High", "None"]);
     }
   });
 
   it("counts a page count of 0 as none", () => {
-    const books = [book({ title: "Zero", pageCount: 0 }), book({ title: "Some", pageCount: 10 })];
-    expect(titles(sortBooks(books, "pageCount", "asc"))).toEqual(["Some", "Zero"]);
+    const games = [game({ title: "Zero", pageCount: 0 }), game({ title: "Some", pageCount: 10 })];
+    expect(titles(sortGames(games, "pageCount", "asc"))).toEqual(["Some", "Zero"]);
   });
 
   it("breaks ties by author surname, then title, A to Z even when sorted descending", () => {
-    const books = [
-      book({ title: "B", authors: ["Zadie Smith"], rating: 8 }),
-      book({ title: "Z", authors: ["Ursula K. Le Guin"], rating: 8 }),
-      book({ title: "A", authors: ["Zadie Smith"], rating: 8 }),
-      book({ title: "No author", rating: 8 }),
-      book({ title: "Top", authors: ["Zadie Smith"], rating: 10 }),
+    const games = [
+      game({ title: "B", authors: ["Zadie Smith"], rating: 8 }),
+      game({ title: "Z", authors: ["Ursula K. Le Guin"], rating: 8 }),
+      game({ title: "A", authors: ["Zadie Smith"], rating: 8 }),
+      game({ title: "No author", rating: 8 }),
+      game({ title: "Top", authors: ["Zadie Smith"], rating: 10 }),
     ];
-    expect(titles(sortBooks(books, "rating", "desc"))).toEqual([
+    expect(titles(sortGames(games, "rating", "desc"))).toEqual([
       "Top",
       "Z",
       "A",
@@ -296,29 +296,29 @@ describe("books without a value, and ties", () => {
     ]);
   });
 
-  it("puts books without an author last under Author, both ways", () => {
-    const books = [
-      book({ title: "Nobody's" }),
-      book({ title: "Homer's", authors: ["Homer"] }),
-      book({ title: "Le Guin's", authors: ["Ursula K. Le Guin"] }),
+  it("puts games without an author last under Author, both ways", () => {
+    const games = [
+      game({ title: "Nobody's" }),
+      game({ title: "Homer's", authors: ["Homer"] }),
+      game({ title: "Le Guin's", authors: ["Ursula K. Le Guin"] }),
     ];
-    expect(titles(sortBooks(books, "author", "asc"))).toEqual(["Homer's", "Le Guin's", "Nobody's"]);
-    expect(titles(sortBooks(books, "author", "desc"))).toEqual(["Le Guin's", "Homer's", "Nobody's"]);
+    expect(titles(sortGames(games, "author", "asc"))).toEqual(["Homer's", "Le Guin's", "Nobody's"]);
+    expect(titles(sortGames(games, "author", "desc"))).toEqual(["Le Guin's", "Homer's", "Nobody's"]);
   });
 
-  it("sorts by year published and by when a book was last changed", () => {
-    const books = [
-      book({ title: "Old", publishedDate: "c. 1950", updatedAt: new Date(3000) }),
-      book({ title: "New", publishedDate: "2020-05-01", updatedAt: new Date(1000) }),
+  it("sorts by year published and by when a game was last changed", () => {
+    const games = [
+      game({ title: "Old", publishedDate: "c. 1950", updatedAt: new Date(3000) }),
+      game({ title: "New", publishedDate: "2020-05-01", updatedAt: new Date(1000) }),
     ];
-    expect(titles(sortBooks(books, "published", "desc"))).toEqual(["New", "Old"]);
-    expect(titles(sortBooks(books, "updatedAt", "desc"))).toEqual(["Old", "New"]);
+    expect(titles(sortGames(games, "published", "desc"))).toEqual(["New", "Old"]);
+    expect(titles(sortGames(games, "updatedAt", "desc"))).toEqual(["Old", "New"]);
   });
 
   it("falls back to date added for a sort name from Object's prototype", () => {
-    const older = book({ title: "Older", createdAt: new Date(1000) });
-    const newer = book({ title: "Newer", createdAt: new Date(2000) });
-    expect(titles(sortBooks([older, newer], "constructor", "desc"))).toEqual(["Newer", "Older"]);
+    const older = game({ title: "Older", createdAt: new Date(1000) });
+    const newer = game({ title: "Newer", createdAt: new Date(2000) });
+    expect(titles(sortGames([older, newer], "constructor", "desc"))).toEqual(["Newer", "Older"]);
   });
 });
 
@@ -334,16 +334,16 @@ describe("publishedYear", () => {
 });
 
 describe("the newer groupings", () => {
-  const titles = (g: { books: GroupableBook[] }) => g.books.map((b) => b.title);
+  const titles = (g: { games: GroupableGame[] }) => g.games.map((b) => b.title);
   const read = (title: string, dateFinished?: string) =>
-    book({
+    game({
       title,
       status: ReadingStatus.READ,
       dateFinished: dateFinished ? new Date(dateFinished) : null,
     });
 
   it("files finishes by year in the reader's zone, newest first", () => {
-    const books = [
+    const games = [
       // 23:30 UTC on New Year's Eve is already 2026 in Oslo.
       read("Late", "2025-12-31T23:30:00Z"),
       // Typed into a date field: that day everywhere, New York included.
@@ -351,13 +351,13 @@ describe("the newer groupings", () => {
       read("Older", "2024-06-01T10:00:00Z"),
       read("Undated"),
       // Not Read, so a leftover date doesn't count.
-      book({
+      game({
         title: "Reading",
         status: ReadingStatus.READING,
         dateFinished: new Date("2024-06-01T10:00:00Z"),
       }),
     ];
-    const oslo = groupBooks(books, "yearFinished", { timeZone: "Europe/Oslo" })!;
+    const oslo = groupGames(games, "yearFinished", { timeZone: "Europe/Oslo" })!;
     expect(oslo.map((g) => g.title)).toEqual([
       "2026",
       "2024",
@@ -365,7 +365,7 @@ describe("the newer groupings", () => {
       "Not finished",
     ]);
     expect(titles(oslo[0])).toEqual(["Late", "Typed"]);
-    const ny = groupBooks(books, "yearFinished", { timeZone: "America/New_York" })!;
+    const ny = groupGames(games, "yearFinished", { timeZone: "America/New_York" })!;
     expect(ny.map((g) => g.title)).toEqual([
       "2026",
       "2025",
@@ -377,11 +377,11 @@ describe("the newer groupings", () => {
   });
 
   it("files statuses in reading order and drops empty ones", () => {
-    const groups = groupBooks(
+    const groups = groupGames(
       [
-        book({ title: "Done", status: ReadingStatus.READ }),
-        book({ title: "Now", status: ReadingStatus.READING }),
-        book({ title: "Later", status: ReadingStatus.WANT_TO_READ }),
+        game({ title: "Done", status: ReadingStatus.READ }),
+        game({ title: "Now", status: ReadingStatus.READING }),
+        game({ title: "Later", status: ReadingStatus.WANT_TO_READ }),
       ],
       "status",
     )!;
@@ -389,18 +389,18 @@ describe("the newer groupings", () => {
   });
 
   it("files formats and ownership in a fixed order with their labels", () => {
-    const books = [
-      book({ title: "A", format: BookFormat.AUDIOBOOK, ownership: BookOwnership.GIVEN_AWAY }),
-      book({ title: "E", format: BookFormat.EBOOK, ownership: BookOwnership.WISHLIST }),
-      book({ title: "P", format: BookFormat.PHYSICAL, ownership: BookOwnership.BORROWED }),
-      book({ title: "O", format: BookFormat.PHYSICAL, ownership: BookOwnership.OWNED }),
+    const games = [
+      game({ title: "A", format: GameFormat.AUDIOBOOK, ownership: GameOwnership.GIVEN_AWAY }),
+      game({ title: "E", format: GameFormat.EBOOK, ownership: GameOwnership.WISHLIST }),
+      game({ title: "P", format: GameFormat.PHYSICAL, ownership: GameOwnership.BORROWED }),
+      game({ title: "O", format: GameFormat.PHYSICAL, ownership: GameOwnership.OWNED }),
     ];
-    expect(groupBooks(books, "format")!.map((g) => g.title)).toEqual([
+    expect(groupGames(games, "format")!.map((g) => g.title)).toEqual([
       "Physical",
       "Ebook",
       "Audiobook",
     ]);
-    expect(groupBooks(books, "ownership")!.map((g) => g.title)).toEqual([
+    expect(groupGames(games, "ownership")!.map((g) => g.title)).toEqual([
       "Owned",
       "Borrowed",
       "Wishlist",
@@ -408,13 +408,13 @@ describe("the newer groupings", () => {
     ]);
   });
 
-  it("puts a book under each of its tags, in the reader's alphabet, untagged last", () => {
-    const books = [
-      book({ title: "Both", tags: ["ærlig", "zebra"] }),
-      book({ title: "None" }),
-      book({ title: "One", tags: ["zebra"] }),
+  it("puts a game under each of its tags, in the reader's alphabet, untagged last", () => {
+    const games = [
+      game({ title: "Both", tags: ["ærlig", "zebra"] }),
+      game({ title: "None" }),
+      game({ title: "One", tags: ["zebra"] }),
     ];
-    const groups = groupBooks(books, "tag", { alphabet: "nb" })!;
+    const groups = groupGames(games, "tag", { alphabet: "nb" })!;
     expect(groups.map((g) => g.title)).toEqual(["zebra", "ærlig", "No tags"]);
     expect(titles(groups[0])).toEqual(["Both", "One"]);
     expect(titles(groups[1])).toEqual(["Both"]);
@@ -423,48 +423,48 @@ describe("the newer groupings", () => {
   it("files shelves in the reader's shelf order, then by name, unshelved last", () => {
     const fav = { id: "s-fav", name: "Favourites" };
     const beach = { id: "s-beach", name: "Beach reads" };
-    const club = { id: "s-club", name: "Book club" };
-    const books = [
-      book({ title: "Loose", shelves: [] }),
-      book({ title: "Loved", shelves: [fav, beach] }),
-      book({ title: "Club", shelves: [club] }),
+    const club = { id: "s-club", name: "Couch co-op" };
+    const games = [
+      game({ title: "Loose", shelves: [] }),
+      game({ title: "Loved", shelves: [fav, beach] }),
+      game({ title: "Club", shelves: [club] }),
     ];
-    expect(groupBooks(books, "shelf")!.map((g) => g.title)).toEqual([
+    expect(groupGames(games, "shelf")!.map((g) => g.title)).toEqual([
       "Beach reads",
-      "Book club",
+      "Couch co-op",
       "Favourites",
       "Not on a shelf",
     ]);
-    const ordered = groupBooks(books, "shelf", { shelfOrder: ["s-fav", "deleted-shelf"] })!;
+    const ordered = groupGames(games, "shelf", { shelfOrder: ["s-fav", "deleted-shelf"] })!;
     expect(ordered.map((g) => g.title)).toEqual([
       "Favourites",
       "Beach reads",
-      "Book club",
+      "Couch co-op",
       "Not on a shelf",
     ]);
   });
 
   it("is one 'Not on a shelf' section when there are no shelves", () => {
-    const groups = groupBooks([book({ title: "A" })], "shelf")!;
+    const groups = groupGames([game({ title: "A" })], "shelf")!;
     expect(groups.map((g) => g.title)).toEqual(["Not on a shelf"]);
   });
 
   it("files ratings highest first in the reader's style, unrated last", () => {
-    const books = [
-      book({ title: "Half", rating: 1 }),
-      book({ title: "Top", rating: 10 }),
-      book({ title: "None" }),
-      book({ title: "Odd", rating: 9 }),
+    const games = [
+      game({ title: "Half", rating: 1 }),
+      game({ title: "Top", rating: 10 }),
+      game({ title: "None" }),
+      game({ title: "Odd", rating: 9 }),
     ];
-    expect(groupBooks(books, "rating")!.map((g) => g.title)).toEqual([
+    expect(groupGames(games, "rating")!.map((g) => g.title)).toEqual([
       "5 stars",
       "4½ stars",
       "½ star",
       "Unrated",
     ]);
     // An odd value under whole stars still shows, as the half it is.
-    expect(groupBooks(books, "rating", { ratingStyle: "whole" })![1].title).toBe("4½ stars");
-    expect(groupBooks(books, "rating", { ratingStyle: "ten" })!.map((g) => g.title)).toEqual([
+    expect(groupGames(games, "rating", { ratingStyle: "whole" })![1].title).toBe("4½ stars");
+    expect(groupGames(games, "rating", { ratingStyle: "ten" })!.map((g) => g.title)).toEqual([
       "10/10",
       "9/10",
       "1/10",
@@ -473,8 +473,8 @@ describe("the newer groupings", () => {
   });
 
   it("gives every section a unique, stable key", () => {
-    const books = [
-      book({ title: "A", authors: ["Ann"], seriesName: "S", tags: ["x"], rating: 8 }),
+    const games = [
+      game({ title: "A", authors: ["Ann"], seriesName: "S", tags: ["x"], rating: 8 }),
       read("B", "2024-02-02T10:00:00Z"),
     ];
     const groupings = [
@@ -489,17 +489,17 @@ describe("the newer groupings", () => {
       "rating",
     ];
     for (const group of groupings) {
-      const keys = groupBooks(books, group)!.map((g) => g.key);
+      const keys = groupGames(games, group)!.map((g) => g.key);
       expect(new Set(keys).size, group).toBe(keys.length);
-      expect(groupBooks(books, group)!.map((g) => g.key), group).toEqual(keys);
+      expect(groupGames(games, group)!.map((g) => g.key), group).toEqual(keys);
     }
   });
 
   it("treats series names that differ only in case and spaces as one series", () => {
-    const groups = groupBooks(
+    const groups = groupGames(
       [
-        book({ title: "Two", seriesName: "dune ", seriesNumber: 2 }),
-        book({ title: "One", seriesName: "Dune", seriesNumber: 1 }),
+        game({ title: "Two", seriesName: "dune ", seriesNumber: 2 }),
+        game({ title: "One", seriesName: "Dune", seriesNumber: 1 }),
       ],
       "series",
     )!;
@@ -523,12 +523,12 @@ describe("ratingLabel", () => {
 
 describe("sliceGroups", () => {
   it("counts every entry against the budget, repeats included", () => {
-    const a = book({ title: "A", tags: ["x", "y"] });
-    const b = book({ title: "B", tags: ["x"] });
-    const c = book({ title: "C", tags: ["y"] });
-    const groups = groupBooks([a, b, c], "tag")!; // x: A B, y: A C
+    const a = game({ title: "A", tags: ["x", "y"] });
+    const b = game({ title: "B", tags: ["x"] });
+    const c = game({ title: "C", tags: ["y"] });
+    const groups = groupGames([a, b, c], "tag")!; // x: A B, y: A C
     const sliced = sliceGroups(groups, 3);
-    expect(sliced.groups.map((g) => [g.title, g.books.map((x) => x.title), g.total])).toEqual([
+    expect(sliced.groups.map((g) => [g.title, g.games.map((x) => x.title), g.total])).toEqual([
       ["x", ["A", "B"], 2],
       ["y", ["A"], 2],
     ]);
@@ -537,8 +537,8 @@ describe("sliceGroups", () => {
   });
 
   it("leaves out sections the budget doesn't reach", () => {
-    const groups = groupBooks(
-      [book({ title: "A", tags: ["x"] }), book({ title: "B", tags: ["y"] })],
+    const groups = groupGames(
+      [game({ title: "A", tags: ["x"] }), game({ title: "B", tags: ["y"] })],
       "tag",
     )!;
     const sliced = sliceGroups(groups, 1);
@@ -564,28 +564,28 @@ describe("series progress", () => {
       member(5, WANT_TO_READ),
     ]);
     expect(p).toMatchObject({ total: 5, read: 3, reading: null, next: 4, missing: [] });
-    expect(seriesHeading(p, 5)).toEqual({ detail: "5 books · 3 read · next #4" });
+    expect(seriesHeading(p, 5)).toEqual({ detail: "5 games · 3 read · next #4" });
   });
 
-  it("says which book is being read instead of what's next", () => {
+  it("says which game is being read instead of what's next", () => {
     const p = seriesProgress([member(1, READ), member(2, READING), member(3, WANT_TO_READ)]);
     expect(p.reading).toBe(2);
-    expect(seriesHeading(p, 3).detail).toBe("3 books · 1 read · reading #2");
+    expect(seriesHeading(p, 3).detail).toBe("3 games · 1 read · reading #2");
   });
 
-  it("skips books put down, as Pick for me does", () => {
+  it("skips games put down, as Pick for me does", () => {
     const p = seriesProgress([member(1, READ), member(2, DNF), member(3, WANT_TO_READ)]);
     expect(p.next).toBe(3);
     expect(p.read).toBe(1);
   });
 
-  it("counts a book read before and being re-read as read", () => {
+  it("counts a game read before and being re-read as read", () => {
     const p = seriesProgress([member(1, READING, 1), member(2, READ)]);
     expect(p.read).toBe(2);
-    expect(seriesHeading(p, 2).detail).toBe("2 books · all read");
+    expect(seriesHeading(p, 2).detail).toBe("2 games · all read");
   });
 
-  it("lists whole numbers with no book; novellas and prequels fill no gap", () => {
+  it("lists whole numbers with no game; novellas and prequels fill no gap", () => {
     const p = seriesProgress([
       member(0, READ),
       member(1.5, READ),
@@ -605,16 +605,16 @@ describe("series progress", () => {
   it("has no next or gaps for a series without numbers", () => {
     const p = seriesProgress([member(null, READ), member(null, WANT_TO_READ)]);
     expect(p).toMatchObject({ next: null, reading: null, missing: [] });
-    expect(seriesHeading(p, 2)).toEqual({ detail: "2 books · 1 read" });
+    expect(seriesHeading(p, 2)).toEqual({ detail: "2 games · 1 read" });
   });
 
   it("says when the filters on screen show only part of a series", () => {
     const p = seriesProgress([member(1, READ), member(2, READ), member(3, WANT_TO_READ)]);
-    expect(seriesHeading(p, 1).detail).toBe("1 of 3 books · 2 read · next #3");
+    expect(seriesHeading(p, 1).detail).toBe("1 of 3 games · 2 read · next #3");
   });
 
   it("prints numbers as stored", () => {
     const p = seriesProgress([member(1, READ), member(1.5, WANT_TO_READ)]);
-    expect(seriesHeading(p, 2).detail).toBe("2 books · 1 read · next #1.5");
+    expect(seriesHeading(p, 2).detail).toBe("2 games · 1 read · next #1.5");
   });
 });

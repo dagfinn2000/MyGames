@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { arrangeBookCards, descriptionMayOverflow } from "@/lib/book-page";
-import { DEFAULT_PREFERENCES, type BookPageCard } from "@/lib/preferences";
+import { arrangeGameCards, descriptionMayOverflow } from "@/lib/game-page";
+import { DEFAULT_PREFERENCES, type GamePageCard } from "@/lib/preferences";
 
 const prefs = (
-  bookPageCards: BookPageCard[] = DEFAULT_PREFERENCES.bookPageCards,
-  hiddenBookPageCards: BookPageCard[] = [],
-) => ({ bookPageCards, hiddenBookPageCards });
+  gamePageCards: GamePageCard[] = DEFAULT_PREFERENCES.gamePageCards,
+  hiddenGamePageCards: GamePageCard[] = [],
+) => ({ gamePageCards, hiddenGamePageCards });
 
-describe("arrangeBookCards", () => {
+describe("arrangeGameCards", () => {
   it("shows every card in today's order by default", () => {
-    expect(arrangeBookCards(prefs(), {})).toEqual([
+    expect(arrangeGameCards(prefs(), {})).toEqual([
       { key: "shelves", forced: false },
       { key: "reading", forced: false },
       { key: "history", forced: false },
@@ -19,12 +19,12 @@ describe("arrangeBookCards", () => {
   });
 
   it("follows the reader's order", () => {
-    const order: BookPageCard[] = ["reading", "quotes", "shelves", "lending", "history"];
-    expect(arrangeBookCards(prefs(order), {}).map((c) => c.key)).toEqual(order);
+    const order: GamePageCard[] = ["reading", "quotes", "shelves", "lending", "history"];
+    expect(arrangeGameCards(prefs(order), {}).map((c) => c.key)).toEqual(order);
   });
 
   it("places a card the stored order leaves out, after the listed ones", () => {
-    expect(arrangeBookCards(prefs(["quotes", "reading"]), {}).map((c) => c.key)).toEqual([
+    expect(arrangeGameCards(prefs(["quotes", "reading"]), {}).map((c) => c.key)).toEqual([
       "quotes",
       "reading",
       "shelves",
@@ -34,15 +34,15 @@ describe("arrangeBookCards", () => {
   });
 
   it("leaves out hidden cards with nothing in them", () => {
-    const arranged = arrangeBookCards(prefs(undefined, ["lending", "quotes"]), {
+    const arranged = arrangeGameCards(prefs(undefined, ["lending", "quotes"]), {
       lending: false,
     });
     expect(arranged.map((c) => c.key)).toEqual(["shelves", "reading", "history"]);
   });
 
   it("keeps a hidden Lending card with an open loan, in its place", () => {
-    const order: BookPageCard[] = ["reading", "lending", "shelves", "history", "quotes"];
-    const arranged = arrangeBookCards(prefs(order, ["lending"]), { lending: true });
+    const order: GamePageCard[] = ["reading", "lending", "shelves", "history", "quotes"];
+    const arranged = arrangeGameCards(prefs(order, ["lending"]), { lending: true });
     expect(arranged).toEqual([
       { key: "reading", forced: false },
       { key: "lending", forced: true },
@@ -53,7 +53,7 @@ describe("arrangeBookCards", () => {
   });
 
   it("keeps hidden Quotes, Read history and My reading that have content", () => {
-    const arranged = arrangeBookCards(
+    const arranged = arrangeGameCards(
       prefs(undefined, ["reading", "history", "quotes", "lending", "shelves"]),
       { reading: true, history: true, quotes: true, lending: false },
     );
@@ -65,12 +65,12 @@ describe("arrangeBookCards", () => {
   });
 
   it("never forces the Shelves card", () => {
-    const arranged = arrangeBookCards(prefs(undefined, ["shelves"]), { shelves: true });
+    const arranged = arrangeGameCards(prefs(undefined, ["shelves"]), { shelves: true });
     expect(arranged.map((c) => c.key)).not.toContain("shelves");
   });
 
   it("can leave the page with no cards at all", () => {
-    expect(arrangeBookCards(prefs(undefined, [...DEFAULT_PREFERENCES.bookPageCards]), {})).toEqual(
+    expect(arrangeGameCards(prefs(undefined, [...DEFAULT_PREFERENCES.gamePageCards]), {})).toEqual(
       [],
     );
   });
@@ -78,7 +78,7 @@ describe("arrangeBookCards", () => {
 
 describe("descriptionMayOverflow", () => {
   it("is false for a short description", () => {
-    expect(descriptionMayOverflow("A short book about a long walk.")).toBe(false);
+    expect(descriptionMayOverflow("A short game about a long walk.")).toBe(false);
     expect(descriptionMayOverflow("x".repeat(300))).toBe(false);
   });
 

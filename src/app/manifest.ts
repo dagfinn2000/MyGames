@@ -2,13 +2,13 @@ import type { MetadataRoute } from "next";
 
 /**
  * PWA web app manifest — makes the app installable on a phone home screen
- * (handy since barcode-scanning books is naturally a phone flow). Served at
+ * (handy since barcode-scanning games is naturally a phone flow). Served at
  * /manifest.webmanifest; the middleware exempts it from auth.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "MyReads",
-    short_name: "MyReads",
+    name: "MyGames",
+    short_name: "MyGames",
     description: "Personal self-hosted library and reading tracker",
     // The root route sends each reader to their chosen start page.
     start_url: "/",
@@ -16,7 +16,7 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#1e293b",
     theme_color: "#1e293b",
     // Long-press the home-screen icon → jump straight into bookstore mode,
-    // or to the books being read.
+    // or to the games being read.
     shortcuts: [
       {
         name: "Now reading",
@@ -27,13 +27,13 @@ export default function manifest(): MetadataRoute.Manifest {
       {
         name: "Do I own this?",
         short_name: "Check",
-        url: "/books/check",
+        url: "/games/check",
         icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
       },
       {
-        name: "Add a book",
+        name: "Add a game",
         short_name: "Add",
-        url: "/books/new",
+        url: "/games/new",
         icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
       },
     ],

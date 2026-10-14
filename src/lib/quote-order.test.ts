@@ -13,21 +13,21 @@ import {
   type OrderableQuote,
 } from "@/lib/quote-order";
 
-const PREFS = { quotesOrder: "newest", quotesGroupByBook: false } as const;
+const PREFS = { quotesOrder: "newest", quotesGroupByGame: false } as const;
 const OPTS = { seed: 42, sort: {} };
 
 let n = 0;
 function quote(
-  over: Partial<OrderableQuote> & { bookId?: string; title?: string; authors?: string[] } = {},
+  over: Partial<OrderableQuote> & { gameId?: string; title?: string; authors?: string[] } = {},
 ): OrderableQuote {
   n++;
   const { title, authors, ...rest } = over;
   return {
     id: `q${String(n).padStart(3, "0")}`,
-    bookId: "b1",
+    gameId: "b1",
     page: null,
     createdAt: new Date(Date.UTC(2026, 0, n)),
-    book: { title: title ?? "Book", authors: authors ?? ["Some Author"] },
+    game: { title: title ?? "Game", authors: authors ?? ["Some Author"] },
     ...rest,
   };
 }
@@ -110,28 +110,28 @@ describe("orderQuotes", () => {
     expect(orderQuotes([c, b, a], "oldest", OPTS)).toEqual([a, b, c]);
   });
 
-  it("by book files titles with the reader's rules, page order within", () => {
-    const hobbit2 = quote({ bookId: "h", title: "The Hobbit", page: 200 });
-    const hobbit1 = quote({ bookId: "h", title: "The Hobbit", page: 12 });
-    const ostrich = quote({ bookId: "o", title: "Østersjøen" });
-    const zebra = quote({ bookId: "z", title: "Zebra" });
-    const ice = quote({ bookId: "i", title: "Ice" });
+  it("by game files titles with the reader's rules, page order within", () => {
+    const hobbit2 = quote({ gameId: "h", title: "The Hobbit", page: 200 });
+    const hobbit1 = quote({ gameId: "h", title: "The Hobbit", page: 12 });
+    const ostrich = quote({ gameId: "o", title: "Østersjøen" });
+    const zebra = quote({ gameId: "z", title: "Zebra" });
+    const ice = quote({ gameId: "i", title: "Ice" });
     const all = [zebra, hobbit2, ostrich, ice, hobbit1];
 
     // Plain English sorting: "The Hobbit" under T, Ø with O.
-    expect(orderQuotes(all, "book", OPTS).map((q) => q.bookId)).toEqual([
+    expect(orderQuotes(all, "game", OPTS).map((q) => q.gameId)).toEqual([
       "i", "o", "h", "h", "z",
     ]);
     // Articles ignored and the Norwegian alphabet: H, then Ø after Z.
     expect(
-      orderQuotes(all, "book", { seed: 1, sort: { ignoreArticles: true, alphabet: "nb" } }),
+      orderQuotes(all, "game", { seed: 1, sort: { ignoreArticles: true, alphabet: "nb" } }),
     ).toEqual([hobbit1, hobbit2, ice, zebra, ostrich]);
   });
 
-  it("by book sorts same-titled books by author", () => {
-    const b = quote({ bookId: "b", title: "Poems", authors: ["Emily Dickinson"] });
-    const a = quote({ bookId: "a", title: "Poems", authors: ["Robert Frost"] });
-    expect(orderQuotes([a, b], "book", OPTS)).toEqual([b, a]);
+  it("by game sorts same-titled games by author", () => {
+    const b = quote({ gameId: "b", title: "Poems", authors: ["Emily Dickinson"] });
+    const a = quote({ gameId: "a", title: "Poems", authors: ["Robert Frost"] });
+    expect(orderQuotes([a, b], "game", OPTS)).toEqual([b, a]);
   });
 
   it("shuffle does not depend on the input order", () => {
@@ -144,55 +144,55 @@ describe("orderQuotes", () => {
 });
 
 describe("groupQuotes", () => {
-  const a1 = quote({ bookId: "a", title: "Alpha", page: 30, createdAt: new Date("2026-03-01T00:00:00Z") });
-  const a2 = quote({ bookId: "a", title: "Alpha", page: 5, createdAt: new Date("2026-06-01T00:00:00Z") });
-  const b1 = quote({ bookId: "b", title: "Beta", createdAt: new Date("2026-01-01T00:00:00Z") });
-  const b2 = quote({ bookId: "b", title: "Beta", page: 9, createdAt: new Date("2026-04-01T00:00:00Z") });
-  const c1 = quote({ bookId: "c", title: "Gamma", createdAt: new Date("2026-02-01T00:00:00Z") });
+  const a1 = quote({ gameId: "a", title: "Alpha", page: 30, createdAt: new Date("2026-03-01T00:00:00Z") });
+  const a2 = quote({ gameId: "a", title: "Alpha", page: 5, createdAt: new Date("2026-06-01T00:00:00Z") });
+  const b1 = quote({ gameId: "b", title: "Beta", createdAt: new Date("2026-01-01T00:00:00Z") });
+  const b2 = quote({ gameId: "b", title: "Beta", page: 9, createdAt: new Date("2026-04-01T00:00:00Z") });
+  const c1 = quote({ gameId: "c", title: "Gamma", createdAt: new Date("2026-02-01T00:00:00Z") });
   const all = [b2, c1, a1, b1, a2];
 
-  it("keeps each book's quotes in page order", () => {
+  it("keeps each game's quotes in page order", () => {
     const groups = groupQuotes(all, "newest", OPTS);
-    expect(groups.find((g) => g.bookId === "a")!.quotes).toEqual([a2, a1]);
-    expect(groups.find((g) => g.bookId === "b")!.quotes).toEqual([b2, b1]);
+    expect(groups.find((g) => g.gameId === "a")!.quotes).toEqual([a2, a1]);
+    expect(groups.find((g) => g.gameId === "b")!.quotes).toEqual([b2, b1]);
   });
 
-  it("newest puts the book with the newest quote first", () => {
-    expect(groupQuotes(all, "newest", OPTS).map((g) => g.bookId)).toEqual(["a", "b", "c"]);
+  it("newest puts the game with the newest quote first", () => {
+    expect(groupQuotes(all, "newest", OPTS).map((g) => g.gameId)).toEqual(["a", "b", "c"]);
   });
 
-  it("oldest puts the book with the oldest quote first", () => {
-    expect(groupQuotes(all, "oldest", OPTS).map((g) => g.bookId)).toEqual(["b", "c", "a"]);
+  it("oldest puts the game with the oldest quote first", () => {
+    expect(groupQuotes(all, "oldest", OPTS).map((g) => g.gameId)).toEqual(["b", "c", "a"]);
   });
 
-  it("by book goes by title", () => {
-    expect(groupQuotes(all, "book", OPTS).map((g) => g.bookId)).toEqual(["a", "b", "c"]);
+  it("by game goes by title", () => {
+    expect(groupQuotes(all, "game", OPTS).map((g) => g.gameId)).toEqual(["a", "b", "c"]);
   });
 
   it("shuffle is stable for a seed, whatever the input order", () => {
-    const books = Array.from({ length: 12 }, (_, i) => quote({ bookId: `book-${i}` }));
-    const order = groupQuotes(books, "shuffle", OPTS).map((g) => g.bookId);
-    expect(groupQuotes([...books].reverse(), "shuffle", OPTS).map((g) => g.bookId)).toEqual(order);
-    expect(order).not.toEqual(books.map((q) => q.bookId));
+    const games = Array.from({ length: 12 }, (_, i) => quote({ gameId: `game-${i}` }));
+    const order = groupQuotes(games, "shuffle", OPTS).map((g) => g.gameId);
+    expect(groupQuotes([...games].reverse(), "shuffle", OPTS).map((g) => g.gameId)).toEqual(order);
+    expect(order).not.toEqual(games.map((q) => q.gameId));
   });
 });
 
 describe("sliceQuoteGroups", () => {
   const groups = [
-    { bookId: "a", quotes: [1, 2, 3] },
-    { bookId: "b", quotes: [4, 5, 6, 7] },
-    { bookId: "c", quotes: [8] },
+    { gameId: "a", quotes: [1, 2, 3] },
+    { gameId: "b", quotes: [4, 5, 6, 7] },
+    { gameId: "c", quotes: [8] },
   ];
 
   it("fills groups in order, cuts the last one, and keeps real totals", () => {
     expect(sliceQuoteGroups(groups, 5)).toEqual([
-      { bookId: "a", quotes: [1, 2, 3], total: 3 },
-      { bookId: "b", quotes: [4, 5], total: 4 },
+      { gameId: "a", quotes: [1, 2, 3], total: 3 },
+      { gameId: "b", quotes: [4, 5], total: 4 },
     ]);
   });
 
   it("stops exactly at the budget", () => {
-    expect(sliceQuoteGroups(groups, 3).map((g) => g.bookId)).toEqual(["a"]);
+    expect(sliceQuoteGroups(groups, 3).map((g) => g.gameId)).toEqual(["a"]);
     expect(sliceQuoteGroups(groups, 100)).toHaveLength(3);
   });
 });
@@ -208,19 +208,19 @@ describe("parseQuotesParams", () => {
       shelfId: "",
       limit: QUOTES_PAGE_SIZE,
     });
-    const saved = { quotesOrder: "book", quotesGroupByBook: true } as const;
+    const saved = { quotesOrder: "game", quotesGroupByGame: true } as const;
     expect(parseQuotesParams({ order: "random", group: "maybe" }, saved)).toMatchObject({
-      order: "book",
+      order: "game",
       group: true,
     });
   });
 
   it("lets the URL win", () => {
-    expect(parseQuotesParams({ order: "oldest", group: "book" }, PREFS)).toMatchObject({
+    expect(parseQuotesParams({ order: "oldest", group: "game" }, PREFS)).toMatchObject({
       order: "oldest",
       group: true,
     });
-    const saved = { quotesOrder: "shuffle", quotesGroupByBook: true } as const;
+    const saved = { quotesOrder: "shuffle", quotesGroupByGame: true } as const;
     expect(parseQuotesParams({ order: "newest", group: "none" }, saved)).toMatchObject({
       order: "newest",
       group: false,
@@ -259,7 +259,7 @@ describe("parseQuotesParams", () => {
   });
 
   it("ignores repeated params", () => {
-    expect(parseQuotesParams({ order: ["oldest", "book"] }, PREFS).order).toBe("newest");
+    expect(parseQuotesParams({ order: ["oldest", "game"] }, PREFS).order).toBe("newest");
   });
 });
 
@@ -269,7 +269,7 @@ describe("quotesHref", () => {
 
   it("always writes order and group", () => {
     expect(quotesHref({ order: "newest", group: false })).toBe("/quotes?order=newest&group=none");
-    expect(quotesHref({ order: "book", group: true })).toBe("/quotes?order=book&group=book");
+    expect(quotesHref({ order: "game", group: true })).toBe("/quotes?order=game&group=game");
   });
 
   it("writes the seed only for a shuffle", () => {

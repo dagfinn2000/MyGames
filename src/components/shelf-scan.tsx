@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { BookOwnership, type BookFormat } from "@prisma/client";
+import { GameOwnership, type GameFormat } from "@prisma/client";
 import { Loader2 } from "lucide-react";
 import { setOwnership } from "@/lib/actions/ownership";
-import { removeScannedBook, scanAddBook, type ScanAnswer } from "@/lib/actions/shelf-scan";
+import { removeScannedGame, scanAddGame, type ScanAnswer } from "@/lib/actions/shelf-scan";
 import { checkVerdict, scanMatchLabel } from "@/lib/check-verdict";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -17,20 +17,20 @@ const SAME_CODE_MS = 4000;
 const LOOKUPS_PER_MINUTE = 90;
 
 /** The library, newest first: where Done goes, to see what was added. */
-export const NEWEST_FIRST_HREF = "/books?sort=createdAt&dir=desc&group=none";
+export const NEWEST_FIRST_HREF = "/games?sort=createdAt&dir=desc&group=none";
 
 type RowState =
   | { kind: "waiting" }
   | { kind: "looking" }
-  | { kind: "added"; bookId: string; title: string; authors: string[]; undoing?: boolean }
+  | { kind: "added"; gameId: string; title: string; authors: string[]; undoing?: boolean }
   | { kind: "removed"; title: string }
   | {
       kind: "have";
       match: "isbn" | "title";
-      bookId: string;
+      gameId: string;
       title: string;
-      ownership: BookOwnership;
-      format: BookFormat;
+      ownership: GameOwnership;
+      format: GameFormat;
       /** "I bought it" pressed: saving, then done. */
       marking?: boolean;
       marked?: boolean;
@@ -50,7 +50,7 @@ export interface ScanRow {
 export interface ShelfScanSnapshot {
   /** Newest first. */
   rows: ScanRow[];
-  /** Books added and not undone. */
+  /** Games added and not undone. */
   added: number;
   /** Codes waiting or being looked up. */
   pending: number;
@@ -95,15 +95,15 @@ function haveLabel(state: Extract<RowState, { kind: "have" }>): string {
 function fromAnswer(answer: Exclude<ScanAnswer, { kind: "paused" }>): RowState {
   switch (answer.kind) {
     case "added":
-      return { kind: "added", bookId: answer.book.id, title: answer.book.title, authors: answer.book.authors };
+      return { kind: "added", gameId: answer.game.id, title: answer.game.title, authors: answer.game.authors };
     case "have":
       return {
         kind: "have",
         match: answer.match,
-        bookId: answer.book.id,
-        title: answer.book.title,
-        ownership: answer.book.ownership,
-        format: answer.book.format,
+        gameId: answer.game.id,
+        title: answer.game.title,
+        ownership: answer.game.ownership,
+        format: answer.game.format,
       };
     case "notFound":
       return { kind: "notFound" };
@@ -207,8 +207,8 @@ class ShelfScanSession {
     const added = row.state;
     this.setRow(id, { state: { ...added, undoing: true } });
     try {
-      // "Book not found" means it is gone already, which is what was asked.
-      await removeScannedBook(added.bookId);
+      // "Game not found" means it is gone already, which is what was asked.
+      await removeScannedGame(added.gameId);
       this.setRow(id, { state: { kind: "removed", title: added.title } }, true);
     } catch {
       this.setRow(id, { state: added });
@@ -222,9 +222,9 @@ class ShelfScanSession {
     const have = row.state;
     this.setRow(id, { state: { ...have, marking: true } });
     try {
-      const res = await setOwnership(have.bookId, BookOwnership.OWNED);
+      const res = await setOwnership(have.gameId, GameOwnership.OWNED);
       if (res.error) throw new Error(res.error);
-      this.setRow(id, { state: { ...have, ownership: BookOwnership.OWNED, marked: true } }, true);
+      this.setRow(id, { state: { ...have, ownership: GameOwnership.OWNED, marked: true } }, true);
     } catch {
       this.setRow(id, { state: have });
       this.set({ announcement: `Couldn't mark ${have.title} as owned` });
@@ -277,7 +277,7 @@ class ShelfScanSession {
         this.setRow(id, { state: { kind: "looking" } });
         let answer: ScanAnswer;
         try {
-          answer = await scanAddBook(row.isbn, row.force ? { force: true } : undefined);
+          answer = await scanAddGame(row.isbn, row.force ? { force: true } : undefined);
         } catch {
           this.queue.shift();
           this.setRow(id, { state: { kind: "failed" } }, true);
@@ -365,7 +365,7 @@ function RowLine({
   const { state } = row;
   const label = state.kind === "have" ? haveLabel(state) : KIND_LABELS[state.kind];
   // A wishlist or given-away copy of this very edition is most likely the
-  // book in hand, so it can be marked owned from here (as on the check page).
+  // game in hand, so it can be marked owned from here (as on the check page).
   const markOwned =
     state.kind === "have" && !state.marked ? checkVerdict(state.match, state).markOwned : null;
   const text =
@@ -425,7 +425,7 @@ function RowLine({
       )}
       {state.kind === "notFound" && (
         // The session outlives the add form, but saving it can open the
-        // book, leaving the page, so not while codes are still being
+        // game, leaving the page, so not while codes are still being
         // looked up.
         <Button
           type="button"

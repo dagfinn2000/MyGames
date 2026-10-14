@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { BookOwnership } from "@prisma/client";
+import { GameOwnership } from "@prisma/client";
 import {
   CircleCheck,
   CircleHelp,
@@ -18,14 +18,14 @@ import { setOwnership } from "@/lib/actions/ownership";
 import { checkVerdict, type CheckVerdict, type VerdictTone } from "@/lib/check-verdict";
 import { OWNERSHIP_BADGE_LABELS, STATUS_BADGE_CLASS, STATUS_LABELS } from "@/lib/display";
 import { BarcodeScanner } from "@/components/barcode-scanner";
-import { BookCover } from "@/components/book-card";
+import { GameCover } from "@/components/game-card";
 import { Stars } from "@/components/stars";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-/** "I bought it" for one book: saving, saved, or what went wrong. Tied to the
- *  book's id, so a save still running when the next ISBN is checked never
+/** "I bought it" for one game: saving, saved, or what went wrong. Tied to the
+ *  game's id, so a save still running when the next ISBN is checked never
  *  lands on that one's answer. */
 interface Mark {
   id: string;
@@ -53,13 +53,13 @@ const TONE_ICONS: Record<VerdictTone, LucideIcon> = {
 /**
  * The "do I own this?" flow: scan or type an ISBN, ask
  * /api/library/check, and say what the library knows. A match reads its
- * ownership as well as the edition: a book you own is green, a wishlist
- * book is "On your wishlist" with an "I bought it" button, and a borrowed
+ * ownership as well as the edition: a game you own is green, a wishlist
+ * game is "On your wishlist" with an "I bought it" button, and a borrowed
  * or given-away copy is amber (see lib/check-verdict.ts). Not in the
- * library hands off to the add flow, ISBN prefilled, as a book you own or
+ * library hands off to the add flow, ISBN prefilled, as a game you own or
  * one for the wishlist.
  */
-export function CheckBookClient() {
+export function CheckGameClient() {
   const [isbn, setIsbn] = useState("");
   const [checkedIsbn, setCheckedIsbn] = useState<string | null>(null);
   const [result, setResult] = useState<LibraryCheckResult | null>(null);
@@ -108,27 +108,27 @@ export function CheckBookClient() {
     startMarking(async () => {
       let state: Mark["state"];
       try {
-        const res = await setOwnership(id, BookOwnership.OWNED);
+        const res = await setOwnership(id, GameOwnership.OWNED);
         state = res.error ? { error: res.error } : "done";
       } catch {
         state = { error: "Couldn't save that. Are you online?" };
       }
-      // Only the book this was for: another ISBN may have been checked
+      // Only the game this was for: another ISBN may have been checked
       // while it saved.
       if (state === "done") {
         setResult((r) =>
-          r?.book?.id === id ? { ...r, book: { ...r.book, ownership: BookOwnership.OWNED } } : r,
+          r?.game?.id === id ? { ...r, game: { ...r.game, ownership: GameOwnership.OWNED } } : r,
         );
       }
       setMark((m) => (m?.id === id ? { id, state } : m));
     });
   }
 
-  const book = result?.book;
-  const verdict = result?.match && book ? checkVerdict(result.match, book) : null;
-  const bookMark = mark && mark.id === book?.id ? mark.state : null;
+  const game = result?.game;
+  const verdict = result?.match && game ? checkVerdict(result.match, game) : null;
+  const bookMark = mark && mark.id === game?.id ? mark.state : null;
 
-  // Read out the answer when it arrives, and again once a book is marked.
+  // Read out the answer when it arrives, and again once a game is marked.
   let announce = "";
   if (error) announce = error;
   else if (!checking && result) {
@@ -170,13 +170,13 @@ export function CheckBookClient() {
       )}
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {!checking && book && verdict && (
+      {!checking && game && verdict && (
         <MatchVerdict
-          book={book}
+          game={game}
           verdict={verdict}
           isbn={checkedIsbn ?? ""}
           mark={bookMark}
-          onMarkOwned={() => markOwned(book.id)}
+          onMarkOwned={() => markOwned(game.id)}
         />
       )}
       {!checking && result && !verdict && (
@@ -187,13 +187,13 @@ export function CheckBookClient() {
 }
 
 function MatchVerdict({
-  book,
+  game,
   verdict,
   isbn,
   mark,
   onMarkOwned,
 }: {
-  book: NonNullable<LibraryCheckResult["book"]>;
+  game: NonNullable<LibraryCheckResult["game"]>;
   verdict: CheckVerdict;
   isbn: string;
   mark: Mark["state"] | null;
@@ -204,7 +204,7 @@ function MatchVerdict({
   const saving = mark === "saving";
   const markError = typeof mark === "object" && mark ? mark.error : null;
 
-  // The pressed button is gone once the book is marked, so focus moves to
+  // The pressed button is gone once the game is marked, so focus moves to
   // the new answer instead of dropping back to the page.
   useEffect(() => {
     if (marked) headingRef.current?.focus();
@@ -227,7 +227,7 @@ function MatchVerdict({
         </p>
         {detail && <p className="text-sm text-muted-foreground">{detail}</p>}
       </div>
-      <MatchedBook book={book} />
+      <MatchedGame game={game} />
       {(showMark || verdict.addAnyway) && (
         <div className="flex flex-wrap gap-2">
           {showMark && (
@@ -242,7 +242,7 @@ function MatchVerdict({
           )}
           {verdict.addAnyway && (
             <Button asChild variant="outline" size="sm">
-              <Link href={`/books/new?isbn=${encodeURIComponent(isbn)}`}>
+              <Link href={`/games/new?isbn=${encodeURIComponent(isbn)}`}>
                 <Plus data-slot="icon" />
                 Add this edition anyway
               </Link>
@@ -256,7 +256,7 @@ function MatchVerdict({
 }
 
 function NoMatch({ result, isbn }: { result: LibraryCheckResult; isbn: string }) {
-  const addHref = `/books/new?isbn=${encodeURIComponent(isbn)}`;
+  const addHref = `/games/new?isbn=${encodeURIComponent(isbn)}`;
   return (
     <div className="grid gap-3 rounded-lg border p-4">
       <p className="flex items-center gap-2 font-medium">
@@ -265,7 +265,7 @@ function NoMatch({ result, isbn }: { result: LibraryCheckResult; isbn: string })
       </p>
       {result.lookupFailed && (
         <p className="text-sm text-muted-foreground">
-          Couldn&apos;t reach the book catalogues, so only this exact edition was checked,
+          Couldn&apos;t reach the game catalogues, so only this exact edition was checked,
           not other editions of the same title.
         </p>
       )}
@@ -285,7 +285,7 @@ function NoMatch({ result, isbn }: { result: LibraryCheckResult; isbn: string })
           </Link>
         </Button>
         <Button asChild variant="outline" size="sm">
-          <Link href={`${addHref}&ownership=${BookOwnership.WISHLIST}`}>
+          <Link href={`${addHref}&ownership=${GameOwnership.WISHLIST}`}>
             <Heart data-slot="icon" />
             Add to wishlist
           </Link>
@@ -296,35 +296,35 @@ function NoMatch({ result, isbn }: { result: LibraryCheckResult; isbn: string })
 }
 
 /** Compact result card: cover, title, status, ownership, rating — linked to
- *  the book. */
-function MatchedBook({
-  book,
+ *  the game. */
+function MatchedGame({
+  game,
 }: {
-  book: NonNullable<LibraryCheckResult["book"]>;
+  game: NonNullable<LibraryCheckResult["game"]>;
 }) {
   return (
     <Link
-      href={`/books/${book.id}`}
+      href={`/games/${game.id}`}
       className="flex items-center gap-3 rounded-lg border bg-card p-3 transition-colors hover:border-ring/60"
     >
-      <BookCover book={book} className="h-20 w-14 shrink-0 rounded" />
+      <GameCover game={game} className="h-20 w-14 shrink-0 rounded" />
       <div className="grid min-w-0 gap-1">
-        <p className="truncate text-sm font-medium">{book.title}</p>
+        <p className="truncate text-sm font-medium">{game.title}</p>
         <p className="truncate text-xs text-muted-foreground">
-          {book.authors.join(", ")}
+          {game.authors.join(", ")}
         </p>
         <div className="flex flex-wrap items-center gap-1.5">
-          <Badge className={`${STATUS_BADGE_CLASS[book.status]} text-[10px]`}>
-            {STATUS_LABELS[book.status]}
+          <Badge className={`${STATUS_BADGE_CLASS[game.status]} text-[10px]`}>
+            {STATUS_LABELS[game.status]}
           </Badge>
           <Badge variant="outline" className="text-[10px]">
-            {OWNERSHIP_BADGE_LABELS[book.ownership]}
+            {OWNERSHIP_BADGE_LABELS[game.ownership]}
           </Badge>
-          {book.rating != null && <Stars value={book.rating} />}
-          {book.timesRead > 1 && (
+          {game.rating != null && <Stars value={game.rating} />}
+          {game.timesRead > 1 && (
             <Badge variant="outline" className="text-[10px]">
               <Repeat data-slot="icon" className="size-2.5" />
-              {book.timesRead}×
+              {game.timesRead}×
             </Badge>
           )}
         </div>

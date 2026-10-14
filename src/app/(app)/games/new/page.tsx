@@ -4,12 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { getPreferences } from "@/lib/current-user";
 import { ownershipParam } from "@/lib/check-verdict";
 import { tagImportFor } from "@/lib/user-tags";
-import { AddBookClient } from "@/components/add-book-client";
+import { AddGameClient } from "@/components/add-game-client";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Add book · MyReads" };
+export const metadata = { title: "Add game · MyGames" };
 
-export default async function NewBookPage({
+export default async function NewGamePage({
   searchParams,
 }: {
   searchParams: Promise<{ isbn?: string; ownership?: string | string[] }>;
@@ -21,7 +21,7 @@ export default async function NewBookPage({
   const { isbn, ownership } = await searchParams;
 
   // Existing series names, for the form's autocomplete suggestions.
-  const seriesRows = await prisma.book.findMany({
+  const seriesRows = await prisma.game.findMany({
     where: { userId: session.user.id, seriesName: { not: null } },
     select: { seriesName: true },
     distinct: ["seriesName"],
@@ -37,14 +37,14 @@ export default async function NewBookPage({
 
   return (
     <div className="mx-auto grid max-w-3xl gap-4">
-      <h1 className="text-2xl font-semibold tracking-tight">Add book</h1>
-      <AddBookClient
+      <h1 className="text-2xl font-semibold tracking-tight">Add game</h1>
+      <AddGameClient
         seriesNames={seriesNames}
         initialIsbn={isbn}
         defaults={{
-          format: prefs.newBookFormat,
-          status: prefs.newBookStatus,
-          ownership: ownershipParam(ownership) ?? prefs.newBookOwnership,
+          format: prefs.newGameFormat,
+          status: prefs.newGameStatus,
+          ownership: ownershipParam(ownership) ?? prefs.newGameOwnership,
         }}
         tagImport={tagImport}
       />

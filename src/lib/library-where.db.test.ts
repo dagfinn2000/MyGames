@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BookOwnership, PrismaClient, ReadingStatus, type Prisma } from "@prisma/client";
+import { GameOwnership, PrismaClient, ReadingStatus, type Prisma } from "@prisma/client";
 import { parseFilters } from "@/lib/library-filters";
-import { resolveBookWhere } from "@/lib/library-where";
+import { resolveGameWhere } from "@/lib/library-where";
 import type { Preferences } from "@/lib/preferences";
 
 /**
  * The library's filters against a real database: array containment on tags,
  * a year's finishes across time zones and archived reads, and every lookup
- * kept to the reader's own books.
+ * kept to the reader's own games.
  */
 const prisma = new PrismaClient();
 
@@ -28,8 +28,8 @@ afterEach(async () => {
   await prisma.user.deleteMany({ where: { id: { in: [userId, otherUserId] } } });
 });
 
-function add(title: string, data: Partial<Prisma.BookUncheckedCreateInput> = {}, owner = userId) {
-  return prisma.book.create({
+function add(title: string, data: Partial<Prisma.GameUncheckedCreateInput> = {}, owner = userId) {
+  return prisma.game.create({
     data: { userId: owner, title, searchText: title.toLowerCase(), ...data },
   });
 }
@@ -38,8 +38,8 @@ async function titles(
   sp: Record<string, string>,
   prefs: Pick<Preferences, "searchAlsoIn" | "timeZone"> = { searchAlsoIn: [], timeZone: "UTC" },
 ): Promise<string[]> {
-  const where = await resolveBookWhere(userId, parseFilters(sp), prefs);
-  const rows = await prisma.book.findMany({ where, select: { title: true }, orderBy: { title: "asc" } });
+  const where = await resolveGameWhere(userId, parseFilters(sp), prefs);
+  const rows = await prisma.game.findMany({ where, select: { title: true }, orderBy: { title: "asc" } });
   return rows.map((r) => r.title);
 }
 
@@ -61,12 +61,12 @@ describe("Finished in", () => {
     expect(await titles({ finished: "2025" }, ny)).toEqual([]);
   });
 
-  it("counts re-reads, but not a date left on a book that isn't Read", async () => {
+  it("counts re-reads, but not a date left on a game that isn't Read", async () => {
     const reread = await add("Re-read", { status: ReadingStatus.READING });
-    await prisma.read.create({ data: { bookId: reread.id, dateFinished: new Date("2024-05-01T00:00:00Z") } });
+    await prisma.read.create({ data: { gameId: reread.id, dateFinished: new Date("2024-05-01T00:00:00Z") } });
     // Near New Year too, so the edge lookup has to find it.
     const late = await add("Late re-read", { status: ReadingStatus.WANT_TO_READ });
-    await prisma.read.create({ data: { bookId: late.id, dateFinished: new Date("2024-12-31T20:00:00Z") } });
+    await prisma.read.create({ data: { gameId: late.id, dateFinished: new Date("2024-12-31T20:00:00Z") } });
     await add("Stale", { status: ReadingStatus.WANT_TO_READ, dateFinished: new Date("2024-05-01T00:00:00Z") });
     await add("Mid-year", { status: READ, dateFinished: new Date("2024-07-14T18:00:00Z") });
 
@@ -75,10 +75,10 @@ describe("Finished in", () => {
     expect(await titles({ finished: "2024", shelf: "READING" })).toEqual(["Re-read"]);
   });
 
-  it("never finds another reader's books", async () => {
+  it("never finds another reader's games", async () => {
     await add("Theirs", { status: READ, dateFinished: new Date("2024-01-01T02:00:00Z") }, otherUserId);
     const theirs = await add("Their re-read", {}, otherUserId);
-    await prisma.read.create({ data: { bookId: theirs.id, dateFinished: new Date("2024-12-31T23:00:00Z") } });
+    await prisma.read.create({ data: { gameId: theirs.id, dateFinished: new Date("2024-12-31T23:00:00Z") } });
     expect(await titles({ finished: "2024" })).toEqual([]);
   });
 });
@@ -110,18 +110,18 @@ describe("tags, author, rating and missing details", () => {
     expect(await titles({ author: "Le Guin" })).toEqual([]);
   });
 
-  it("lists unrated books that aren't on Want to Read, keeping the tab", async () => {
+  it("lists unrated games that aren't on Want to Read, keeping the tab", async () => {
     expect(await titles({ minRating: "unrated" })).toEqual(["Just fantasy", "Untagged"]);
     expect(await titles({ minRating: "unrated", shelf: "READ" })).toEqual(["Just fantasy"]);
   });
 
-  it("finds books missing a detail, empty or zero counting as missing", async () => {
+  it("finds games missing a detail, empty or zero counting as missing", async () => {
     // Every fixture but "Untagged" has a null cover, page count and ISBN.
     expect(await titles({ missing: "cover" })).toHaveLength(4);
     expect(await titles({ missing: "pages", tag: "horror" })).toEqual(["Horror"]);
     expect(await titles({ missing: "isbn", author: "Ursula K. Le Guin" })).toEqual(["Untagged"]);
     expect(await titles({ missing: "tags" })).toEqual(["Untagged"]);
-    await prisma.book.updateMany({
+    await prisma.game.updateMany({
       where: { userId },
       data: { coverUrl: "/api/covers/x.jpg", pageCount: 100, isbn: "9780261102217" },
     });
@@ -131,7 +131,7 @@ describe("tags, author, rating and missing details", () => {
   });
 
   it("ignores an ownership value it doesn't know", async () => {
-    await prisma.book.updateMany({ where: { userId, title: "Horror" }, data: { ownership: BookOwnership.WISHLIST } });
+    await prisma.game.updateMany({ where: { userId, title: "Horror" }, data: { ownership: GameOwnership.WISHLIST } });
     expect(await titles({ owned: "constructor" })).toHaveLength(4);
     expect(await titles({ owned: "wishlist" })).toEqual(["Horror"]);
   });

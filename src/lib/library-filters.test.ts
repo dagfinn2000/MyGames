@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ReadingStatus } from "@prisma/client";
 import {
   activeFilterChips,
-  buildBookWhere,
+  buildGameWhere,
   finishedYearRanges,
   isbnFragment,
   parseFilters,
@@ -11,7 +11,7 @@ import {
   tagList,
 } from "@/lib/library-filters";
 
-const where = (sp: Record<string, string>, ctx = {}) => buildBookWhere("u1", parseFilters(sp), ctx);
+const where = (sp: Record<string, string>, ctx = {}) => buildGameWhere("u1", parseFilters(sp), ctx);
 
 describe("parseFilters", () => {
   it("cleans tag lists: trimmed, each once, without 'all'", () => {
@@ -80,7 +80,7 @@ describe("parseFilters", () => {
   });
 });
 
-describe("buildBookWhere", () => {
+describe("buildGameWhere", () => {
   it("builds exactly the old shape for the old filters", () => {
     expect(where({ shelf: "READ", tag: "fantasy", q: "dune", minRating: "8", series: "Dune" })).toEqual({
       userId: "u1",
@@ -102,7 +102,7 @@ describe("buildBookWhere", () => {
     expect(where({ author: "Ursula K. Le Guin" }).authors).toEqual({ has: "Ursula K. Le Guin" });
   });
 
-  it("leaves the status tab alone for unrated books", () => {
+  it("leaves the status tab alone for unrated games", () => {
     const w = where({ shelf: "READ", minRating: "unrated" });
     expect(w.status).toBe(ReadingStatus.READ);
     expect(w.rating).toBeUndefined();
@@ -251,7 +251,7 @@ describe("activeFilterChips", () => {
     expect(chip.clear).toEqual({ tag: "", tagMatch: "" });
   });
 
-  it("calls unrated books Unrated, and has no chips without filters", () => {
+  it("calls unrated games Unrated, and has no chips without filters", () => {
     expect(activeFilterChips(parseFilters({ minRating: "unrated" }), label)[0].label).toBe("Unrated");
     expect(activeFilterChips(parseFilters({ q: "dune", format: "EBOOK" }), label)).toEqual([]);
   });

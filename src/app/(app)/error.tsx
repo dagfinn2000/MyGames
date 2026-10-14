@@ -45,7 +45,7 @@ export default function AppError({
       <div className="flex gap-2">
         <Button onClick={reset}>Try again</Button>
         <Button asChild variant="outline">
-          <Link href="/books">Back to library</Link>
+          <Link href="/games">Back to library</Link>
         </Button>
       </div>
     </div>

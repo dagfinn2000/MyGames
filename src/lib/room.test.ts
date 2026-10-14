@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BookOwnership } from "@prisma/client";
+import { GameOwnership } from "@prisma/client";
 import {
   CASE_WIDTH,
   EXTRAS,
@@ -33,7 +33,7 @@ const kinds = (plan: HousePlan) => plan.floors.map((floor) => floor.map((p) => p
 const all = (plan: HousePlan): PieceKind[] => kinds(plan).flat();
 
 describe("spineFor", () => {
-  it("makes thicker books wider", () => {
+  it("makes thicker games wider", () => {
     expect(spineFor({ title: "A", pageCount: 120 }).width).toBe(3);
     expect(spineFor({ title: "A", pageCount: 300 }).width).toBe(4);
     expect(spineFor({ title: "A", pageCount: 550 }).width).toBe(5);
@@ -46,7 +46,7 @@ describe("spineFor", () => {
       spineFor({ title: " sult ", pageCount: 300 }),
     );
     for (let i = 0; i < 100; i++) {
-      const spine = spineFor({ title: `Book ${i}`, pageCount: 300 });
+      const spine = spineFor({ title: `Game ${i}`, pageCount: 300 });
       expect(spine.height).toBeGreaterThanOrEqual(14);
       expect(spine.height).toBeLessThanOrEqual(18);
       expect([0, 1, 2, 3, 4]).toContain(spine.pattern);
@@ -55,15 +55,15 @@ describe("spineFor", () => {
 });
 
 describe("isOnShelf", () => {
-  it("counts owned and borrowed books that are at home", () => {
-    expect(isOnShelf({ ownership: BookOwnership.OWNED, lentTo: null })).toBe(true);
-    expect(isOnShelf({ ownership: BookOwnership.BORROWED, lentTo: null })).toBe(true);
+  it("counts owned and borrowed games that are at home", () => {
+    expect(isOnShelf({ ownership: GameOwnership.OWNED, lentTo: null })).toBe(true);
+    expect(isOnShelf({ ownership: GameOwnership.BORROWED, lentTo: null })).toBe(true);
   });
 
-  it("leaves out books wished for, given away or lent out", () => {
-    expect(isOnShelf({ ownership: BookOwnership.WISHLIST, lentTo: null })).toBe(false);
-    expect(isOnShelf({ ownership: BookOwnership.GIVEN_AWAY, lentTo: null })).toBe(false);
-    expect(isOnShelf({ ownership: BookOwnership.OWNED, lentTo: "Kari" })).toBe(false);
+  it("leaves out games wished for, given away or lent out", () => {
+    expect(isOnShelf({ ownership: GameOwnership.WISHLIST, lentTo: null })).toBe(false);
+    expect(isOnShelf({ ownership: GameOwnership.GIVEN_AWAY, lentTo: null })).toBe(false);
+    expect(isOnShelf({ ownership: GameOwnership.OWNED, lentTo: "Kari" })).toBe(false);
   });
 });
 
@@ -82,7 +82,7 @@ describe("shelve", () => {
     }
   });
 
-  it("has one empty shelf for no books", () => {
+  it("has one empty shelf for no games", () => {
     expect(shelve([])).toEqual([[]]);
     expect(caseCount(1)).toBe(1);
     expect(caseCount(5)).toBe(1);
@@ -115,13 +115,13 @@ describe("planHouse", () => {
   });
 
   it("keeps every floor inside the house and pieces from overlapping", () => {
-    for (const [cases, books, max] of [
+    for (const [cases, games, max] of [
       [1, 5, 140],
       [3, 60, 200],
       [17, 700, 335],
       [40, 1800, 335],
     ] as const) {
-      const plan = planHouse(cases, books, max);
+      const plan = planHouse(cases, games, max);
       expect(plan.inner).toBeLessThanOrEqual(Math.max(max, PIECE_WIDTH.hearth + 2 * PAD));
       for (const floor of plan.floors) {
         let end = 0;
@@ -166,12 +166,12 @@ describe("planHouse", () => {
 });
 
 describe("arranging the furniture", () => {
-  const BOOKS = MILESTONES.gramophone;
+  const GAMES = MILESTONES.gramophone;
 
   it("puts a plan back exactly as it was from its own placements", () => {
     for (const width of [200, 335, 600]) {
-      const plan = planHouse(14, BOOKS, width);
-      const again = planHouse(14, BOOKS, width, { places: placementsOf(plan), away: [] });
+      const plan = planHouse(14, GAMES, width);
+      const again = planHouse(14, GAMES, width, { places: placementsOf(plan), away: [] });
       expect(kinds(again)).toEqual(kinds(plan));
     }
   });
@@ -187,10 +187,10 @@ describe("arranging the furniture", () => {
   });
 
   it("moves the hearth upstairs, and the cases make room", () => {
-    const plan = planHouse(10, BOOKS, 335);
+    const plan = planHouse(10, GAMES, 335);
     const top = plan.floors.length - 1;
     const places = moveTo(plan, "hearth", top, 0)!;
-    const moved = planHouse(10, BOOKS, 335, { places, away: [] });
+    const moved = planHouse(10, GAMES, 335, { places, away: [] });
     expect(kinds(moved)[0][0]).toBe("hearth");
     expect(moved.floors).toHaveLength(plan.floors.length);
     expect(all(moved).filter((k) => k === "case")).toHaveLength(10);
@@ -202,9 +202,9 @@ describe("arranging the furniture", () => {
   it("lets a moved piece go where it would have gone when it doesn't fit", () => {
     // Put the study on the ground floor of a wide house, then look at it on
     // a phone, where the ground floor has no room for it beside the hearth.
-    const wide = planHouse(6, BOOKS, 700);
+    const wide = planHouse(6, GAMES, 700);
     const places = moveTo(wide, "study", 0, 1)!;
-    const narrow = planHouse(6, BOOKS, 170, { places, away: [] });
+    const narrow = planHouse(6, GAMES, 170, { places, away: [] });
     expect(all(narrow)).toContain("study");
     for (const floor of narrow.floors) {
       const end = floor[floor.length - 1];
@@ -226,7 +226,7 @@ describe("arranging the furniture", () => {
   });
 
   it("puts furniture away, but never the hearth", () => {
-    const away = planHouse(3, BOOKS, 600, { places: [], away: ["plant", "ladder", "clock"] });
+    const away = planHouse(3, GAMES, 600, { places: [], away: ["plant", "ladder", "clock"] });
     expect(all(away)).not.toContain("plant");
     expect(all(away)).not.toContain("ladder");
     expect(all(away)).not.toContain("clock");
@@ -255,7 +255,7 @@ describe("arranging the furniture", () => {
       { kind: "hearth", floor: 0, slot: 0 },
       { kind: "clock", floor: 1, slot: 2 },
     ]);
-    const plan = planHouse(3, BOOKS, 600, away);
+    const plan = planHouse(3, GAMES, 600, away);
     expect(kinds(plan)[plan.floors.length - 1][0]).toBe("hearth");
     expect(bringOut(away, "plant")).toEqual({ places: away.places, away: [] });
   });
@@ -269,7 +269,7 @@ describe("arranging the furniture", () => {
 });
 
 describe("rooms", () => {
-  const BOOKS = MILESTONES.gramophone;
+  const GAMES = MILESTONES.gramophone;
   const withRooms = (...rooms: (typeof ROOMS)[number][]) => ({ places: [], away: [], rooms });
 
   it("adds each room as a floor over the library, with its furniture, in the order added", () => {
@@ -283,10 +283,10 @@ describe("rooms", () => {
   });
 
   it("keeps a house arranged on a wide screen inside a narrow one", () => {
-    const wide = planHouse(5, BOOKS, 600, withRooms("kitchen", "music"));
+    const wide = planHouse(5, GAMES, 600, withRooms("kitchen", "music"));
     const places = placementsOf(wide);
     for (const max of [112, 141, 155, 170, 200, 260]) {
-      const plan = planHouse(5, BOOKS, max, { places, away: [], rooms: ["kitchen", "music"] });
+      const plan = planHouse(5, GAMES, max, { places, away: [], rooms: ["kitchen", "music"] });
       expect(plan.inner).toBeLessThanOrEqual(max);
       expect(all(plan).filter((k) => k === "hearth")).toHaveLength(1);
       expect(all(plan).filter((k) => k === "case")).toHaveLength(5);
@@ -318,10 +318,10 @@ describe("rooms", () => {
   });
 
   it("keeps a piece moved into a room there when the library grows a floor underneath", () => {
-    const before = planHouse(4, BOOKS, 335, withRooms("bedroom"));
+    const before = planHouse(4, GAMES, 335, withRooms("bedroom"));
     const places = moveTo(before, "plant", before.floors.length - 1, 1)!;
     expect(places.find((p) => p.kind === "plant")).toMatchObject({ room: "bedroom", slot: 1 });
-    const after = planHouse(12, BOOKS, 335, { places, away: [], rooms: ["bedroom"] });
+    const after = planHouse(12, GAMES, 335, { places, away: [], rooms: ["bedroom"] });
     expect(after.floors.length).toBeGreaterThan(before.floors.length);
     expect(kinds(after)[0][1]).toBe("plant");
     expect(after.rooms[0]).toBe("bedroom");
@@ -329,8 +329,8 @@ describe("rooms", () => {
 
   it("puts a plan with rooms back exactly as it was from its own placements", () => {
     for (const width of [200, 335, 600]) {
-      const plan = planHouse(8, BOOKS, width, withRooms("studio", "games", "conservatory"));
-      const again = planHouse(8, BOOKS, width, {
+      const plan = planHouse(8, GAMES, width, withRooms("studio", "games", "conservatory"));
+      const again = planHouse(8, GAMES, width, {
         places: placementsOf(plan),
         away: [],
         rooms: ["studio", "games", "conservatory"],
@@ -340,10 +340,10 @@ describe("rooms", () => {
   });
 
   it("moves room furniture to the library and library furniture into a room", () => {
-    const plan = planHouse(3, BOOKS, 600, withRooms("music"));
+    const plan = planHouse(3, GAMES, 600, withRooms("music"));
     const ground = plan.floors.length - 1;
     const places = moveTo(plan, "piano", 0, 0)!;
-    const moved = planHouse(3, BOOKS, 600, { places, away: [], rooms: ["music"] });
+    const moved = planHouse(3, GAMES, 600, { places, away: [], rooms: ["music"] });
     expect(kinds(moved)[ground][0]).toBe("piano");
     expect(kinds(moved)[0]).not.toContain("piano");
   });
@@ -355,11 +355,11 @@ describe("rooms", () => {
 
   it("takes a room off with its furniture, wherever it was moved", () => {
     let a = addRoom(addRoom(NO_ARRANGEMENT, "kitchen"), "music");
-    const plan = planHouse(3, BOOKS, 600, a);
+    const plan = planHouse(3, GAMES, 600, a);
     a = { ...a, places: moveTo(plan, "table", 0, 0)!, away: ["harp"] };
     a = removeRoom(a, "kitchen");
     expect(a.rooms).toEqual(["music"]);
-    const after = planHouse(3, BOOKS, 600, a);
+    const after = planHouse(3, GAMES, 600, a);
     for (const piece of ROOM_PIECES.kitchen) expect(all(after)).not.toContain(piece);
     expect(all(after)).toContain("piano");
     // The music room keeps what was put away.
@@ -369,7 +369,7 @@ describe("rooms", () => {
   });
 
   it("only has room furniture for the rooms added", () => {
-    const plan = planHouse(3, BOOKS, 600, { places: [{ kind: "piano", floor: 0, slot: 0 }], away: [] });
+    const plan = planHouse(3, GAMES, 600, { places: [{ kind: "piano", floor: 0, slot: 0 }], away: [] });
     expect(all(plan)).not.toContain("piano");
   });
 });
@@ -436,7 +436,7 @@ describe("dressShelf", () => {
     expect(dressShelf(3, 0).bookend).toBe(false);
   });
 
-  it("puts ornaments on bare space, inside the shelf and clear of the books", () => {
+  it("puts ornaments on bare space, inside the shelf and clear of the games", () => {
     for (let n = 0; n < 50; n++) {
       for (const used of [0, 12, 25]) {
         const { ornaments } = dressShelf(n, used);

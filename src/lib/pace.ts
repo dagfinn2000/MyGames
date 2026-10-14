@@ -5,7 +5,7 @@ import type { PaceFrom } from "@/lib/preferences";
 import type { UnitInfo } from "@/lib/progress-units";
 
 /**
- * Reading pace and the finish forecast, from a book's current pass (its
+ * Reading pace and the finish forecast, from a game's current pass (its
  * page-0 anchor first, then every logged position, sorted by date).
  *
  * "The whole read" divides what the pass gained by how long it has run, as
@@ -77,7 +77,7 @@ export interface Forecast {
 }
 
 /**
- * When the book will be finished at this pace. The whole-read pace counts
+ * When the game will be finished at this pace. The whole-read pace counts
  * from the last entry, as before; a recent-days pace from now, since it
  * already knows about the days since. Null without a page count, a pace, or
  * pages left.
@@ -102,7 +102,7 @@ export function forecast(
   };
 }
 
-/** A pace in the book's unit: "about 34 pages a day", "about 6% a day",
+/** A pace in the game's unit: "about 34 pages a day", "about 6% a day",
  *  "about 48 min a day", "about 1 h 12 min a day". */
 export function paceAmount(pace: number, info: UnitInfo): string {
   if (info.unit === "percent") {

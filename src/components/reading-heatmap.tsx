@@ -48,7 +48,7 @@ export function ReadingHeatmap({
   if (totals.size === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Update a book&apos;s current page as you read — every day you log
+        Update a game&apos;s current page as you read — every day you log
         progress lights up here.
       </p>
     );

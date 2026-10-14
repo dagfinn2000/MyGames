@@ -12,7 +12,7 @@ export function GoalReached({ year, children }: { year: number; children: React.
   const ref = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
-    const key = `myreads-goal-celebrated-${year}`;
+    const key = `mygames-goal-celebrated-${year}`;
     try {
       if (localStorage.getItem(key)) return;
     } catch {

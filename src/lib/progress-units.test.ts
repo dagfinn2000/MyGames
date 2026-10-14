@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BookFormat } from "@prisma/client";
+import { GameFormat } from "@prisma/client";
 import {
   addStep,
   fallbackHint,
@@ -21,14 +21,14 @@ import {
 
 const prefs = { ebookUnit: "percent", audiobookUnit: "time" } as const;
 const ebook = (pageCount: number | null) =>
-  unitFor({ format: BookFormat.EBOOK, pageCount, lengthMinutes: null }, prefs);
+  unitFor({ format: GameFormat.EBOOK, pageCount, lengthMinutes: null }, prefs);
 const audio = (pageCount: number | null, lengthMinutes: number | null) =>
-  unitFor({ format: BookFormat.AUDIOBOOK, pageCount, lengthMinutes }, prefs);
+  unitFor({ format: GameFormat.AUDIOBOOK, pageCount, lengthMinutes }, prefs);
 const paper = (pageCount: number | null) =>
-  unitFor({ format: BookFormat.PHYSICAL, pageCount, lengthMinutes: null }, prefs);
+  unitFor({ format: GameFormat.PHYSICAL, pageCount, lengthMinutes: null }, prefs);
 
 describe("unitFor", () => {
-  it("keeps physical books in pages whatever the preferences say", () => {
+  it("keeps physical games in pages whatever the preferences say", () => {
     expect(paper(300)).toMatchObject({ unit: "page", wanted: "page", fallback: null });
   });
 
@@ -44,13 +44,13 @@ describe("unitFor", () => {
   });
 
   it("ignores a length on anything but an audiobook", () => {
-    const info = unitFor({ format: BookFormat.EBOOK, pageCount: 300, lengthMinutes: 600 }, prefs);
+    const info = unitFor({ format: GameFormat.EBOOK, pageCount: 300, lengthMinutes: 600 }, prefs);
     expect(info.lengthMinutes).toBeNull();
   });
 
   it("follows the preference back to pages", () => {
     const info = unitFor(
-      { format: BookFormat.EBOOK, pageCount: 300, lengthMinutes: null },
+      { format: GameFormat.EBOOK, pageCount: 300, lengthMinutes: null },
       { ebookUnit: "page", audiobookUnit: "page" },
     );
     expect(info).toMatchObject({ unit: "page", fallback: null });
@@ -58,14 +58,14 @@ describe("unitFor", () => {
 });
 
 describe("percent and pages", () => {
-  it("round-trips through a 389-page book within a percent", () => {
+  it("round-trips through a 389-page game within a percent", () => {
     for (const pct of [1, 10, 42, 50, 77, 99]) {
       const back = pageToPercent(percentToPage(pct, 389), 389);
       expect(Math.abs(back - pct), String(pct)).toBeLessThanOrEqual(1);
     }
   });
 
-  it("clamps to the book", () => {
+  it("clamps to the game", () => {
     expect(percentToPage(0, 389)).toBe(0);
     expect(percentToPage(100, 389)).toBe(389);
     expect(percentToPage(150, 389)).toBe(389);
@@ -137,7 +137,7 @@ describe("parseUnitText", () => {
   it("reads pages, refusing one past the end", () => {
     expect(parseUnitText("212", paper(412))).toEqual({ value: 212, page: 212 });
     expect(parseUnitText("500", paper(412))).toEqual({
-      error: "Page 500 is past the end of the book (412 pages).",
+      error: "Page 500 is past the end of the game (412 pages).",
     });
     expect(parseUnitText("2.5", paper(412))).toEqual({ error: "Type a whole page number." });
     expect(parseUnitText("  ", paper(412))).toBeNull();
@@ -199,7 +199,7 @@ describe("formatPosition and progressFigure", () => {
 });
 
 describe("stepsFor", () => {
-  it("gives the step buttons in the book's own unit", () => {
+  it("gives the step buttons in the game's own unit", () => {
     expect(stepsFor("10-25", paper(412)).map((s) => s.label)).toEqual(["+10", "+25"]);
     expect(stepsFor("5-10", ebook(389)).map((s) => s.label)).toEqual(["+5%", "+10%"]);
     expect(stepsFor("10-25", audio(476, 970)).map((s) => s.ariaLabel)).toEqual([
@@ -208,9 +208,9 @@ describe("stepsFor", () => {
     ]);
   });
 
-  it("makes +5% a twentieth of the book, at least 1", () => {
+  it("makes +5% a twentieth of the game, at least 1", () => {
     expect(stepsFor("5pct", paper(412))).toEqual([
-      { amount: 21, label: "+5%", ariaLabel: "Add 5% of the book" },
+      { amount: 21, label: "+5%", ariaLabel: "Add 5% of the game" },
     ]);
     expect(stepsFor("5pct", paper(10))[0].amount).toBe(1);
     expect(stepsFor("5pct", ebook(389))[0].amount).toBe(5);
@@ -221,7 +221,7 @@ describe("stepsFor", () => {
     expect(stepsFor("5pct", paper(null)).map((s) => s.amount)).toEqual([10, 25]);
   });
 
-  it("adds a step to the box, or to where the book is", () => {
+  it("adds a step to the box, or to where the game is", () => {
     expect(addStep("200", 10, 150, paper(412))).toBe("210");
     expect(addStep("", 10, 150, paper(412))).toBe("160");
     expect(addStep("405", 10, 150, paper(412))).toBe("412");
@@ -231,7 +231,7 @@ describe("stepsFor", () => {
 });
 
 describe("fallbackHint", () => {
-  it("says what the book is missing", () => {
+  it("says what the game is missing", () => {
     expect(fallbackHint(ebook(null))?.after).toBe(" to track by percent.");
     expect(fallbackHint(audio(null, 970))?.before).toContain("the print edition's is fine");
     expect(fallbackHint(audio(476, null))?.before).toContain("the audiobook's length");

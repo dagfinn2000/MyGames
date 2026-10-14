@@ -9,14 +9,14 @@ import {
   yearClock,
 } from "@/lib/goals";
 
-const finish = (bookId: string, date: string, pageCount: number | null = 300) => ({
-  bookId,
+const finish = (gameId: string, date: string, pageCount: number | null = 300) => ({
+  gameId,
   dateFinished: new Date(date),
   pageCount,
 });
 
 describe("markRereads", () => {
-  it("marks later finishes of the same book", () => {
+  it("marks later finishes of the same game", () => {
     const marked = markRereads(
       [finish("a", "2026-03-01"), finish("a", "2025-06-01"), finish("b", "2026-01-01")],
       new Set(),
@@ -31,18 +31,18 @@ describe("markRereads", () => {
 });
 
 describe("goalProgress", () => {
-  // What countWindow gives for a year: a first read, a re-read, a book with
-  // no page count, and pages logged in a book not finished yet.
+  // What countWindow gives for a year: a first read, a re-read, a game with
+  // no page count, and pages logged in a game not finished yet.
   const year = [
-    { isReread: false, books: 1, pages: 300 },
-    { isReread: true, books: 1, pages: 200 },
-    { isReread: false, books: 1, pages: 0 },
-    { isReread: false, books: 0, pages: 120 },
+    { isReread: false, games: 1, pages: 300 },
+    { isReread: true, games: 1, pages: 200 },
+    { isReread: false, games: 1, pages: 0 },
+    { isReread: false, games: 0, pages: 120 },
   ];
 
-  it("counts books, re-reads included by default", () => {
-    expect(goalProgress(year, { unit: "BOOKS", countRereads: true })).toBe(3);
-    expect(goalProgress(year, { unit: "BOOKS", countRereads: false })).toBe(2);
+  it("counts games, re-reads included by default", () => {
+    expect(goalProgress(year, { unit: "GAMES", countRereads: true })).toBe(3);
+    expect(goalProgress(year, { unit: "GAMES", countRereads: false })).toBe(2);
   });
 
   it("adds up pages, skipping the re-read when re-reads are left out", () => {
@@ -85,38 +85,38 @@ describe("yearClock", () => {
 describe("goalPace and describePace", () => {
   const oct12 = yearClock("2026-10-12", 2026);
   const fmt = (n: number) => formatNumber(n);
-  const say = (done: number, target: number, unit: "BOOKS" | "PAGES", clock = oct12) =>
+  const say = (done: number, target: number, unit: "GAMES" | "PAGES", clock = oct12) =>
     describePace(goalPace(done, target, unit, clock), unit, fmt, "1 Jan 2027");
 
-  it("is on schedule within half a book of an even pace", () => {
+  it("is on schedule within half a game of an even pace", () => {
     // 24 × 285/365 = 18.7 expected by 12 October.
-    expect(goalPace(19, 24, "BOOKS", oct12)).toEqual({ kind: "on-schedule" });
-    expect(say(19, 24, "BOOKS")).toBe("Right on schedule.");
+    expect(goalPace(19, 24, "GAMES", oct12)).toEqual({ kind: "on-schedule" });
+    expect(say(19, 24, "GAMES")).toBe("Right on schedule.");
     // Everyone is on schedule on 1 January.
-    expect(say(0, 24, "BOOKS", yearClock("2026-01-01", 2026))).toBe("Right on schedule.");
+    expect(say(0, 24, "GAMES", yearClock("2026-01-01", 2026))).toBe("Right on schedule.");
   });
 
   it("rounds how far ahead", () => {
-    expect(goalPace(21, 24, "BOOKS", oct12)).toEqual({ kind: "ahead", by: 2 });
-    expect(say(21, 24, "BOOKS")).toBe("2 books ahead of schedule.");
-    expect(say(20, 24, "BOOKS")).toBe("1 book ahead of schedule.");
+    expect(goalPace(21, 24, "GAMES", oct12)).toEqual({ kind: "ahead", by: 2 });
+    expect(say(21, 24, "GAMES")).toBe("2 games ahead of schedule.");
+    expect(say(20, 24, "GAMES")).toBe("1 game ahead of schedule.");
   });
 
-  it("says how often a book gets a reader back on track", () => {
+  it("says how often a game gets a reader back on track", () => {
     // 8 to go in 81 days: one every 10 days.
-    expect(goalPace(16, 24, "BOOKS", oct12)).toEqual({ kind: "behind", by: 3, everyDays: 10 });
-    expect(say(16, 24, "BOOKS")).toBe("3 books behind. About 1 book every 10 days gets you there.");
+    expect(goalPace(16, 24, "GAMES", oct12)).toEqual({ kind: "behind", by: 3, everyDays: 10 });
+    expect(say(16, 24, "GAMES")).toBe("3 games behind. About 1 game every 10 days gets you there.");
   });
 
   it("never says 'every 1 days'", () => {
     // 50 to go in 81 days.
-    expect(say(50, 100, "BOOKS")).toBe("28 books behind. About 1 book a day gets you there.");
+    expect(say(50, 100, "GAMES")).toBe("28 games behind. About 1 game a day gets you there.");
   });
 
-  it("asks for several books a day when there are more books than days left", () => {
+  it("asks for several games a day when there are more games than days left", () => {
     const dec31 = yearClock("2026-12-31", 2026);
-    expect(goalPace(20, 24, "BOOKS", dec31)).toEqual({ kind: "behind", by: 4, perDay: 4 });
-    expect(say(20, 24, "BOOKS", dec31)).toBe("4 books behind. About 4 books a day gets you there.");
+    expect(goalPace(20, 24, "GAMES", dec31)).toEqual({ kind: "behind", by: 4, perDay: 4 });
+    expect(say(20, 24, "GAMES", dec31)).toBe("4 games behind. About 4 games a day gets you there.");
   });
 
   it("puts a pages goal in pages a day, on schedule within half a percent", () => {
@@ -129,18 +129,18 @@ describe("goalPace and describePace", () => {
   });
 
   it("celebrates a reached goal, with any overshoot", () => {
-    expect(say(26, 24, "BOOKS")).toBe("Goal reached. 2 books more than you planned.");
-    expect(say(24, 24, "BOOKS")).toBe("Goal reached.");
+    expect(say(26, 24, "GAMES")).toBe("Goal reached. 2 games more than you planned.");
+    expect(say(24, 24, "GAMES")).toBe("Goal reached.");
     expect(say(8001, 8000, "PAGES")).toBe("Goal reached. 1 page more than you planned.");
   });
 
   it("closes a past year and waits for a future one", () => {
     const past = yearClock("2026-10-12", 2025);
-    expect(goalPace(17, 20, "BOOKS", past)).toEqual({ kind: "missed", short: 3 });
-    expect(say(17, 20, "BOOKS", past)).toBe("Ended 3 books short.");
+    expect(goalPace(17, 20, "GAMES", past)).toEqual({ kind: "missed", short: 3 });
+    expect(say(17, 20, "GAMES", past)).toBe("Ended 3 games short.");
     expect(say(799, 800, "PAGES", past)).toBe("Ended 1 page short.");
-    expect(say(22, 20, "BOOKS", past)).toBe("Goal reached. 2 books more than you planned.");
-    expect(say(0, 26, "BOOKS", yearClock("2026-10-12", 2027))).toBe(
+    expect(say(22, 20, "GAMES", past)).toBe("Goal reached. 2 games more than you planned.");
+    expect(say(0, 26, "GAMES", yearClock("2026-10-12", 2027))).toBe(
       "Starts counting on 1 Jan 2027.",
     );
   });

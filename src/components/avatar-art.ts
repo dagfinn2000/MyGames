@@ -2190,11 +2190,11 @@ function earrings(c: Canvas, look: AvatarLook, view: View) {
     );
 }
 
-/** The open book held in front, in its spine colour, and the thumbs on
+/** The open game held in front, in its spine colour, and the thumbs on
  *  it. */
-function heldBook(c: Canvas) {
+function heldGame(c: Canvas) {
   const rows = [".yyyy.yyyy.", "yyyyyYyyyyy", "21111111112"];
-  const paints: Record<string, Paint> = { y: "paper", Y: "paper-lo", "1": "book", "2": "book-lo" };
+  const paints: Record<string, Paint> = { y: "paper", Y: "paper-lo", "1": "game", "2": "game-lo" };
   rows.forEach((row, dy) =>
     [...row].forEach((ch, dx) => {
       if (paints[ch]) c.set(1 + dx, 15 + dy, paints[ch]);
@@ -2204,9 +2204,9 @@ function heldBook(c: Canvas) {
   c.set(9, 16, "av-skin-lo");
 }
 
-/** Where the held book is, in the seated figure's own dots: a link to the
- *  book is laid over it. */
-export const HELD_BOOK = { x: 1 + PAD, y: 15 + HEADROOM, w: 11, h: 3 };
+/** Where the held game is, in the seated figure's own dots: a link to the
+ *  game is laid over it. */
+export const HELD_GAME = { x: 1 + PAD, y: 15 + HEADROOM, w: 11, h: 3 };
 
 // ── Carried things, a walking stick, a wheelchair ───────────────────────
 
@@ -2241,7 +2241,7 @@ function held(c: Canvas, look: AvatarLook, hx: number, hy: number, dir: 1 | -1) 
       );
       put([[2, 0]], "av-accent-lo");
       return;
-    case "book":
+    case "game":
       // Carried by its top edge, hanging at the side.
       put(
         [
@@ -2493,7 +2493,7 @@ export interface AvatarArt {
   stand: Art;
   /** Mid-stride; walking swaps it with `stand`. */
   stride: Art;
-  /** In the armchair with the book. */
+  /** In the armchair with the game. */
   sit: Art;
 }
 
@@ -2551,7 +2551,7 @@ export function avatarPose(look: AvatarLook, pose: Pose): Art {
   glasses(c, look, view, sit);
   faceExtras(c, look, view);
   earrings(c, look, view);
-  if (sit) heldBook(c);
+  if (sit) heldGame(c);
   hat(c, look, view);
   headphones(c, look, view);
   c.dy = 0;

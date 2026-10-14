@@ -61,7 +61,7 @@ function Strider({ stand, stride }: { stand: Art; stride: Art }) {
 }
 
 /**
- * The avatar pottering about a floor of the house while no book is being
+ * The avatar pottering about a floor of the house while no game is being
  * read: it walks somewhere, stands a while, looks about, and now and then
  * comes back to stand by the fire. Its pet, if it has one, trots after it
  * and keeps at its heels, going round to the other side when it turns. It
@@ -248,7 +248,7 @@ export function SleepingPet({
   );
 }
 
-/** The avatar in the armchair with the book being read: `x`/`y` are the
+/** The avatar in the armchair with the game being read: `x`/`y` are the
  *  sprite's top left, in dots. */
 export function SeatedAvatar({
   avatar,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useId, useRef, useState, useTransition } from "react";
-import type { Book, Read } from "@prisma/client";
+import type { Game, Read } from "@prisma/client";
 import { ReadingStatus } from "@prisma/client";
 import { Pencil, Repeat, Trash2, X } from "lucide-react";
 import {
@@ -40,31 +40,31 @@ function readLabel(
 }
 
 /**
- * Read history on the book detail page: every past pass through the book
+ * Read history on the game detail page: every past pass through the game
  * (dates + what you rated it that time), a "Read it again" button that
- * archives the current pass and restarts the book, and a form for recording
- * reads from before the app. The Book row itself always holds the latest
+ * archives the current pass and restarts the game, and a form for recording
+ * reads from before the app. The Game row itself always holds the latest
  * read — that's the "Latest" row here and the editable reading card above.
  */
 export function ReadHistoryCard({
-  book,
+  game,
   reads,
 }: {
-  book: Pick<
-    Book,
+  game: Pick<
+    Game,
     "id" | "status" | "dateStarted" | "dateFinished" | "rating"
   >;
   reads: Read[];
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const prefs = usePreferences();
-  const finished = book.status === ReadingStatus.READ;
+  const finished = game.status === ReadingStatus.READ;
 
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle>Read history</CardTitle>
-        {finished && <ReadAgainButton bookId={book.id} />}
+        {finished && <ReadAgainButton gameId={game.id} />}
       </CardHeader>
       {/* grid-cols-1 clamps the tracks so a long unbroken token in a note
           (a pasted URL, say) wraps via break-words instead of stretching
@@ -111,12 +111,12 @@ export function ReadHistoryCard({
             {finished && (
               <li className="flex min-h-7 flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                 <span>
-                  {readLabel(book, prefs)}
+                  {readLabel(game, prefs)}
                   <span className="ml-2 text-xs text-muted-foreground">
                     latest · edit it in the reading card
                   </span>
                 </span>
-                {book.rating != null && <Stars value={book.rating} />}
+                {game.rating != null && <Stars value={game.rating} />}
               </li>
             )}
           </ul>
@@ -126,7 +126,7 @@ export function ReadHistoryCard({
             Read this before? Record a past read
           </summary>
           <div className="pt-3">
-            <PastReadForm bookId={book.id} />
+            <PastReadForm gameId={game.id} />
           </div>
         </details>
       </CardContent>
@@ -134,13 +134,13 @@ export function ReadHistoryCard({
   );
 }
 
-/** Add form (pass `bookId`) or inline edit form (pass `read` + `onDone`). */
+/** Add form (pass `gameId`) or inline edit form (pass `read` + `onDone`). */
 function PastReadForm({
-  bookId,
+  gameId,
   read,
   onDone,
 }: {
-  bookId?: string;
+  gameId?: string;
   read?: Read;
   onDone?: () => void;
 }) {
@@ -168,7 +168,7 @@ function PastReadForm({
       onSubmit={submitKeepingInput(formAction)}
       className="grid gap-2"
     >
-      {!read && bookId && <input type="hidden" name="bookId" value={bookId} />}
+      {!read && gameId && <input type="hidden" name="gameId" value={gameId} />}
       <div className="flex flex-wrap items-end gap-3">
         <div className="grid gap-1">
           <Label htmlFor={startId} className="text-xs text-muted-foreground">
@@ -239,9 +239,9 @@ function PastReadForm({
   );
 }
 
-/** Archives the current pass and restarts the book; inline confirm since it
+/** Archives the current pass and restarts the game; inline confirm since it
  *  changes status and dates in one click. */
-function ReadAgainButton({ bookId }: { bookId: string }) {
+function ReadAgainButton({ gameId }: { gameId: string }) {
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -264,7 +264,7 @@ function ReadAgainButton({ bookId }: { bookId: string }) {
         type="button"
         size="sm"
         disabled={pending}
-        onClick={() => startTransition(() => readAgain(bookId))}
+        onClick={() => startTransition(() => readAgain(gameId))}
       >
         {pending ? "Starting…" : "Start re-read"}
       </Button>

@@ -1,7 +1,7 @@
 import { ReadingStatus } from "@prisma/client";
 
 /**
- * Which book of a series comes next. Shared by the library's series
+ * Which game of a series comes next. Shared by the library's series
  * headings and Pick for me, so "next #4" and the pick never disagree.
  */
 
@@ -24,17 +24,17 @@ export function isDoneInSeries(b: Pick<SeriesMember, "status" | "timesRead">): b
 }
 
 /**
- * The next book in one series: the lowest-numbered one not done yet, whether
+ * The next game in one series: the lowest-numbered one not done yet, whether
  * it's being read or waiting on Want to Read. A number counts as done when
- * any copy of it is done (two editions of #1, one read). Books without a
- * number are never "next". Null when every numbered book is done.
+ * any copy of it is done (two editions of #1, one read). Games without a
+ * number are never "next". Null when every numbered game is done.
  */
-export function nextInSeries<T extends SeriesMember>(books: T[]): T | null {
+export function nextInSeries<T extends SeriesMember>(games: T[]): T | null {
   const done = new Set(
-    books.filter((b) => b.seriesNumber !== null && isDoneInSeries(b)).map((b) => b.seriesNumber),
+    games.filter((b) => b.seriesNumber !== null && isDoneInSeries(b)).map((b) => b.seriesNumber),
   );
   let next: T | null = null;
-  for (const b of books) {
+  for (const b of games) {
     if (b.seriesNumber === null || done.has(b.seriesNumber) || isDoneInSeries(b)) continue;
     if (next === null || b.seriesNumber < next.seriesNumber!) next = b;
   }
@@ -42,12 +42,12 @@ export function nextInSeries<T extends SeriesMember>(books: T[]): T | null {
 }
 
 /**
- * Whether `book` may be picked when only the next book in a series counts:
+ * Whether `game` may be picked when only the next game in a series counts:
  * true unless an earlier number in the same series isn't done yet. `series`
- * is every book of its series (it may include `book` itself).
+ * is every game of its series (it may include `game` itself).
  */
-export function isNextInSeries<T extends SeriesMember>(book: T, series: T[]): boolean {
-  if (book.seriesNumber === null || isDoneInSeries(book)) return true;
-  const next = nextInSeries([...series, book]);
-  return next === null || next.seriesNumber! >= book.seriesNumber;
+export function isNextInSeries<T extends SeriesMember>(game: T, series: T[]): boolean {
+  if (game.seriesNumber === null || isDoneInSeries(game)) return true;
+  const next = nextInSeries([...series, game]);
+  return next === null || next.seriesNumber! >= game.seriesNumber;
 }

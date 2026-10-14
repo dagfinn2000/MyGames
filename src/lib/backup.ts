@@ -15,7 +15,7 @@ export const BACKUP_DUE_DAYS = 30;
 /** "Not now" on the reminder hides it this long, in this browser. The
  *  cookie holds the account's id, so another account signed in on the same
  *  browser still sees its own reminder. */
-export const BACKUP_SNOOZE_COOKIE = "myreads-backup-snooze";
+export const BACKUP_SNOOZE_COOKIE = "mygames-backup-snooze";
 export const BACKUP_SNOOZE_DAYS = 7;
 
 const DAY_MS = 86_400_000;

@@ -10,16 +10,16 @@ import {
   googleBooksEnabled,
 } from "./googlebooks";
 import { searchNb, getNbCoverByIsbn } from "./nb";
-import type { BookDetails, BookMetadata, CoverCandidate } from "./types";
+import type { GameDetails, GameMetadata, CoverCandidate } from "./types";
 import type { Catalogue } from "@/lib/preferences";
 
-export type { BookDetails, BookMetadata, CoverCandidate };
+export type { GameDetails, GameMetadata, CoverCandidate };
 
-/** Thrown by searchBooks when not one catalogue answered, so callers can say
+/** Thrown by searchGames when not one catalogue answered, so callers can say
  *  "couldn't reach the catalogues" instead of "no results". */
 export class CataloguesUnreachableError extends Error {
   constructor() {
-    super("Couldn't reach the book catalogues");
+    super("Couldn't reach the game catalogues");
     this.name = "CataloguesUnreachableError";
   }
 }
@@ -28,7 +28,7 @@ export class CataloguesUnreachableError extends Error {
  *  reader's own list (Preferences) to switch some off or reorder them. */
 const ALL_CATALOGUES: readonly Catalogue[] = ["openlibrary", "google", "nb"];
 
-/** The catalogues worth asking: the chosen ones, minus Google Books when
+/** The catalogues worth asking: the chosen ones, minus Google Games when
  *  this server has no key for it. A list that leaves nothing (Google only,
  *  on a server without a key) falls back to the keyless two. */
 function askable(sources: readonly Catalogue[]): Catalogue[] {
@@ -44,7 +44,7 @@ function editionKey(isbn: string): string {
 
 /**
  * Searches the metadata sources in parallel and returns all their results,
- * in priority order: by default Open Library first, then Google Books (when
+ * in priority order: by default Open Library first, then Google Games (when
  * configured), then the National Library of Norway; `sources` is the
  * reader's own choice and order from Preferences. No single catalog knows
  * every edition — nb.no is often the only one with the Norwegian printing —
@@ -57,11 +57,11 @@ function editionKey(isbn: string): string {
  * One source failing is normal and its rows are simply missing. If every
  * source asked failed, this throws CataloguesUnreachableError.
  */
-export async function searchBooks(
+export async function searchGames(
   query: string,
   sources: readonly Catalogue[] = ALL_CATALOGUES,
-): Promise<BookMetadata[]> {
-  const search: Record<Catalogue, () => Promise<BookMetadata[]>> = {
+): Promise<GameMetadata[]> {
+  const search: Record<Catalogue, () => Promise<GameMetadata[]>> = {
     openlibrary: () => searchOpenLibrary(query),
     google: () => searchGoogleBooks(query),
     nb: () => searchNb(query),
@@ -70,7 +70,7 @@ export async function searchBooks(
   if (settled.every((s) => s.status === "rejected")) throw new CataloguesUnreachableError();
 
   const seen = new Set<string>();
-  const results: BookMetadata[] = [];
+  const results: GameMetadata[] = [];
   for (const r of settled.flatMap((s) => (s.status === "fulfilled" ? s.value : []))) {
     if (r.isbn) {
       const key = editionKey(r.isbn);
@@ -85,16 +85,16 @@ export async function searchBooks(
 /**
  * Fetches the "expensive" fields (description, subjects) for a selected
  * search result, merging Open Library work details with an optional Google
- * Books enrichment pass. Google's descriptions and page counts are often
+ * Games enrichment pass. Google's descriptions and page counts are often
  * better than Open Library's, so when both exist Google wins for those
  * fields while tags are combined.
  *
  * With an ISBN, Open Library's record of that exact edition is fetched too:
  * its page count beats the work's median, and its work id fills in an Open
- * Library id (and so the work's description and subjects) for a book found
+ * Library id (and so the work's description and subjects) for a game found
  * in another catalogue. The id used comes back as `openLibraryId`.
  */
-export async function getBookDetails(
+export async function getGameDetails(
   params: {
     openLibraryId?: string | null;
     isbn?: string | null;
@@ -102,7 +102,7 @@ export async function getBookDetails(
     author?: string | null;
   },
   sources: readonly Catalogue[] = ALL_CATALOGUES,
-): Promise<BookDetails> {
+): Promise<GameDetails> {
   const asked = askable(sources);
   const useOl = asked.includes("openlibrary");
   const [olGiven, edition, gb] = await Promise.all([
@@ -166,7 +166,7 @@ export async function getCoverCandidates(
   /** The exact-edition cover and the title-search hits from one source. */
   const fromSource: Record<
     Catalogue,
-    () => Promise<[CoverCandidate | null, BookMetadata[]]>
+    () => Promise<[CoverCandidate | null, GameMetadata[]]>
   > = {
     openlibrary: () =>
       Promise.all([

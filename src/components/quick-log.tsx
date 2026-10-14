@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, useTransition } from "react";
-import type { BookFormat } from "@prisma/client";
+import type { GameFormat } from "@prisma/client";
 import { logPage, moveFromReading } from "@/lib/actions/progress";
 import { celebrate } from "@/lib/confetti";
 import { calendarDay, dayKey, shiftDayKey } from "@/lib/dates";
@@ -30,10 +30,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export interface QuickLogBook {
+export interface QuickLogGame {
   id: string;
   title: string;
-  format: BookFormat;
+  format: GameFormat;
   pageCount: number | null;
   lengthMinutes: number | null;
   currentPage: number | null;
@@ -55,21 +55,21 @@ const AT_LEAST: Record<ProgressUnit, string> = {
 };
 
 /**
- * The quick-log row for a book being read: the progress box in the book's
+ * The quick-log row for a game being read: the progress box in the game's
  * unit, step buttons, which day, and Log. On Now reading it also has
- * Finished and Stopped. Logging the last page asks whether the book is
+ * Finished and Stopped. Logging the last page asks whether the game is
  * finished.
  *
  * Its own form, outside the reading card's, so Enter in the box logs and
  * none of these buttons can submit the reading form.
  */
 export function QuickLog({
-  book,
+  game,
   showMoveButtons = false,
   onMoved,
   autoFocus = false,
 }: {
-  book: QuickLogBook;
+  game: QuickLogGame;
   /** Finished and Stopped, for Now reading. */
   showMoveButtons?: boolean;
   onMoved?: (result: MovedResult) => void;
@@ -77,12 +77,12 @@ export function QuickLog({
   autoFocus?: boolean;
 }) {
   const prefs = usePreferences();
-  const info = unitFor(book, prefs);
+  const info = unitFor(game, prefs);
   const steps = stepsFor(prefs.quickLogSteps, info);
   const id = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const markRef = useRef<HTMLButtonElement>(null);
-  // Null while the box just shows where the book is; text once typed in.
+  // Null while the box just shows where the game is; text once typed in.
   const [draft, setDraft] = useState<string | null>(null);
   const [day, setDay] = useState("today");
   const [otherDay, setOtherDay] = useState("");
@@ -91,9 +91,9 @@ export function QuickLog({
   const [lastPage, setLastPage] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const text = draft ?? positionText(book.currentPage, info);
+  const text = draft ?? positionText(game.currentPage, info);
   const today = dayKey(new Date(), prefs.timeZone);
-  const startKey = book.dateStarted ? calendarDay(book.dateStarted, prefs.timeZone) : null;
+  const startKey = game.dateStarted ? calendarDay(game.dateStarted, prefs.timeZone) : null;
   const { days, more } = recentDays(today, startKey, prefs.dateFormat);
 
   useEffect(() => {
@@ -111,9 +111,9 @@ export function QuickLog({
 
   function log() {
     setLastPage(null);
-    // The book's own page while the box still shows it, not that page
+    // The game's own page while the box still shows it, not that page
     // turned into a percent and back.
-    const parsed = parseBoxText(text, info, book.currentPage);
+    const parsed = parseBoxText(text, info, game.currentPage);
     if (!parsed) return fail(EMPTY[info.unit]);
     if ("error" in parsed) return fail(parsed.error);
     if (parsed.page < 1) return fail(AT_LEAST[info.unit]);
@@ -124,16 +124,16 @@ export function QuickLog({
     if (
       when === "today" &&
       draft !== null &&
-      book.currentPage != null &&
+      game.currentPage != null &&
       info.unit !== "page" &&
-      parsed.page === book.currentPage &&
-      parsed.value !== pageToUnit(book.currentPage, info)
+      parsed.page === game.currentPage &&
+      parsed.value !== pageToUnit(game.currentPage, info)
     ) {
       return fail(`That's still page ${parsed.page} of ${info.pageCount}. Log a little further.`);
     }
 
     startTransition(async () => {
-      const result = await logPage(book.id, { page: parsed.page, day: when, value: parsed.value });
+      const result = await logPage(game.id, { page: parsed.page, day: when, value: parsed.value });
       if ("error" in result) return fail(result.error);
       setDraft(null);
       setDay("today");
@@ -149,7 +149,7 @@ export function QuickLog({
   function move(to: "READ" | "DNF", origin: HTMLElement) {
     setMessage(null);
     startTransition(async () => {
-      const result = await moveFromReading(book.id, to);
+      const result = await moveFromReading(game.id, to);
       if ("error" in result) return fail(result.error);
       // Before the row goes away with the move.
       if (result.finished) celebrate(origin);
@@ -172,7 +172,7 @@ export function QuickLog({
       <div className="grid gap-2">
         <form
           noValidate
-          aria-label={`Log progress for ${book.title}`}
+          aria-label={`Log progress for ${game.title}`}
           onSubmit={(e) => {
             e.preventDefault();
             log();
@@ -194,7 +194,7 @@ export function QuickLog({
               type="button"
               variant="outline"
               aria-label={s.ariaLabel}
-              onClick={() => setDraft(addStep(text, s.amount, book.currentPage, info))}
+              onClick={() => setDraft(addStep(text, s.amount, game.currentPage, info))}
             >
               {s.label}
             </Button>
@@ -261,8 +261,8 @@ export function QuickLog({
           id={id}
           info={info}
           text={text}
-          bookId={book.id}
-          showSaved={text !== positionText(book.currentPage, info)}
+          gameId={game.id}
+          showSaved={text !== positionText(game.currentPage, info)}
         />
         {lastPage !== null && (
           <div

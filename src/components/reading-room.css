@@ -12,7 +12,7 @@
 
    Motion: the fire flickers, smoke rises, the clock ticks, the cat's tail
    twitches, banners ripple, gears turn, beacons blink, fireflies drift at
-   night, and books settle onto their shelves as the room opens. All of
+   night, and games settle onto their shelves as the room opens. All of
    it is CSS animation, which globals.css stops when Animations are off or
    the device asks for reduced motion; every animation's resting state is
    the still picture. The avatar is walked about by script, which checks
@@ -651,8 +651,8 @@
 .rp-red-hi { fill: var(--room-red-hi); }
 .rp-red { fill: var(--room-red); }
 .rp-red-lo { fill: var(--room-red-lo); }
-.rp-book { fill: var(--spine); }
-.rp-book-lo { fill: color-mix(in oklab, var(--spine), #000 35%); }
+.rp-game { fill: var(--spine); }
+.rp-game-lo { fill: color-mix(in oklab, var(--spine), #000 35%); }
 
 /* The avatar (avatar-art.ts): its element sets --av-skin, --av-hair,
    --av-top, --av-bottom and --av-accent from the reader's choices; the
@@ -1092,7 +1092,7 @@
   display: block;
 }
 /* A storey. Off screen the browser skips drawing it, which keeps a house
-   of thousands of books quick to scroll. */
+   of thousands of games quick to scroll. */
 .room-floor {
   position: absolute;
   overflow: clip;
@@ -1104,11 +1104,11 @@
 }
 
 /* ── Spines ───────────────────────────────────────────────────────────────
-   A strip of the book's colour with a lighter left edge and a darker right
-   one, so books standing together read as separate, and one of five
+   A strip of the game's colour with a lighter left edge and a darker right
+   one, so games standing together read as separate, and one of five
    patterns: gilt bands, a paper label, a dark head band, a wide band, or a
-   small emblem. A book that isn't on the shelf (wishlist, lent out, given
-   away) keeps its place as an outline. A book being read has a ribbon
+   small emblem. A game that isn't on the shelf (wishlist, lent out, given
+   away) keeps its place as an outline. A game being read has a ribbon
    bookmark showing at the top. */
 .room-shelf {
   position: absolute;
@@ -1219,21 +1219,21 @@
   }
 }
 
-/* The book being read, open on the side table. */
-.room-open-book {
+/* The game being read, open on the side table. */
+.room-open-game {
   outline: none;
 }
-.room-open-book:hover,
-.room-open-book:focus-visible {
+.room-open-game:hover,
+.room-open-game:focus-visible {
   translate: 0 calc(var(--u) * -1);
 }
-.room-open-book:focus-visible {
+.room-open-game:focus-visible {
   box-shadow: 0 0 0 var(--u) var(--room-focus);
   outline: var(--u) solid var(--room-ink);
   outline-offset: var(--u);
 }
 
-/* ── The label over a book ───────────────────────────────────────────── */
+/* ── The label over a game ───────────────────────────────────────────── */
 .room-tip {
   position: absolute;
   z-index: 5;
@@ -1640,16 +1640,16 @@
 :where(.dark) .room-scene .room-avatar {
   filter: brightness(0.9) saturate(0.95);
 }
-/* The book in its hands is a link, like the one on the side table. */
-.room-held-book {
+/* The game in its hands is a link, like the one on the side table. */
+.room-held-game {
   outline: none;
 }
-.room-held-book:focus-visible {
+.room-held-game:focus-visible {
   box-shadow: 0 0 0 var(--u) var(--room-focus);
   outline: var(--u) solid var(--room-ink);
   outline-offset: var(--u);
 }
-[data-arranging] .room-held-book {
+[data-arranging] .room-held-game {
   pointer-events: none;
 }
 
@@ -1692,9 +1692,9 @@
 
 /* ── Moving furniture ────────────────────────────────────────────────────
    A handle over each piece while arranging, a line where a dragged one
-   would go, and a note when it can't. The books stay put meanwhile. */
+   would go, and a note when it can't. The games stay put meanwhile. */
 [data-arranging] .room-spine,
-[data-arranging] .room-open-book {
+[data-arranging] .room-open-game {
   pointer-events: none;
 }
 .room-handle {

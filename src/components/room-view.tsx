@@ -27,7 +27,7 @@ import {
   type Extra,
   type HousePlan,
   type Placement,
-  type RoomBook,
+  type RoomGame,
   type RoomKind,
   type Stowable,
 } from "@/lib/room";
@@ -94,7 +94,7 @@ type Tab = (typeof TABS)[number]["value"];
  * shows at once and is saved on the account.
  */
 export function RoomView({
-  books,
+  games,
   decor: savedDecor,
   layout,
   away,
@@ -107,7 +107,7 @@ export function RoomView({
   hiddenNav,
   summary,
 }: {
-  books: RoomBook[];
+  games: RoomGame[];
   decor: RoomDecor;
   layout: Placement[];
   away: Stowable[];
@@ -119,7 +119,7 @@ export function RoomView({
   pet: Pet;
   /** For the switch that turns the whole room off. */
   hiddenNav: HideableNav[];
-  /** "198 books on 5 bookcases", beside the title. */
+  /** "198 games on 5 bookcases", beside the title. */
   summary: string | null;
 }) {
   const [decor, setDecor] = useState(savedDecor);
@@ -190,7 +190,7 @@ export function RoomView({
   const addedExtras = arrangement.extras ?? [];
   const homeless = inHouse ? addedExtras.filter((k) => !inHouse.has(k)) : [];
   // Only the furniture the library has earned so far.
-  const earned = STOWABLE.filter((k) => k in MILESTONES && books.length >= MILESTONES[k as keyof typeof MILESTONES]);
+  const earned = STOWABLE.filter((k) => k in MILESTONES && games.length >= MILESTONES[k as keyof typeof MILESTONES]);
   const furnitureBox = (kind: Stowable) => (
     <label key={kind} className="flex items-center gap-2 text-sm">
       <input
@@ -410,7 +410,7 @@ export function RoomView({
                     <div className="flex flex-wrap gap-x-5 gap-y-2">{earned.map(furnitureBox)}</div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      More furniture moves in as your library grows: a plant at 10 books, a clock at 50.
+                      More furniture moves in as your library grows: a plant at 10 games, a clock at 50.
                     </p>
                   )}
                 </div>
@@ -597,7 +597,7 @@ export function RoomView({
       )}
 
       <ReadingRoom
-        books={books}
+        games={games}
         decor={decor}
         arrangement={arrangement}
         arranging={arranging}

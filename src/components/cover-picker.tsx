@@ -8,10 +8,10 @@ import { cn } from "@/lib/utils";
 
 /**
  * Cover picker: searches every metadata source for candidate covers of the
- * book currently in the form (exact ISBN matches first, so the edition you
- * own wins), or uploads your own image — e.g. a photo of the actual book.
+ * game currently in the form (exact ISBN matches first, so the edition you
+ * own wins), or uploads your own image — e.g. a photo of the actual game.
  *
- * Lives inside the book form and reads title/authors/ISBN straight from the
+ * Lives inside the game form and reads title/authors/ISBN straight from the
  * surrounding form's inputs, so whatever the user has typed (not just the
  * imported values) drives the search.
  */

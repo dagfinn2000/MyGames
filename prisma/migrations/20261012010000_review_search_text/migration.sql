@@ -1,7 +1,7 @@
--- Review search in SQL: Book.reviewSearchText is the review folded like
+-- Review search in SQL: Game.reviewSearchText is the review folded like
 -- searchText (foldForSearch in src/lib/utils.ts), so searching reviews is a
 -- `contains` per word instead of reading every review into the app.
-ALTER TABLE "Book" ADD COLUMN "reviewSearchText" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "Game" ADD COLUMN "reviewSearchText" TEXT NOT NULL DEFAULT '';
 
 -- Existing reviews are folded here with foldForSearch's steps, in its order:
 --   0. lowercase,
@@ -21,7 +21,7 @@ DECLARE
   END;
 BEGIN
   EXECUTE format($sql$
-    UPDATE "Book"
+    UPDATE "Game"
     SET "reviewSearchText" =
       replace(replace(replace(replace(
         translate(

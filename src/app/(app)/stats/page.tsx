@@ -10,7 +10,7 @@ import { FORMAT_LABELS, formatNumber } from "@/lib/display";
 import { goalPace, goalProgress, splitGoals, yearClock } from "@/lib/goals";
 import { dailyPageTotalsForUser } from "@/lib/progress-query";
 import {
-  booksReadAllTime,
+  gamesReadAllTime,
   buildPasses,
   countWindow,
   goalRuleLine,
@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Stats · MyReads" };
+export const metadata = { title: "Stats · MyGames" };
 
 export default async function StatsPage({
   searchParams,
@@ -65,7 +65,7 @@ export default async function StatsPage({
   const words = PERIOD_WORDS[period];
 
   const [inputs, goals, pageTotals, quoteCount, randomQuotes] = await Promise.all([
-    // Books, past reads and the log by book and day: what lib/stats-count.ts
+    // Games, past reads and the log by game and day: what lib/stats-count.ts
     // turns into passes, by the "What counts" preferences.
     loadStatsInputs(userId, prefs.timeZone),
     prisma.readingGoal.findMany({
@@ -76,35 +76,35 @@ export default async function StatsPage({
     // day rather than every log entry ever written. See lib/progress-query.ts
     // for why this is not simply a date-bounded findMany.
     dailyPageTotalsForUser(userId, prefs.timeZone),
-    prisma.quote.count({ where: { book: { userId } } }),
+    prisma.quote.count({ where: { game: { userId } } }),
     // A random quote for the serendipity card — new one on every visit.
     // ORDER BY random() picks uniformly in one query, where the previous
     // count-then-skip needed the count first (a second round-trip).
     prisma.$queryRaw<
-      { id: string; text: string; page: number | null; bookId: string; bookTitle: string }[]
+      { id: string; text: string; page: number | null; gameId: string; gameTitle: string }[]
     >`
-      SELECT q."id", q."text", q."page", b."id" AS "bookId", b."title" AS "bookTitle"
+      SELECT q."id", q."text", q."page", b."id" AS "gameId", b."title" AS "gameTitle"
       FROM "Quote" q
-      JOIN "Book" b ON b."id" = q."bookId"
+      JOIN "Game" b ON b."id" = q."gameId"
       WHERE b."userId" = ${userId}
       ORDER BY random()
       LIMIT 1`,
   ]);
 
   const randomQuote = randomQuotes[0] ?? null;
-  const { books } = inputs;
-  const reading = books.filter((b) => b.status === ReadingStatus.READING);
+  const { games } = inputs;
+  const reading = games.filter((b) => b.status === ReadingStatus.READING);
 
-  // Every pass through every book, counted all time and in the period.
+  // Every pass through every game, counted all time and in the period.
   const passes = buildPasses(inputs, prefs, prefs.timeZone);
   const allTime = countWindow(passes, ALL_TIME, prefs);
   const counted =
     period === "all" ? allTime : countWindow(passes, periodWindow(period, todayKey), prefs);
   const totals = tally(counted);
 
-  // Books read: all time it's the books on the Read shelf, each once. In a
-  // period it's finishes, re-reads included, so it says "Books finished".
-  const readAllTime = booksReadAllTime(books, prefs);
+  // Games read: all time it's the games on the Read shelf, each once. In a
+  // period it's finishes, re-reads included, so it says "Games finished".
+  const readAllTime = gamesReadAllTime(games, prefs);
   const notes = ruleNotes(
     prefs,
     period === "all"
@@ -112,18 +112,18 @@ export default async function StatsPage({
       : { rereads: totals.rereads, putDown: totals.putDown },
     fmt,
   );
-  const booksLabel =
-    period === "all" || prefs.statsStoppedBooks === "book" ? "Books read" : "Books finished";
+  const gamesLabel =
+    period === "all" || prefs.statsStoppedGames === "game" ? "Games read" : "Games finished";
 
-  // Average rating: all time, every rated book (any status); in a period,
+  // Average rating: all time, every rated game (any status); in a period,
   // the rated finishes in it.
   const ratingValues =
     period === "all"
-      ? books
+      ? games
           .filter((b) => !(prefs.statsAudiobooks === "out" && b.format === "AUDIOBOOK"))
           .flatMap((b) => (b.rating != null ? [b.rating] : []))
       : counted.flatMap((i) =>
-          i.books > 0 && i.pass.kind === "finished" && i.pass.rating != null
+          i.games > 0 && i.pass.kind === "finished" && i.pass.rating != null
             ? [i.pass.rating]
             : [],
         );
@@ -132,13 +132,13 @@ export default async function StatsPage({
       ? ratingValues.reduce((sum, r) => sum + r, 0) / ratingValues.length / 2
       : null;
 
-  // Books per year: every dated pass that counts as a book, re-reads
+  // Games per year: every dated pass that counts as a game, re-reads
   // included. A 2026 re-read of an old favourite shows up in 2026.
   const perYear = new Map<number, number>();
   for (const i of allTime) {
-    if (i.books === 0 || !i.pass.day) continue;
+    if (i.games === 0 || !i.pass.day) continue;
     const year = Number(i.pass.day.slice(0, 4));
-    perYear.set(year, (perYear.get(year) ?? 0) + i.books);
+    perYear.set(year, (perYear.get(year) ?? 0) + i.games);
   }
   const years = [...perYear.entries()].sort((a, b) => a[0] - b[0]);
   const maxYear = Math.max(...perYear.values(), 0);
@@ -156,26 +156,26 @@ export default async function StatsPage({
   const goalDone = shownGoal ? progressFor(shownGoal) : 0;
   const nextGoal = upcoming.find((g) => g.year === currentYear + 1) ?? null;
 
-  // Genres and formats: every book in the library, or (Preferences) the
-  // books read in the period, each once however many times it was read.
+  // Genres and formats: every game in the library, or (Preferences) the
+  // games read in the period, each once however many times it was read.
   const byPeriod = prefs.statsBreakdown === "period";
-  const breakdownBooks = byPeriod
+  const breakdownGames = byPeriod
     ? [
         ...new Map(
-          counted.filter((i) => i.books > 0).map((i) => [i.pass.book.id, i.pass.book]),
+          counted.filter((i) => i.games > 0).map((i) => [i.pass.game.id, i.pass.game]),
         ).values(),
       ]
-    : books;
+    : games;
   const breakdownNote = byPeriod
-    ? `books read · ${words}`
+    ? `games read · ${words}`
     : period === "all"
       ? null
-      : "every book in the library";
+      : "every game in the library";
   const nothingRead = period === "all" ? "Nothing read yet." : "Nothing in this period.";
 
   // Genre/tag breakdown, top 10.
   const tagCounts = new Map<string, number>();
-  for (const b of breakdownBooks) {
+  for (const b of breakdownGames) {
     for (const t of b.tags) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
   }
   const topTags = [...tagCounts.entries()]
@@ -185,7 +185,7 @@ export default async function StatsPage({
 
   // Format breakdown.
   const formatCounts = new Map<string, number>();
-  for (const b of breakdownBooks) {
+  for (const b of breakdownGames) {
     const label = FORMAT_LABELS[b.format];
     formatCounts.set(label, (formatCounts.get(label) ?? 0) + 1);
   }
@@ -200,9 +200,9 @@ export default async function StatsPage({
 
       <div className="grid gap-3">
         <div className={`grid grid-cols-2 gap-4 max-lg:[&>:last-child:nth-child(odd)]:col-span-2 ${ratings ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
-          <StatCard label="Books in library" icon={LibraryBig}>{fmt(books.length)}</StatCard>
-          <StatCard label={`${booksLabel} · ${words}`} icon={BookCheck} note={notes.books.join(" · ")}>
-            {fmt(period === "all" ? readAllTime.books : totals.books)}
+          <StatCard label="Games in library" icon={LibraryBig}>{fmt(games.length)}</StatCard>
+          <StatCard label={`${gamesLabel} · ${words}`} icon={BookCheck} note={notes.games.join(" · ")}>
+            {fmt(period === "all" ? readAllTime.games : totals.games)}
           </StatCard>
           <StatCard label="Currently reading" icon={BookOpenText}>{fmt(reading.length)}</StatCard>
           <StatCard
@@ -294,12 +294,12 @@ export default async function StatsPage({
         {!hidden.has("perYear") && (
           <Card>
             <CardHeader>
-              <CardTitle>Books read per year</CardTitle>
+              <CardTitle>Games read per year</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-2">
               {years.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Finish a book (with a finished date) and it shows up here.
+                  Finish a game (with a finished date) and it shows up here.
                 </p>
               ) : (
                 <>
@@ -335,9 +335,9 @@ export default async function StatsPage({
             <CardContent className="grid gap-2">
               {topTags.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  {byPeriod && breakdownBooks.length === 0
+                  {byPeriod && breakdownGames.length === 0
                     ? nothingRead
-                    : "Tag your books to see the breakdown."}
+                    : "Tag your games to see the breakdown."}
                 </p>
               ) : (
                 topTags.map(([tag, count]) => (
@@ -364,7 +364,7 @@ export default async function StatsPage({
               ))}
               {formatCounts.size === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  {byPeriod ? nothingRead : "No books yet."}
+                  {byPeriod ? nothingRead : "No games yet."}
                 </p>
               )}
             </CardContent>
@@ -383,10 +383,10 @@ export default async function StatsPage({
               <p className="text-sm text-muted-foreground">
                 —{" "}
                 <Link
-                  href={`/books/${randomQuote.bookId}`}
+                  href={`/games/${randomQuote.gameId}`}
                   className="font-medium hover:underline"
                 >
-                  {randomQuote.bookTitle}
+                  {randomQuote.gameTitle}
                 </Link>
                 {randomQuote.page != null && `, p. ${randomQuote.page}`}
                 {" · "}

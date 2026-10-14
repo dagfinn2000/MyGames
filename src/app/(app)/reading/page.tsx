@@ -7,20 +7,20 @@ import { prisma } from "@/lib/prisma";
 import { getPreferences } from "@/lib/current-user";
 import { formatWeekdayDay } from "@/lib/display";
 import { upNext } from "@/lib/up-next";
-import { BookCover } from "@/components/book-card";
-import { BookLink } from "@/components/book-link";
+import { GameCover } from "@/components/game-card";
+import { GameLink } from "@/components/game-link";
 import { NowReading } from "@/components/now-reading";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Now reading · MyReads" };
+export const metadata = { title: "Now reading · MyGames" };
 
 const UP_NEXT = 10;
 
 /**
- * Every book being read on one page, each with the quick-log row, so
- * telling the app where you are doesn't mean opening each book. Under them,
- * the Want to Read books that are up next.
+ * Every game being read on one page, each with the quick-log row, so
+ * telling the app where you are doesn't mean opening each game. Under them,
+ * the Want to Read games that are up next.
  */
 export default async function NowReadingPage() {
   const session = await auth();
@@ -28,8 +28,8 @@ export default async function NowReadingPage() {
   const userId = session.user.id;
   const prefs = await getPreferences();
 
-  const [reading, wantToRead, seriesBooks] = await Promise.all([
-    prisma.book.findMany({
+  const [reading, wantToRead, seriesGames] = await Promise.all([
+    prisma.game.findMany({
       where: { userId, status: ReadingStatus.READING },
       select: {
         id: true,
@@ -49,7 +49,7 @@ export default async function NowReadingPage() {
         },
       },
     }),
-    prisma.book.findMany({
+    prisma.game.findMany({
       where: { userId, status: ReadingStatus.WANT_TO_READ },
       select: {
         id: true,
@@ -63,20 +63,20 @@ export default async function NowReadingPage() {
       },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
     }),
-    // For "next in the series": every book that has a series.
-    prisma.book.findMany({
+    // For "next in the series": every game that has a series.
+    prisma.game.findMany({
       where: { userId, seriesName: { not: null } },
       select: { seriesName: true, seriesNumber: true, status: true, timesRead: true },
     }),
   ]);
 
-  // The book read most recently first: its newest log entry, or when it
+  // The game read most recently first: its newest log entry, or when it
   // was started.
   const lastTouched = (b: (typeof reading)[number]) =>
     (b.progress[b.progress.length - 1]?.date ?? b.dateStarted)?.getTime() ?? 0;
   reading.sort((a, b) => lastTouched(b) - lastTouched(a) || a.title.localeCompare(b.title));
 
-  const next = upNext(wantToRead, seriesBooks, UP_NEXT);
+  const next = upNext(wantToRead, seriesGames, UP_NEXT);
 
   return (
     <div className="grid gap-6">
@@ -86,7 +86,7 @@ export default async function NowReadingPage() {
       </div>
 
       <NowReading
-        books={reading}
+        games={reading}
         empty={
           <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-4 py-12 text-center">
             <BookOpenText className="size-10 text-muted-foreground/40" />
@@ -97,7 +97,7 @@ export default async function NowReadingPage() {
               </p>
             ) : (
               <Button asChild size="sm">
-                <Link href="/books/new">Add a book</Link>
+                <Link href="/games/new">Add a game</Link>
               </Button>
             )}
           </div>
@@ -109,7 +109,7 @@ export default async function NowReadingPage() {
           <div className="flex flex-wrap items-baseline justify-between gap-x-3">
             <h2 className="text-sm font-medium text-muted-foreground">Up next</h2>
             <Link
-              href="/books?shelf=WANT_TO_READ"
+              href="/games?shelf=WANT_TO_READ"
               className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
             >
               All Want to Read
@@ -119,15 +119,15 @@ export default async function NowReadingPage() {
           <ul className="relative flex gap-3 overflow-x-auto pb-1">
             {next.map((b) => (
               <li key={b.id} className="shrink-0">
-                <BookLink bookId={b.id} className="lift-cover block w-16 sm:w-20" title={b.title}>
-                  <BookCover book={b} className="cover-shadow aspect-[2/3] w-full" />
+                <GameLink gameId={b.id} className="lift-cover block w-16 sm:w-20" title={b.title}>
+                  <GameCover game={b} className="cover-shadow aspect-[2/3] w-full" />
                   {/* A cover this small has no room for its own title. */}
                   <span aria-hidden="true" className="mt-1.5 line-clamp-2 text-[11px] leading-tight text-muted-foreground">
                     {b.title}
                   </span>
                   {/* A cover image is named by its alt text; a drawn one isn't. */}
                   {!b.coverUrl && <span className="sr-only">{b.title}</span>}
-                </BookLink>
+                </GameLink>
               </li>
             ))}
           </ul>

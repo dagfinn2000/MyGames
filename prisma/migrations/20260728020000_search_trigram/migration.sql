@@ -1,6 +1,6 @@
 -- Trigram indexes for the two case-insensitive substring lookups the app
 -- issues. Both compile to LIKE/ILIKE patterns, which no btree can serve — they
--- were sequential scans over every book in the library.
+-- were sequential scans over every game in the library.
 --
 -- Verified against a 20k-row table: library search goes from a full scan to a
 -- bitmap index scan (~1ms), and the series lookup likewise.
@@ -17,8 +17,8 @@
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- Library text search: `searchText contains …` -> LIKE '%term%'.
-CREATE INDEX "Book_searchText_trgm_idx" ON "Book" USING GIN ("searchText" gin_trgm_ops);
+CREATE INDEX "Game_searchText_trgm_idx" ON "Game" USING GIN ("searchText" gin_trgm_ops);
 
--- Series sidebar on the book page, plus the series filter and grouping:
+-- Series sidebar on the game page, plus the series filter and grouping:
 -- `seriesName equals … mode: insensitive` -> ILIKE 'name'.
-CREATE INDEX "Book_seriesName_trgm_idx" ON "Book" USING GIN ("seriesName" gin_trgm_ops);
+CREATE INDEX "Game_seriesName_trgm_idx" ON "Game" USING GIN ("seriesName" gin_trgm_ops);

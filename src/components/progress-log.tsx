@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, useTransition } from "react";
-import type { BookFormat, ProgressEntry } from "@prisma/client";
+import type { GameFormat, ProgressEntry } from "@prisma/client";
 import { ReadingStatus } from "@prisma/client";
 import { Pencil, Trash2, X } from "lucide-react";
 import { deleteProgressEntry, updateProgressEntry } from "@/lib/actions/progress";
@@ -24,8 +24,8 @@ import { Input } from "@/components/ui/input";
 
 /**
  * Sparkline of the current reading pass — page position over time — with a
- * pace line under it: a pace in the book's unit plus a finish forecast while
- * the book is being read (from the whole read or recent days, as set in
+ * pace line under it: a pace in the game's unit plus a finish forecast while
+ * the game is being read (from the whole read or recent days, as set in
  * Preferences), or the retrospective pace once it's finished. Pure display;
  * the reading card shows it above its form.
  */
@@ -96,11 +96,11 @@ export function ProgressChart({
   );
 }
 
-/** What the log needs to know about its book. */
-export interface LogBook {
+/** What the log needs to know about its game. */
+export interface LogGame {
   id: string;
   status: ReadingStatus;
-  format: BookFormat;
+  format: GameFormat;
   pageCount: number | null;
   lengthMinutes: number | null;
   dateStarted: Date | null;
@@ -110,15 +110,15 @@ type LogEntry = Pick<ProgressEntry, "id" | "page" | "date">;
 
 /**
  * The raw reading log, collapsed by default: every logged position, newest
- * first, in the book's unit. Each entry has a pencil to fix its page or day
+ * first, in the game's unit. Each entry has a pencil to fix its page or day
  * and a delete button; deleting the newest entry of the read in progress
- * moves the book's page back with it. A read's "Started" anchor has
+ * moves the game's page back with it. A read's "Started" anchor has
  * neither, since the read's pages are counted from it.
  *
  * Opens by itself when the address ends in #progress-log (the "Full log"
  * link on Now reading).
  */
-export function ProgressLog({ entries, book }: { entries: LogEntry[]; book: LogBook }) {
+export function ProgressLog({ entries, game }: { entries: LogEntry[]; game: LogGame }) {
   const prefs = usePreferences();
   const ref = useRef<HTMLDetailsElement>(null);
 
@@ -132,7 +132,7 @@ export function ProgressLog({ entries, book }: { entries: LogEntry[]; book: LogB
   }, []);
 
   if (entries.length === 0) return null;
-  const info = unitFor(book, prefs);
+  const info = unitFor(game, prefs);
   const newestFirst = [...entries].reverse();
 
   return (
@@ -148,7 +148,7 @@ export function ProgressLog({ entries, book }: { entries: LogEntry[]; book: LogB
             <EntryRow
               key={e.id}
               entry={e}
-              book={book}
+              game={game}
               info={info}
               dayLabel={date}
               label={e.page === 0 ? "Started" : formatPosition(e.page, info, { capital: true })}
@@ -167,17 +167,17 @@ export function ProgressLog({ entries, book }: { entries: LogEntry[]; book: LogB
  */
 export function RecentEntries({
   entries,
-  book,
+  game,
   limit = 3,
 }: {
   entries: LogEntry[]; // the whole log, oldest first
-  book: LogBook;
+  game: LogGame;
   limit?: number;
 }) {
   const prefs = usePreferences();
-  const info = unitFor(book, prefs);
+  const info = unitFor(game, prefs);
   const today = dayKey(new Date(), prefs.timeZone);
-  const recent = currentPassEntries(entries, book.dateStarted, prefs.timeZone)
+  const recent = currentPassEntries(entries, game.dateStarted, prefs.timeZone)
     .filter((e) => e.page > 0)
     .slice(-limit)
     .reverse();
@@ -189,7 +189,7 @@ export function RecentEntries({
         <EntryRow
           key={e.id}
           entry={e}
-          book={book}
+          game={game}
           info={info}
           dayLabel={subjectDay(calendarDay(e.date, prefs.timeZone), today, prefs.dateFormat)}
           label={formatPosition(e.page, info)}
@@ -204,14 +204,14 @@ export function RecentEntries({
  *  an editor, and (in the full log) delete. */
 function EntryRow({
   entry,
-  book,
+  game,
   info,
   dayLabel,
   label,
   layout,
 }: {
   entry: LogEntry;
-  book: LogBook;
+  game: LogGame;
   info: UnitInfo;
   dayLabel: string;
   label: string;
@@ -243,7 +243,7 @@ function EntryRow({
       {editing ? (
         <EntryEditor
           entry={entry}
-          book={book}
+          game={game}
           info={info}
           onDone={(done) => {
             setMessage(done);
@@ -293,16 +293,16 @@ function EntryRow({
   );
 }
 
-/** The inline editor behind the pencil: the position in the book's unit and
+/** The inline editor behind the pencil: the position in the game's unit and
  *  the day. Enter saves, Escape cancels. */
 function EntryEditor({
   entry,
-  book,
+  game,
   info,
   onDone,
 }: {
   entry: LogEntry;
-  book: LogBook;
+  game: LogGame;
   info: UnitInfo;
   /** Closes the editor, with the confirmation to show (null on cancel). */
   onDone: (message: string | null) => void;
@@ -316,7 +316,7 @@ function EntryEditor({
   const [pending, startTransition] = useTransition();
   const today = dayKey(new Date(), prefs.timeZone);
   // An entry of the read in progress can't move before its Started day.
-  const startKey = book.dateStarted ? calendarDay(book.dateStarted, prefs.timeZone) : null;
+  const startKey = game.dateStarted ? calendarDay(game.dateStarted, prefs.timeZone) : null;
   const minDay = startKey && calendarDay(entry.date, prefs.timeZone) >= startKey ? startKey : undefined;
 
   useEffect(() => {
@@ -391,7 +391,7 @@ function EntryEditor({
         id={id}
         info={info}
         text={text}
-        bookId={book.id}
+        gameId={game.id}
         showSaved={text !== positionText(entry.page, info)}
         className="mt-1"
       />

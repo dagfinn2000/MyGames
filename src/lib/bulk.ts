@@ -1,4 +1,4 @@
-import { BookFormat, BookOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
 import { z } from "zod";
 
 /**
@@ -8,17 +8,17 @@ import { z } from "zod";
  * async functions.
  */
 
-/** Most book ids one bulk edit takes. The library page never renders more
- *  than this (books/page.tsx uses it as its page size ceiling), so "Select
+/** Most game ids one bulk edit takes. The library page never renders more
+ *  than this (games/page.tsx uses it as its page size ceiling), so "Select
  *  all" after any number of "Show more" always fits. Anything bigger goes
- *  as "every book that matches" instead. */
+ *  as "every game that matches" instead. */
 export const BULK_MAX_IDS = 2000;
 
-/** Most books "every book that matches" may change at once. */
+/** Most games "every game that matches" may change at once. */
 export const BULK_MAX_MATCHING = 25_000;
 
 /** Rows per write. Keeps each statement well under Postgres's limit on
- *  bind parameters however many books are selected. */
+ *  bind parameters however many games are selected. */
 export const BULK_CHUNK = 1000;
 
 /** `list` in runs of at most `size`. */
@@ -28,7 +28,7 @@ export function chunk<T>(list: readonly T[], size: number): T[][] {
   return out;
 }
 
-/** A book's tags with `add` merged in (no duplicates) and `remove` taken
+/** A game's tags with `add` merged in (no duplicates) and `remove` taken
  *  out, or null when that changes nothing. */
 export function retag(tags: readonly string[], add: readonly string[], remove: readonly string[]): string[] | null {
   const next = [...new Set([...tags, ...add])].filter((t) => !remove.includes(t));
@@ -48,14 +48,14 @@ const tagList = z
   .max(20, "Up to 20 tags at a time.")
   .optional();
 
-/** Which books: the ids picked on screen, or every book matching the
+/** Which games: the ids picked on screen, or every game matching the
  *  library's current URL parameters. Exactly one of the two. */
 const targetFields = {
-  bookIds: z
+  gameIds: z
     .array(z.string().min(1).max(64))
     .max(
       BULK_MAX_IDS,
-      `That's more than ${BULK_MAX_IDS.toLocaleString("en-US")} books. Use “Select all books that match” instead.`,
+      `That's more than ${BULK_MAX_IDS.toLocaleString("en-US")} games. Use “Select all games that match” instead.`,
     )
     .optional(),
   matching: z
@@ -68,15 +68,15 @@ const targetFields = {
 };
 
 function oneTarget(
-  data: { bookIds?: string[]; matching?: Record<string, string> },
+  data: { gameIds?: string[]; matching?: Record<string, string> },
   ctx: z.RefinementCtx,
 ) {
   const ok =
-    data.bookIds !== undefined
-      ? data.bookIds.length > 0 && data.matching === undefined
+    data.gameIds !== undefined
+      ? data.gameIds.length > 0 && data.matching === undefined
       : data.matching !== undefined;
   if (!ok) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Select some books first." });
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Select some games first." });
   }
 }
 
@@ -84,8 +84,8 @@ export const bulkSchema = z
   .object({
     ...targetFields,
     status: z.nativeEnum(ReadingStatus).optional(),
-    format: z.nativeEnum(BookFormat).optional(),
-    ownership: z.nativeEnum(BookOwnership).optional(),
+    format: z.nativeEnum(GameFormat).optional(),
+    ownership: z.nativeEnum(GameOwnership).optional(),
     addShelfId: z.string().max(64).optional(),
     removeShelfId: z.string().max(64).optional(),
     addTags: tagList,
@@ -105,7 +105,7 @@ export const bulkSchema = z
 export const bulkDeleteSchema = z
   .object({
     ...targetFields,
-    /** How many books the confirmation named. Required for "every book that
+    /** How many games the confirmation named. Required for "every game that
      *  matches", so a library that changed since can't widen the delete. */
     expectedCount: z.number().int().min(1).optional(),
   })
@@ -114,7 +114,7 @@ export const bulkDeleteSchema = z
     if (data.matching !== undefined && data.expectedCount === undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Confirm how many books to delete first.",
+        message: "Confirm how many games to delete first.",
       });
     }
   });

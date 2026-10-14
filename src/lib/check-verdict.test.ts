@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { BookFormat, BookOwnership } from "@prisma/client";
+import { GameFormat, GameOwnership } from "@prisma/client";
 import { checkVerdict, duplicateNotice, ownershipParam, scanMatchLabel } from "@/lib/check-verdict";
 
-const { OWNED, WISHLIST, BORROWED, GIVEN_AWAY } = BookOwnership;
-const { PHYSICAL, EBOOK, AUDIOBOOK } = BookFormat;
+const { OWNED, WISHLIST, BORROWED, GIVEN_AWAY } = GameOwnership;
+const { PHYSICAL, EBOOK, AUDIOBOOK } = GameFormat;
 
 describe("checkVerdict on the exact edition", () => {
-  it("keeps the green answer for a book you own", () => {
+  it("keeps the green answer for a game you own", () => {
     expect(checkVerdict("isbn", { ownership: OWNED, format: PHYSICAL })).toEqual({
       tone: "success",
       headline: "In your library: this exact edition.",
@@ -16,7 +16,7 @@ describe("checkVerdict on the exact edition", () => {
     });
   });
 
-  it("says a wishlist book isn't yours yet and offers I bought it", () => {
+  it("says a wishlist game isn't yours yet and offers I bought it", () => {
     // The bug: this used to be the same green "In your library".
     expect(checkVerdict("isbn", { ownership: WISHLIST, format: PHYSICAL })).toEqual({
       tone: "info",
@@ -90,14 +90,14 @@ describe("checkVerdict on another edition", () => {
 });
 
 describe("duplicateNotice", () => {
-  it("keeps today's wording for a book you own", () => {
+  it("keeps today's wording for a game you own", () => {
     expect(duplicateNotice("isbn", OWNED).lead).toBe(
       "This exact edition is already in your library: ",
     );
     expect(duplicateNotice("title", OWNED).lead).toBe("You already have this title: ");
   });
 
-  it("points a wishlist match at the book instead of a second copy", () => {
+  it("points a wishlist match at the game instead of a second copy", () => {
     const n = duplicateNotice("isbn", WISHLIST);
     expect(n.lead).toBe("This exact edition is on your wishlist: ");
     expect(n.tail).toContain("Ownership to Owned");
@@ -112,12 +112,12 @@ describe("duplicateNotice", () => {
 });
 
 describe("scanMatchLabel", () => {
-  it("keeps the short wording for a book you own", () => {
+  it("keeps the short wording for a game you own", () => {
     expect(scanMatchLabel("isbn", OWNED)).toBe("Already in your library");
     expect(scanMatchLabel("title", OWNED)).toBe("Another edition in your library");
   });
 
-  it("doesn't call a wishlist or given-away book one you have", () => {
+  it("doesn't call a wishlist or given-away game one you have", () => {
     // The bug: every match read "Already in your library".
     expect(scanMatchLabel("isbn", WISHLIST)).toBe("On your wishlist");
     expect(scanMatchLabel("isbn", GIVEN_AWAY)).toBe("You gave this copy away");

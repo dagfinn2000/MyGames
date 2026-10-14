@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { DARK_THEME_IDS, THEME_INIT_SCRIPT, parseThemeSetting } from "@/lib/themes";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
-// A book face for the titles on drawn covers and the serif heading choice,
+// A game face for the titles on drawn covers and the serif heading choice,
 // and a rounded face for the other heading choice (Preferences). Not
 // preloaded: the browser only fetches a face once something on the page
 // uses it.
@@ -17,10 +17,10 @@ const literata = Literata({ subsets: ["latin"], variable: "--font-literata", pre
 const nunito = Nunito({ subsets: ["latin"], variable: "--font-nunito", preload: false });
 
 export const metadata: Metadata = {
-  title: "MyReads",
+  title: "MyGames",
   description: "Personal self-hosted library and reading tracker",
   // Installed-PWA polish on iOS (the manifest covers Android/desktop).
-  appleWebApp: { capable: true, title: "MyReads", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "MyGames", statusBarStyle: "default" },
 };
 
 export default async function RootLayout({
@@ -77,7 +77,7 @@ export default async function RootLayout({
       data-cards={prefs?.cardStyle}
       data-background={prefs?.background}
       data-background-motion={prefs?.backgroundMotion}
-      data-book-backdrop={prefs?.bookBackdrop}
+      data-game-backdrop={prefs?.gameBackdrop}
       // 3D covers, from the library's View menu.
       data-cover-3d={user?.libraryView.cover3d ? "" : undefined}
       suppressHydrationWarning

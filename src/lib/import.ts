@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { BookFormat, BookOwnership, GoalUnit, Prisma, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, GoalUnit, Prisma, ReadingStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { coverFilePath, coversDir } from "@/lib/covers";
@@ -17,14 +17,14 @@ import {
 import { parseThemeSetting, serializeThemeSetting } from "@/lib/themes";
 
 /**
- * Restore of a MyReads export — either the `library.json` from a zip backup
+ * Restore of a MyGames export — either the `library.json` from a zip backup
  * (with `getCoverFile` supplying the bundled cover images) or a legacy plain
  * JSON export.
  *
- * Semantics: merge into the current user's library. Books already present —
+ * Semantics: merge into the current user's library. Games already present —
  * same ISBN, or same title + first author (case-insensitive) — are skipped,
  * so restoring on top of a live library is safe and restoring into a fresh
- * instance brings everything back. A book's local cover path is kept when
+ * instance brings everything back. A game's local cover path is kept when
  * the file already exists (same instance) or can be restored from the
  * backup, otherwise cleared.
  *
@@ -37,7 +37,7 @@ import { parseThemeSetting, serializeThemeSetting } from "@/lib/themes";
 /**
  * Shelf names, taken the way the shelf form takes them (trimmed, 1 to 50
  * characters) one by one, so a name that won't do is dropped on its own
- * rather than taking the book's other shelves with it.
+ * rather than taking the game's other shelves with it.
  */
 const shelfNames = z
   .array(z.unknown())
@@ -97,12 +97,12 @@ const importedProgressSchema = z.object({
   date: dateField,
 });
 
-const importedBookSchema = z.object({
+const importedGameSchema = z.object({
   title: z.string().trim().min(1).max(500),
   authors: z.array(z.string().trim().max(200)).catch([]),
   isbn: z.string().trim().max(20).nullable().optional(),
   description: z.string().max(10000).nullable().optional(),
-  // Same rule as the book form; a bad value drops the cover, not the book.
+  // Same rule as the game form; a bad value drops the cover, not the game.
   coverUrl: z.string().max(2000).refine(isAllowedCoverUrl).nullable().optional().catch(null),
   pageCount: z.number().int().min(1).max(100000).nullable().optional().catch(null),
   /** Additive: an audiobook's running time in minutes. */
@@ -114,11 +114,11 @@ const importedBookSchema = z.object({
     .array(z.string().trim().toLowerCase().max(50))
     .catch([])
     .transform((tags) => tags.flatMap((t) => t.split(",").map((s) => s.trim())).filter(Boolean)),
-  format: z.nativeEnum(BookFormat).catch(BookFormat.PHYSICAL),
+  format: z.nativeEnum(GameFormat).catch(GameFormat.PHYSICAL),
   /** Legacy field, still written by exports for older instances to read. */
   owned: z.boolean().nullable().optional().catch(null),
   /** Present in exports from this version onward. */
-  ownership: z.nativeEnum(BookOwnership).nullable().optional().catch(null),
+  ownership: z.nativeEnum(GameOwnership).nullable().optional().catch(null),
   seriesName: z.string().trim().max(200).nullable().optional(),
   seriesNumber: z.number().min(0).max(10000).nullable().optional().catch(null),
   openLibraryId: z.string().trim().max(50).nullable().optional(),
@@ -148,18 +148,18 @@ const goalSchema = z.object({
 const nameList = z.array(z.string().max(100)).max(500).optional().catch([]);
 
 const exportPayloadSchema = z.object({
-  format: z.literal("myreads-export"),
+  format: z.literal("mygames-export"),
   version: z.literal(1),
   shelves: z
     .array(z.unknown())
     .catch([])
     .transform((list) => shelfNames.parse(list.map((s) => (s as { name?: unknown } | null)?.name))),
-  /** Goals counted in books. */
+  /** Goals counted in games. */
   readingGoals: z.array(goalSchema).catch([]),
-  /** Goals counted in pages. Additive, and kept apart so an older MyReads
-   *  doesn't read them as book counts. */
+  /** Goals counted in pages. Additive, and kept apart so an older MyGames
+   *  doesn't read them as game counts. */
   pageGoals: z.array(goalSchema).catch([]),
-  /** Additive, like everything after `books` was in version 1. */
+  /** Additive, like everything after `games` was in version 1. */
   settings: z
     .object({
       theme: z.string().max(100).nullable().catch(null),
@@ -185,13 +185,13 @@ const exportPayloadSchema = z.object({
       }),
     )
     .catch([]),
-  books: z.array(z.unknown()),
+  games: z.array(z.unknown()),
 });
 
 export interface ImportSummary {
-  booksCreated: number;
-  booksSkipped: number;
-  booksInvalid: number;
+  gamesCreated: number;
+  gamesSkipped: number;
+  gamesInvalid: number;
   shelvesCreated: number;
   goalsRestored: number;
   savedViewsRestored: number;
@@ -204,15 +204,15 @@ export interface ImportSummary {
   progressRestored: number;
   loansRestored: number;
   /** Set when the restore stopped early. Everything counted above did land —
-   *  a restore is resumable by re-running it, since books already present are
+   *  a restore is resumable by re-running it, since games already present are
    *  skipped — but the caller must not present the run as complete. */
   incomplete?: { after: number; reason: string };
 }
 
-/** How many book creates are in flight at once. Each book is a single nested
- *  write (book + its quotes, reads and progress), so per-book atomicity is
+/** How many game creates are in flight at once. Each game is a single nested
+ *  write (game + its quotes, reads and progress), so per-game atomicity is
  *  already guaranteed by the database; this only bounds how many of those
- *  round-trips overlap. Sequential made a 1000-book restore 1000 waits long;
+ *  round-trips overlap. Sequential made a 1000-game restore 1000 waits long;
  *  unbounded would open 1000 connections. */
 const IMPORT_CONCURRENCY = 10;
 
@@ -270,12 +270,12 @@ async function mapWithConcurrency<T, R>(
  * library that had no way to express them.
  */
 function resolveOwnership(b: {
-  ownership?: BookOwnership | null;
+  ownership?: GameOwnership | null;
   owned?: boolean | null;
-}): BookOwnership {
+}): GameOwnership {
   if (b.ownership) return b.ownership;
-  if (b.owned === false) return BookOwnership.WISHLIST;
-  return BookOwnership.OWNED;
+  if (b.owned === false) return GameOwnership.WISHLIST;
+  return GameOwnership.OWNED;
 }
 
 /** Reads a cover image bundled with the backup (zip imports supply this). */
@@ -330,7 +330,7 @@ export async function importLibrary(
 ): Promise<ImportSummary | { error: string }> {
   const parsed = exportPayloadSchema.safeParse(payload);
   if (!parsed.success) {
-    return { error: "Not a MyReads export file (or an unsupported version)." };
+    return { error: "Not a MyGames export file (or an unsupported version)." };
   }
   const data = parsed.data;
 
@@ -349,7 +349,7 @@ export async function importLibrary(
     if (!wantedShelves.has(shelfKey(name))) wantedShelves.set(shelfKey(name), name);
   };
   data.shelves.forEach(want);
-  for (const raw of data.books) {
+  for (const raw of data.games) {
     shelfNames.parse((raw as { shelves?: unknown } | null)?.shelves).forEach(want);
   }
   // Missing shelves in one statement, then read back to learn their ids —
@@ -373,7 +373,7 @@ export async function importLibrary(
 
   // Reading goals: upsert per year, concurrently — they're independent.
   const goals = [
-    ...data.readingGoals.map((g) => ({ ...g, unit: GoalUnit.BOOKS })),
+    ...data.readingGoals.map((g) => ({ ...g, unit: GoalUnit.GAMES })),
     ...data.pageGoals.map((g) => ({ ...g, unit: GoalUnit.PAGES })),
   ];
   await mapWithConcurrency(goals, IMPORT_CONCURRENCY, (goal) =>
@@ -421,8 +421,8 @@ export async function importLibrary(
 
   const settingsRestored = data.settings ? await restoreSettings(userId, data.settings) : false;
 
-  // Existing books, for duplicate detection.
-  const existing = await prisma.book.findMany({
+  // Existing games, for duplicate detection.
+  const existing = await prisma.game.findMany({
     where: { userId },
     select: { title: true, authors: true, isbn: true },
   });
@@ -433,38 +433,38 @@ export async function importLibrary(
     ),
   );
 
-  let booksSkipped = 0;
-  let booksInvalid = 0;
+  let gamesSkipped = 0;
+  let gamesInvalid = 0;
 
-  // Pass 1 — decide, sequentially. A book already in the library (same
+  // Pass 1 — decide, sequentially. A game already in the library (same
   // ISBN, or same title and first author) is skipped, so a restore can be
   // re-run. Within the file itself only a true repeat is skipped: the same
   // ISBN, or with no ISBN the same title, author and format. Two editions
-  // of one book (a hardback and its audiobook) both come back, as the
-  // library had them. Each accepted book is folded into `seen` as the file
+  // of one game (a hardback and its audiobook) both come back, as the
+  // library had them. Each accepted game is folded into `seen` as the file
   // is walked; that ordering dependency is why the decisions stay serial;
   // only the slow database work below is parallelised.
   const seen = new Set<string>();
-  const accepted: { b: z.infer<typeof importedBookSchema>; isbn: string | null }[] = [];
-  for (const raw of data.books) {
-    const parsedBook = importedBookSchema.safeParse(raw);
-    if (!parsedBook.success) {
-      booksInvalid++;
+  const accepted: { b: z.infer<typeof importedGameSchema>; isbn: string | null }[] = [];
+  for (const raw of data.games) {
+    const parsedGame = importedGameSchema.safeParse(raw);
+    if (!parsedGame.success) {
+      gamesInvalid++;
       continue;
     }
-    const b = parsedBook.data;
+    const b = parsedGame.data;
     const isbn = b.isbn?.replace(/[\s-]/g, "") || null;
     const key = `${b.title.toLowerCase()}|${(b.authors[0] ?? "").toLowerCase()}`;
     const repeat = isbn ? `isbn|${isbn}` : `${key}|${b.format}`;
     if ((isbn && existingIsbns.has(isbn)) || existingTitleAuthor.has(key) || seen.has(repeat)) {
-      booksSkipped++;
+      gamesSkipped++;
       continue;
     }
     seen.add(repeat);
     accepted.push({ b, isbn });
   }
 
-  let booksCreated = 0;
+  let gamesCreated = 0;
   let coversRestored = 0;
   let quotesRestored = 0;
   let readsRestored = 0;
@@ -472,14 +472,14 @@ export async function importLibrary(
   let loansRestored = 0;
   let incomplete: ImportSummary["incomplete"];
 
-  // Pass 2 — write, with bounded concurrency. Each book is one nested create,
-  // so a book and its quotes/reads/progress can never land half-written.
+  // Pass 2 — write, with bounded concurrency. Each game is one nested create,
+  // so a game and its quotes/reads/progress can never land half-written.
   const createOne = async ({ b, isbn }: (typeof accepted)[number]) => {
     const cover = await resolveCoverUrl(b.coverUrl, getCoverFile);
 
     // Read history. Older exports have no `reads` — materialize the history
     // that timesRead implies as undated past reads (the finished pass itself
-    // lives on the Book row), exactly like the migration backfill. Either
+    // lives on the Game row), exactly like the migration backfill. Either
     // way timesRead ends up consistent with the restored rows.
     const isRead = b.status === ReadingStatus.READ;
     const pastReads: {
@@ -503,7 +503,7 @@ export async function importLibrary(
           );
     const timesRead = pastReads.length + (isRead ? 1 : 0);
 
-    await prisma.book.create({
+    await prisma.game.create({
       data: {
         userId,
         title: b.title,
@@ -577,10 +577,10 @@ export async function importLibrary(
       },
     });
 
-    // Counted only after the write lands, so the summary never claims a book
+    // Counted only after the write lands, so the summary never claims a game
     // the database rejected.
     if (cover.restored) coversRestored++;
-    booksCreated++;
+    gamesCreated++;
     quotesRestored += b.quotes.length;
     readsRestored += pastReads.length;
     progressRestored += b.progress.filter((e) => e.date != null).length;
@@ -592,19 +592,19 @@ export async function importLibrary(
   } catch (err) {
     // A restore is not one transaction — wrapping thousands of nested writes
     // in a single long-running transaction trades this failure mode for a
-    // worse one. Instead the books written so far stay written, and the run
+    // worse one. Instead the games written so far stay written, and the run
     // says so. Re-running the same backup finishes the job: everything
     // already restored is detected as a duplicate and skipped.
     incomplete = {
-      after: booksCreated,
+      after: gamesCreated,
       reason: err instanceof Error ? err.message : "unknown error",
     };
   }
 
   return {
-    booksCreated,
-    booksSkipped,
-    booksInvalid,
+    gamesCreated,
+    gamesSkipped,
+    gamesInvalid,
     shelvesCreated,
     goalsRestored: goals.length,
     savedViewsRestored: viewsCreated.count,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  BOOK_PAGE_CARDS,
+  GAME_PAGE_CARDS,
   DEFAULT_PREFERENCES,
   MAX_FIND_LINKS,
   MAX_TAG_RULES,
@@ -24,13 +24,13 @@ describe("parsePreferences", () => {
       dateFormat: "iso",
       ratingStyle: "ten",
       weekStart: "fortnight", // not a value
-      newBookStatus: "READING",
+      newGameStatus: "READING",
       importTagsMode: "some", // not a value
     });
     expect(prefs.dateFormat).toBe("iso");
     expect(prefs.ratingStyle).toBe("ten");
     expect(prefs.weekStart).toBe("monday");
-    expect(prefs.newBookStatus).toBe("READING");
+    expect(prefs.newGameStatus).toBe("READING");
     expect(prefs.importTagsMode).toBe("all");
   });
 
@@ -61,7 +61,7 @@ describe("parsePreferences", () => {
     expect(parsePreferences({ corners: "square" }).corners).toBe("square");
     expect(parsePreferences({ corners: "0px" }).corners).toBe("rounded");
     expect(parsePreferences({ background: "dots" }).background).toBe("dots");
-    expect(parsePreferences({ background: "books" }).background).toBe("books");
+    expect(parsePreferences({ background: "games" }).background).toBe("games");
     expect(parsePreferences({ background: "url(x)" }).background).toBe("plain");
     expect(parsePreferences({ background: "aurora" }).background).toBe("aurora");
     expect(parsePreferences({ background: "ripples" }).background).toBe("ripples");
@@ -72,8 +72,8 @@ describe("parsePreferences", () => {
     expect(parsePreferences({ backgroundMotion: false }).backgroundMotion).toBe("moving");
     expect(parsePreferences({ cardStyle: "frosted" }).cardStyle).toBe("frosted");
     expect(parsePreferences({ cardStyle: "glass" }).cardStyle).toBe("raised");
-    expect(parsePreferences({ bookBackdrop: "plain" }).bookBackdrop).toBe("plain");
-    expect(parsePreferences({ bookBackdrop: true }).bookBackdrop).toBe("cover");
+    expect(parsePreferences({ gameBackdrop: "plain" }).gameBackdrop).toBe("plain");
+    expect(parsePreferences({ gameBackdrop: true }).gameBackdrop).toBe("cover");
   });
 
   it("drops a time zone the runtime doesn't know", () => {
@@ -97,9 +97,9 @@ describe("parsePreferences: the newer settings", () => {
       ebookUnit: "page",
       audiobookUnit: "page",
       paceFrom: "read",
-      bookPageCards: [...BOOK_PAGE_CARDS],
-      hiddenBookPageCards: [],
-      bookDescription: "full",
+      gamePageCards: [...GAME_PAGE_CARDS],
+      hiddenGamePageCards: [],
+      gameDescription: "full",
       shelvesCard: "all",
       findLinks: [],
       searchAlsoIn: [],
@@ -108,12 +108,12 @@ describe("parsePreferences: the newer settings", () => {
       savedViewOrder: [],
       hiddenStatusTabs: [],
       statsPagesRead: "finished",
-      statsStoppedBooks: "none",
+      statsStoppedGames: "none",
       statsAudiobooks: "full",
       statsPeriod: "all",
       statsBreakdown: "library",
       quotesOrder: "newest",
-      quotesGroupByBook: false,
+      quotesGroupByGame: false,
       backupReminder: "off",
     });
   });
@@ -126,10 +126,10 @@ describe("parsePreferences: the newer settings", () => {
       ebookUnit: "percent",
       audiobookUnit: "time",
       paceFrom: "14d",
-      bookDescription: "clamp",
+      gameDescription: "clamp",
       shelvesCard: "mine",
       statsPagesRead: "logged",
-      statsStoppedBooks: "pages",
+      statsStoppedGames: "pages",
       statsAudiobooks: "out",
       statsPeriod: "30d",
       statsBreakdown: "period",
@@ -137,7 +137,7 @@ describe("parsePreferences: the newer settings", () => {
       backupReminder: "monthly",
       pickOnlyHave: true,
       pickNextInSeries: true,
-      quotesGroupByBook: true,
+      quotesGroupByGame: true,
     });
     expect(valid).toMatchObject({
       addedAsReadFinished: "undated",
@@ -146,10 +146,10 @@ describe("parsePreferences: the newer settings", () => {
       ebookUnit: "percent",
       audiobookUnit: "time",
       paceFrom: "14d",
-      bookDescription: "clamp",
+      gameDescription: "clamp",
       shelvesCard: "mine",
       statsPagesRead: "logged",
-      statsStoppedBooks: "pages",
+      statsStoppedGames: "pages",
       statsAudiobooks: "out",
       statsPeriod: "30d",
       statsBreakdown: "period",
@@ -157,7 +157,7 @@ describe("parsePreferences: the newer settings", () => {
       backupReminder: "monthly",
       pickOnlyHave: true,
       pickNextInSeries: true,
-      quotesGroupByBook: true,
+      quotesGroupByGame: true,
     });
 
     const invalid = parsePreferences({
@@ -196,18 +196,18 @@ describe("parsePreferences: the newer settings", () => {
     ]);
   });
 
-  it("always lists every book-page card once", () => {
-    expect(parsePreferences({ bookPageCards: ["quotes", "bogus", "quotes"] }).bookPageCards).toEqual(
+  it("always lists every game-page card once", () => {
+    expect(parsePreferences({ gamePageCards: ["quotes", "bogus", "quotes"] }).gamePageCards).toEqual(
       ["quotes", "shelves", "reading", "history", "lending"],
     );
     expect(
-      parsePreferences({ bookPageCards: ["lending", "history", "reading", "shelves", "quotes"] })
-        .bookPageCards,
+      parsePreferences({ gamePageCards: ["lending", "history", "reading", "shelves", "quotes"] })
+        .gamePageCards,
     ).toEqual(["lending", "history", "reading", "shelves", "quotes"]);
-    expect(parsePreferences({ bookPageCards: "quotes" }).bookPageCards).toEqual([
-      ...BOOK_PAGE_CARDS,
+    expect(parsePreferences({ gamePageCards: "quotes" }).gamePageCards).toEqual([
+      ...GAME_PAGE_CARDS,
     ]);
-    expect(parsePreferences({ hiddenBookPageCards: ["quotes", "nope"] }).hiddenBookPageCards).toEqual(
+    expect(parsePreferences({ hiddenGamePageCards: ["quotes", "nope"] }).hiddenGamePageCards).toEqual(
       ["quotes"],
     );
   });
@@ -455,8 +455,8 @@ describe("cleanPreferencesPatch", () => {
 
   it("cleans the newer settings the same way", () => {
     expect(
-      cleanPreferencesPatch({ quotesOrder: "book", paceFrom: "1y", findLinks: [{ name: "A" }] }),
-    ).toEqual({ quotesOrder: "book", paceFrom: "read", findLinks: [] });
+      cleanPreferencesPatch({ quotesOrder: "game", paceFrom: "1y", findLinks: [{ name: "A" }] }),
+    ).toEqual({ quotesOrder: "game", paceFrom: "read", findLinks: [] });
   });
 
   it("returns nothing for a non-object", () => {

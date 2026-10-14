@@ -3,16 +3,16 @@ import { calendarDay, dayKey, shiftDayKey } from "@/lib/dates";
 
 export { dayKey };
 
-type LogPoint = Pick<ProgressEntry, "bookId" | "page" | "date">;
+type LogPoint = Pick<ProgressEntry, "gameId" | "page" | "date">;
 
 /**
- * The slice of a book's log belonging to the current reading pass:
+ * The slice of a game's log belonging to the current reading pass:
  * everything from the latest page-0 anchor onward. Page-0 entries only ever
  * come from pass anchors — the reading form treats page 0 as "cleared" and
  * never logs it — so the latest one marks the pass start exactly, even when
  * a re-read begins on a day that already has entries (the started-date form
  * field only keeps day precision). Logs without an anchor (upgrade-seeded
- * books, books added mid-read) fall back to the started-date window, by
+ * games, games added mid-read) fall back to the started-date window, by
  * calendar day in the reader's zone: a typed Started date is midnight UTC,
  * which east of UTC is still ahead of that morning's entries.
  * lib/stats-query.ts applies the same rule in SQL.
@@ -34,7 +34,7 @@ export function currentPassEntries<T extends Pick<ProgressEntry, "page" | "date"
 }
 
 /**
- * Pages read per calendar day, summed across books. Each book's log is
+ * Pages read per calendar day, summed across games. Each game's log is
  * walked in date order and every *increase* between consecutive entries is
  * credited to the later entry's day. A first entry has no predecessor and
  * credits nothing — that's what keeps the upgrade-seeded positions and
@@ -46,15 +46,15 @@ export function dailyPageTotals(
   /** The reader's zone; default the server's. */
   timeZone?: string,
 ): Map<string, number> {
-  const byBook = new Map<string, LogPoint[]>();
+  const byGame = new Map<string, LogPoint[]>();
   for (const e of entries) {
-    const log = byBook.get(e.bookId);
+    const log = byGame.get(e.gameId);
     if (log) log.push(e);
-    else byBook.set(e.bookId, [e]);
+    else byGame.set(e.gameId, [e]);
   }
 
   const totals = new Map<string, number>();
-  for (const log of byBook.values()) {
+  for (const log of byGame.values()) {
     log.sort((a, b) => a.date.getTime() - b.date.getTime() || a.page - b.page);
     for (let i = 1; i < log.length; i++) {
       const delta = log[i].page - log[i - 1].page;

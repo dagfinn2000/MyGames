@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BookOwnership, PrismaClient } from "@prisma/client";
+import { GameOwnership, PrismaClient } from "@prisma/client";
 
 /**
  * setOwnership ("I bought it" on the Do I own this? page) against a real
- * database: it changes the one field, and only on the signed-in user's book.
+ * database: it changes the one field, and only on the signed-in user's game.
  */
 
 const prisma = new PrismaClient();
@@ -20,14 +20,14 @@ const { setOwnership } = await import("@/lib/actions/ownership");
 let userId: string;
 let otherUserId: string;
 
-async function makeBook(over: Record<string, unknown> = {}, owner = userId) {
-  return prisma.book.create({
-    data: { userId: owner, title: "Test Book", searchText: "test book", ...over },
+async function makeGame(over: Record<string, unknown> = {}, owner = userId) {
+  return prisma.game.create({
+    data: { userId: owner, title: "Test Game", searchText: "test game", ...over },
   });
 }
 
 async function ownershipOf(id: string) {
-  return (await prisma.book.findUniqueOrThrow({ where: { id } })).ownership;
+  return (await prisma.game.findUniqueOrThrow({ where: { id } })).ownership;
 }
 
 beforeEach(async () => {
@@ -46,37 +46,37 @@ afterEach(async () => {
 });
 
 describe("setOwnership", () => {
-  it("marks a wishlist book as owned", async () => {
-    const bk = await makeBook({ ownership: BookOwnership.WISHLIST, rating: 8 });
+  it("marks a wishlist game as owned", async () => {
+    const bk = await makeGame({ ownership: GameOwnership.WISHLIST, rating: 8 });
 
-    expect(await setOwnership(bk.id, BookOwnership.OWNED)).toEqual({ success: true });
-    const after = await prisma.book.findUniqueOrThrow({ where: { id: bk.id } });
-    expect(after.ownership).toBe(BookOwnership.OWNED);
+    expect(await setOwnership(bk.id, GameOwnership.OWNED)).toEqual({ success: true });
+    const after = await prisma.game.findUniqueOrThrow({ where: { id: bk.id } });
+    expect(after.ownership).toBe(GameOwnership.OWNED);
     expect(after.rating).toBe(8);
   });
 
-  it("leaves another account's book alone", async () => {
-    const theirs = await makeBook({ ownership: BookOwnership.WISHLIST }, otherUserId);
+  it("leaves another account's game alone", async () => {
+    const theirs = await makeGame({ ownership: GameOwnership.WISHLIST }, otherUserId);
 
-    expect(await setOwnership(theirs.id, BookOwnership.OWNED)).toEqual({
-      error: "Book not found",
+    expect(await setOwnership(theirs.id, GameOwnership.OWNED)).toEqual({
+      error: "Game not found",
     });
-    expect(await ownershipOf(theirs.id)).toBe(BookOwnership.WISHLIST);
+    expect(await ownershipOf(theirs.id)).toBe(GameOwnership.WISHLIST);
   });
 
   it("refuses an ownership that doesn't exist", async () => {
-    const bk = await makeBook({ ownership: BookOwnership.GIVEN_AWAY });
+    const bk = await makeGame({ ownership: GameOwnership.GIVEN_AWAY });
 
-    const res = await setOwnership(bk.id, "GIVEN" as BookOwnership);
+    const res = await setOwnership(bk.id, "GIVEN" as GameOwnership);
     expect(res.error).toBeTruthy();
-    expect(await ownershipOf(bk.id)).toBe(BookOwnership.GIVEN_AWAY);
+    expect(await ownershipOf(bk.id)).toBe(GameOwnership.GIVEN_AWAY);
   });
 
   it("needs a session", async () => {
-    const bk = await makeBook({ ownership: BookOwnership.WISHLIST });
+    const bk = await makeGame({ ownership: GameOwnership.WISHLIST });
     currentUserId = null;
 
-    await expect(setOwnership(bk.id, BookOwnership.OWNED)).rejects.toThrow();
-    expect(await ownershipOf(bk.id)).toBe(BookOwnership.WISHLIST);
+    await expect(setOwnership(bk.id, GameOwnership.OWNED)).rejects.toThrow();
+    expect(await ownershipOf(bk.id)).toBe(GameOwnership.WISHLIST);
   });
 });

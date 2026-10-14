@@ -1,4 +1,4 @@
-import { BookFormat, BookOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
 import {
   EXTRAS,
   MOVABLE,
@@ -65,7 +65,7 @@ export const SORT_ALPHABETS = ["en", "nb", "da", "sv", "de"] as const;
 
 export const AUTHOR_ORDERS = ["surname", "as-written"] as const;
 
-/** Book catalogues, as named in lib/metadata/index.ts. */
+/** Game catalogues, as named in lib/metadata/index.ts. */
 export const CATALOGUES = ["openlibrary", "google", "nb"] as const;
 
 export const RATING_STYLES = ["half", "whole", "ten", "off"] as const;
@@ -74,15 +74,15 @@ export const TEXT_SIZES = ["normal", "large", "larger"] as const;
 
 export const LONG_TEXT_FONTS = ["sans", "serif"] as const;
 
-/** The face for page titles, book titles and card titles: the app's own
- *  sans (Geist), a book serif (Literata) or a rounded sans (Nunito). */
+/** The face for page titles, game titles and card titles: the app's own
+ *  sans (Geist), a game serif (Literata) or a rounded sans (Nunito). */
 export const HEADING_FONTS = ["sans", "serif", "rounded"] as const;
 
 /** Animations on or off. Off is also forced whenever the device asks for
  *  reduced motion, whatever this says (see globals.css and lib/motion.ts). */
 export const MOTIONS = ["on", "off"] as const;
 
-/** What a book without a cover image shows: a drawn cover with its title,
+/** What a game without a cover image shows: a drawn cover with its title,
  *  or the plain grey box. */
 export const COVER_ARTS = ["drawn", "plain"] as const;
 
@@ -111,9 +111,9 @@ export const CORNERS = ["square", "rounded", "round"] as const;
  *  soft shadow, or frosted glass that lets the background show through. */
 export const CARD_STYLES = ["flat", "raised", "frosted"] as const;
 
-/** Behind the top of a book's page: a soft wash of its cover's colours, or
+/** Behind the top of a game's page: a soft wash of its cover's colours, or
  *  nothing. */
-export const BOOK_BACKDROPS = ["cover", "plain"] as const;
+export const GAME_BACKDROPS = ["cover", "plain"] as const;
 
 /** A texture behind the pages (globals.css draws each one). Rain, snow,
  *  stars, aurora and ripples move gently (components/background-scene.tsx);
@@ -125,7 +125,7 @@ export const BACKGROUNDS = [
   "lines",
   "grid",
   "linen",
-  "books",
+  "games",
   "waves",
   "glow",
   "contours",
@@ -175,14 +175,14 @@ export const HIDEABLE_STATS = [
  *  subjects that match a tag already in the library, or every subject. */
 export const IMPORT_TAGS_MODES = ["off", "known", "all"] as const;
 
-/** The finish date a book added as Read gets when none is picked. */
+/** The finish date a game added as Read gets when none is picked. */
 export const ADDED_AS_READ_FINISHED = ["today", "undated"] as const;
 
-/** Where the add form goes after saving a book. */
+/** Where the add form goes after saving a game. */
 export const AFTER_ADD = ["open", "another", "library"] as const;
 
-/** The two quick-log buttons on a book being read: +10 and +25 pages, +5
- *  and +10 pages, or +5% of the book. */
+/** The two quick-log buttons on a game being read: +10 and +25 pages, +5
+ *  and +10 pages, or +5% of the game. */
 export const QUICK_LOG_STEPS = ["10-25", "5-10", "5pct"] as const;
 
 /** How progress is entered and shown for an ebook. Positions are still
@@ -196,10 +196,10 @@ export const AUDIOBOOK_UNITS = ["page", "percent", "time"] as const;
  *  the last 7 or 14 days. */
 export const PACE_FROM = ["read", "7d", "14d"] as const;
 
-/** Cards on a book's page, in their default order. */
-export const BOOK_PAGE_CARDS = ["shelves", "reading", "history", "lending", "quotes"] as const;
+/** Cards on a game's page, in their default order. */
+export const GAME_PAGE_CARDS = ["shelves", "reading", "history", "lending", "quotes"] as const;
 
-export const BOOK_PAGE_CARD_LABELS: Record<(typeof BOOK_PAGE_CARDS)[number], string> = {
+export const GAME_PAGE_CARD_LABELS: Record<(typeof GAME_PAGE_CARDS)[number], string> = {
   shelves: "Shelves",
   reading: "My reading",
   history: "Read history",
@@ -208,40 +208,40 @@ export const BOOK_PAGE_CARD_LABELS: Record<(typeof BOOK_PAGE_CARDS)[number], str
 };
 
 /** A long description in full, or its first lines with a More button. */
-export const BOOK_DESCRIPTIONS = ["full", "clamp"] as const;
+export const GAME_DESCRIPTIONS = ["full", "clamp"] as const;
 
-/** The Shelves card on a book: every shelf as a toggle, or only the shelves
- *  the book is on plus an Add button. */
+/** The Shelves card on a game: every shelf as a toggle, or only the shelves
+ *  the game is on plus an Add button. */
 export const SHELVES_CARD_MODES = ["all", "mine"] as const;
 
 /** Extra places the library search looks besides title, author and series. */
 export const SEARCH_FIELDS = ["tags", "isbn", "review"] as const;
 
-/** What "pages read" counts on the stats page: whole books when finished,
+/** What "pages read" counts on the stats page: whole games when finished,
  *  or the pages logged on the day they were read. */
 export const STATS_PAGES_READ = ["finished", "logged"] as const;
 
-/** How a book you stopped reading (DNF) counts: not at all, by the pages
- *  read before stopping, or as a whole book. */
-export const STATS_STOPPED_BOOKS = ["none", "pages", "book"] as const;
+/** How a game you stopped reading (DNF) counts: not at all, by the pages
+ *  read before stopping, or as a whole game. */
+export const STATS_STOPPED_GAMES = ["none", "pages", "game"] as const;
 
-/** How audiobooks count: fully, as books but not pages, or not at all. */
-export const STATS_AUDIOBOOKS = ["full", "books", "out"] as const;
+/** How audiobooks count: fully, as games but not pages, or not at all. */
+export const STATS_AUDIOBOOKS = ["full", "games", "out"] as const;
 
 /** The period the stats page opens on. */
 export const STATS_PERIODS = ["all", "year", "12m", "30d"] as const;
 
 /** What the Genres & tags and Formats cards count: the whole library, or
- *  only the books read in the chosen period. */
+ *  only the games read in the chosen period. */
 export const STATS_BREAKDOWNS = ["library", "period"] as const;
 
 /** The quotes page's order. */
-export const QUOTE_ORDERS = ["newest", "oldest", "book", "shuffle"] as const;
+export const QUOTE_ORDERS = ["newest", "oldest", "game", "shuffle"] as const;
 
 /** A reminder on the account page when the last backup is old. */
 export const BACKUP_REMINDERS = ["off", "monthly"] as const;
 
-/** "Find it at" links on a book's page: a name and an https:// address in
+/** "Find it at" links on a game's page: a name and an https:// address in
  *  which {isbn}, {title} and {author} are filled in. */
 export type FindLink = { name: string; url: string };
 export const MAX_FIND_LINKS = 6;
@@ -254,7 +254,7 @@ export type TagRename = { from: string; to: string };
 /** Rules kept per kind; the oldest go first. They ride along with every
  *  page's preferences, so the list stays short. */
 export const MAX_TAG_RULES = 100;
-/** Same limit as a tag on a book (actions/tags.ts, bulk.ts). */
+/** Same limit as a tag on a game (actions/tags.ts, bulk.ts). */
 export const TAG_RULE_MAX = 50;
 
 /** Ids kept in an order or hidden list. Above this, the rest fall back to
@@ -276,7 +276,7 @@ export type CoverArtStyle = (typeof COVER_ARTS)[number];
 export type Accent = (typeof ACCENTS)[number];
 export type Corners = (typeof CORNERS)[number];
 export type CardStyle = (typeof CARD_STYLES)[number];
-export type BookBackdrop = (typeof BOOK_BACKDROPS)[number];
+export type GameBackdrop = (typeof GAME_BACKDROPS)[number];
 export type Background = (typeof BACKGROUNDS)[number];
 export type BackgroundMotion = (typeof BACKGROUND_MOTIONS)[number];
 export type HeatmapScale = (typeof HEATMAP_SCALES)[number];
@@ -290,12 +290,12 @@ export type QuickLogSteps = (typeof QUICK_LOG_STEPS)[number];
 export type EbookUnit = (typeof EBOOK_UNITS)[number];
 export type AudiobookUnit = (typeof AUDIOBOOK_UNITS)[number];
 export type PaceFrom = (typeof PACE_FROM)[number];
-export type BookPageCard = (typeof BOOK_PAGE_CARDS)[number];
-export type BookDescriptionMode = (typeof BOOK_DESCRIPTIONS)[number];
+export type GamePageCard = (typeof GAME_PAGE_CARDS)[number];
+export type GameDescriptionMode = (typeof GAME_DESCRIPTIONS)[number];
 export type ShelvesCardMode = (typeof SHELVES_CARD_MODES)[number];
 export type SearchField = (typeof SEARCH_FIELDS)[number];
 export type StatsPagesRead = (typeof STATS_PAGES_READ)[number];
-export type StatsStoppedBooks = (typeof STATS_STOPPED_BOOKS)[number];
+export type StatsStoppedGames = (typeof STATS_STOPPED_GAMES)[number];
 export type StatsAudiobooks = (typeof STATS_AUDIOBOOKS)[number];
 export type StatsPeriod = (typeof STATS_PERIODS)[number];
 export type StatsBreakdown = (typeof STATS_BREAKDOWNS)[number];
@@ -305,10 +305,10 @@ export type BackupReminder = (typeof BACKUP_REMINDERS)[number];
 // A type alias (not an interface) so it satisfies Prisma's Json input type,
 // same as LibraryView.
 export type Preferences = {
-  // New books
-  newBookFormat: BookFormat;
-  newBookStatus: ReadingStatus;
-  newBookOwnership: BookOwnership;
+  // New games
+  newGameFormat: GameFormat;
+  newGameStatus: ReadingStatus;
+  newGameOwnership: GameOwnership;
   /** Copy the subjects a catalogue returns into the tags field: none, only
    *  ones already used as tags, or all. Replaces the old importTags boolean,
    *  which parsePreferences still reads. */
@@ -351,7 +351,7 @@ export type Preferences = {
   cardStyle: CardStyle;
   background: Background;
   backgroundMotion: BackgroundMotion;
-  bookBackdrop: BookBackdrop;
+  gameBackdrop: GameBackdrop;
 
   heatmapScale: HeatmapScale;
   startPage: StartPage;
@@ -361,9 +361,9 @@ export type Preferences = {
   defaultViewId: string;
 
   // Pick for me
-  /** Pick for me skips wishlist and given-away books (borrowed ones count). */
+  /** Pick for me skips wishlist and given-away games (borrowed ones count). */
   pickOnlyHave: boolean;
-  /** Pick for me skips a Want to Read book while an earlier book in its
+  /** Pick for me skips a Want to Read game while an earlier game in its
    *  series is unread. */
   pickNextInSeries: boolean;
 
@@ -373,11 +373,11 @@ export type Preferences = {
   audiobookUnit: AudiobookUnit;
   paceFrom: PaceFrom;
 
-  // Book page
+  // Game page
   /** Every card, in the order shown. Always a full list (see parse). */
-  bookPageCards: BookPageCard[];
-  hiddenBookPageCards: BookPageCard[];
-  bookDescription: BookDescriptionMode;
+  gamePageCards: GamePageCard[];
+  hiddenGamePageCards: GamePageCard[];
+  gameDescription: GameDescriptionMode;
   shelvesCard: ShelvesCardMode;
   findLinks: FindLink[];
 
@@ -395,14 +395,14 @@ export type Preferences = {
 
   // Stats
   statsPagesRead: StatsPagesRead;
-  statsStoppedBooks: StatsStoppedBooks;
+  statsStoppedGames: StatsStoppedGames;
   statsAudiobooks: StatsAudiobooks;
   statsPeriod: StatsPeriod;
   statsBreakdown: StatsBreakdown;
 
   // Quotes and backups
   quotesOrder: QuoteOrder;
-  quotesGroupByBook: boolean;
+  quotesGroupByGame: boolean;
   backupReminder: BackupReminder;
 
   // The reading room (Decorate on the Room page; lib/room-styles.ts)
@@ -442,9 +442,9 @@ export type Preferences = {
 };
 
 export const DEFAULT_PREFERENCES: Preferences = {
-  newBookFormat: BookFormat.PHYSICAL,
-  newBookStatus: ReadingStatus.WANT_TO_READ,
-  newBookOwnership: BookOwnership.OWNED,
+  newGameFormat: GameFormat.PHYSICAL,
+  newGameStatus: ReadingStatus.WANT_TO_READ,
+  newGameOwnership: GameOwnership.OWNED,
   importTagsMode: "all",
   tagRenames: [],
   tagSkips: [],
@@ -469,7 +469,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   cardStyle: "raised",
   background: "plain",
   backgroundMotion: "moving",
-  bookBackdrop: "cover",
+  gameBackdrop: "cover",
   heatmapScale: "standard",
   startPage: "library",
   hiddenNav: [],
@@ -481,9 +481,9 @@ export const DEFAULT_PREFERENCES: Preferences = {
   ebookUnit: "page",
   audiobookUnit: "page",
   paceFrom: "read",
-  bookPageCards: [...BOOK_PAGE_CARDS],
-  hiddenBookPageCards: [],
-  bookDescription: "full",
+  gamePageCards: [...GAME_PAGE_CARDS],
+  hiddenGamePageCards: [],
+  gameDescription: "full",
   shelvesCard: "all",
   findLinks: [],
   searchAlsoIn: [],
@@ -492,12 +492,12 @@ export const DEFAULT_PREFERENCES: Preferences = {
   savedViewOrder: [],
   hiddenStatusTabs: [],
   statsPagesRead: "finished",
-  statsStoppedBooks: "none",
+  statsStoppedGames: "none",
   statsAudiobooks: "full",
   statsPeriod: "all",
   statsBreakdown: "library",
   quotesOrder: "newest",
-  quotesGroupByBook: false,
+  quotesGroupByGame: false,
   backupReminder: "off",
   roomStyle: "cottage",
   roomWalls: "style",
@@ -686,11 +686,11 @@ function parseRoomOwn(value: unknown): Partial<Record<RoomKind, RoomOwn>> {
   return out;
 }
 
-/** Every book-page card once: the stored order first, then any card it
+/** Every game-page card once: the stored order first, then any card it
  *  leaves out (a card added in a later version, say) in default order. */
-function parseBookPageCards(value: unknown): BookPageCard[] {
-  const listed = pickList(BOOK_PAGE_CARDS, value);
-  return [...listed, ...BOOK_PAGE_CARDS.filter((c) => !listed.includes(c))];
+function parseGamePageCards(value: unknown): GamePageCard[] {
+  const listed = pickList(GAME_PAGE_CARDS, value);
+  return [...listed, ...GAME_PAGE_CARDS.filter((c) => !listed.includes(c))];
 }
 
 /** Stored JSON (or anything else) → a complete, safe Preferences. */
@@ -705,12 +705,12 @@ export function parsePreferences(raw: unknown): Preferences {
   const hiddenStatusTabs = pickList(statuses, obj.hiddenStatusTabs);
 
   return {
-    newBookFormat: pick(Object.values(BookFormat), obj.newBookFormat, d.newBookFormat),
-    newBookStatus: pick(Object.values(ReadingStatus), obj.newBookStatus, d.newBookStatus),
-    newBookOwnership: pick(
-      Object.values(BookOwnership),
-      obj.newBookOwnership,
-      d.newBookOwnership,
+    newGameFormat: pick(Object.values(GameFormat), obj.newGameFormat, d.newGameFormat),
+    newGameStatus: pick(Object.values(ReadingStatus), obj.newGameStatus, d.newGameStatus),
+    newGameOwnership: pick(
+      Object.values(GameOwnership),
+      obj.newGameOwnership,
+      d.newGameOwnership,
     ),
     // importTags was a boolean before the three-way setting; an account that
     // turned it off keeps it off.
@@ -751,7 +751,7 @@ export function parsePreferences(raw: unknown): Preferences {
     cardStyle: pick(CARD_STYLES, obj.cardStyle, d.cardStyle),
     background: pick(BACKGROUNDS, obj.background, d.background),
     backgroundMotion: pick(BACKGROUND_MOTIONS, obj.backgroundMotion, d.backgroundMotion),
-    bookBackdrop: pick(BOOK_BACKDROPS, obj.bookBackdrop, d.bookBackdrop),
+    gameBackdrop: pick(GAME_BACKDROPS, obj.gameBackdrop, d.gameBackdrop),
     heatmapScale: pick(HEATMAP_SCALES, obj.heatmapScale, d.heatmapScale),
     startPage: pick(START_PAGES, obj.startPage, d.startPage),
     hiddenNav: pickList(HIDEABLE_NAV, obj.hiddenNav),
@@ -766,9 +766,9 @@ export function parsePreferences(raw: unknown): Preferences {
     ebookUnit: pick(EBOOK_UNITS, obj.ebookUnit, d.ebookUnit),
     audiobookUnit: pick(AUDIOBOOK_UNITS, obj.audiobookUnit, d.audiobookUnit),
     paceFrom: pick(PACE_FROM, obj.paceFrom, d.paceFrom),
-    bookPageCards: parseBookPageCards(obj.bookPageCards),
-    hiddenBookPageCards: pickList(BOOK_PAGE_CARDS, obj.hiddenBookPageCards),
-    bookDescription: pick(BOOK_DESCRIPTIONS, obj.bookDescription, d.bookDescription),
+    gamePageCards: parseGamePageCards(obj.gamePageCards),
+    hiddenGamePageCards: pickList(GAME_PAGE_CARDS, obj.hiddenGamePageCards),
+    gameDescription: pick(GAME_DESCRIPTIONS, obj.gameDescription, d.gameDescription),
     shelvesCard: pick(SHELVES_CARD_MODES, obj.shelvesCard, d.shelvesCard),
     findLinks: parseFindLinks(obj.findLinks),
     searchAlsoIn: pickList(SEARCH_FIELDS, obj.searchAlsoIn),
@@ -779,12 +779,12 @@ export function parsePreferences(raw: unknown): Preferences {
     // that reads as hiding none.
     hiddenStatusTabs: hiddenStatusTabs.length < statuses.length ? hiddenStatusTabs : [],
     statsPagesRead: pick(STATS_PAGES_READ, obj.statsPagesRead, d.statsPagesRead),
-    statsStoppedBooks: pick(STATS_STOPPED_BOOKS, obj.statsStoppedBooks, d.statsStoppedBooks),
+    statsStoppedGames: pick(STATS_STOPPED_GAMES, obj.statsStoppedGames, d.statsStoppedGames),
     statsAudiobooks: pick(STATS_AUDIOBOOKS, obj.statsAudiobooks, d.statsAudiobooks),
     statsPeriod: pick(STATS_PERIODS, obj.statsPeriod, d.statsPeriod),
     statsBreakdown: pick(STATS_BREAKDOWNS, obj.statsBreakdown, d.statsBreakdown),
     quotesOrder: pick(QUOTE_ORDERS, obj.quotesOrder, d.quotesOrder),
-    quotesGroupByBook: bool(obj.quotesGroupByBook, d.quotesGroupByBook),
+    quotesGroupByGame: bool(obj.quotesGroupByGame, d.quotesGroupByGame),
     backupReminder: pick(BACKUP_REMINDERS, obj.backupReminder, d.backupReminder),
     roomStyle: pick(ROOM_STYLES, obj.roomStyle, d.roomStyle),
     roomWalls: pick(ROOM_WALLS, obj.roomWalls, d.roomWalls),
@@ -810,9 +810,9 @@ export function parsePreferences(raw: unknown): Preferences {
 
 /** Where each start page lives. */
 export const START_PAGE_PATHS: Record<StartPage, string> = {
-  library: "/books",
+  library: "/games",
   stats: "/stats",
-  add: "/books/new",
+  add: "/games/new",
   reading: "/reading",
 };
 

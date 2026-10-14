@@ -1,9 +1,9 @@
 "use client";
 
 import { useActionState, useEffect, useRef } from "react";
-import type { Book, ProgressEntry } from "@prisma/client";
+import type { Game, ProgressEntry } from "@prisma/client";
 import { ReadingStatus } from "@prisma/client";
-import { updateReading } from "@/lib/actions/books";
+import { updateReading } from "@/lib/actions/games";
 import { celebrate } from "@/lib/confetti";
 import { STATUS_LABELS, toDateInputValue } from "@/lib/display";
 import { usePreferences } from "@/components/preferences-provider";
@@ -34,34 +34,34 @@ import {
 } from "@/components/ui/select";
 
 /**
- * The "my reading of this book" panel on the detail page. On top, progress:
- * the bar in the book's unit, the quick-log row while the book is being
+ * The "my reading of this game" panel on the detail page. On top, progress:
+ * the bar in the game's unit, the quick-log row while the game is being
  * read, and the sparkline and pace drawn from the automatic reading log.
  * Then the form for status, star rating, dates and the personal review,
  * which saves through the updateReading server action, and the log itself.
  *
- * While the book is Currently Reading, progress is logged only through the
+ * While the game is Currently Reading, progress is logged only through the
  * quick row (its own form, outside this one), and saving the reading form
- * keeps the book's page as the server has it (updateReading), so saving a
+ * keeps the game's page as the server has it (updateReading), so saving a
  * review never moves progress. Any other status keeps a progress box in the
  * form.
  */
 export function ReadingCard({
-  book,
+  game,
   progress,
 }: {
   /** Without the folded search copies, which have no business in the page. */
-  book: Omit<Book, "searchText" | "reviewSearchText">;
+  game: Omit<Game, "searchText" | "reviewSearchText">;
   progress: ProgressEntry[];
 }) {
-  const action = updateReading.bind(null, book.id);
+  const action = updateReading.bind(null, game.id);
   const [state, formAction, pending] = useActionState(action, {});
   const prefs = usePreferences();
   const saveButton = useRef<HTMLButtonElement>(null);
-  const info = unitFor(book, prefs);
-  const reading = book.status === ReadingStatus.READING;
+  const info = unitFor(game, prefs);
+  const reading = game.status === ReadingStatus.READING;
 
-  // Finishing a book gets a burst of confetti from the save button. Each
+  // Finishing a game gets a burst of confetti from the save button. Each
   // save returns a new state object, so this runs once per save.
   useEffect(() => {
     if (state.finished) celebrate(saveButton.current);
@@ -71,25 +71,25 @@ export function ReadingCard({
   // leaves the fields as they were sent (submitKeepingInput), so a failed
   // one keeps the review being typed; but the server may have saved
   // something else (Read fills in today's finish date), and a fresh mount
-  // re-reads every default from the just-saved book. It also keeps the
+  // re-reads every default from the just-saved game. It also keeps the
   // Radix Select honest: its hidden native select reverts to its
   // *mount-time* value whenever the form is reset, behind React's back. When
-  // nothing changed the key is stable and the form stays put. A quick log changes the page of a book being read without
+  // nothing changed the key is stable and the form stays put. A quick log changes the page of a game being read without
   // touching the form, so then the page is left out: logging must not
   // remount the form and throw away a review being typed.
   const formKey = [
-    book.status,
-    book.rating ?? 0,
-    book.dateStarted?.getTime() ?? 0,
-    book.dateFinished?.getTime() ?? 0,
-    reading ? "reading" : (book.currentPage ?? 0),
-    book.review ?? "",
+    game.status,
+    game.rating ?? 0,
+    game.dateStarted?.getTime() ?? 0,
+    game.dateFinished?.getTime() ?? 0,
+    reading ? "reading" : (game.currentPage ?? 0),
+    game.review ?? "",
   ].join("|");
 
   // The sparkline shows the current pass; entries from earlier passes still
   // feed the stats heatmap and stay in the log below.
-  const passEntries = currentPassEntries(progress, book.dateStarted, prefs.timeZone);
-  const showBar = book.currentPage != null && !!book.pageCount;
+  const passEntries = currentPassEntries(progress, game.dateStarted, prefs.timeZone);
+  const showBar = game.currentPage != null && !!game.pageCount;
 
   return (
     <Card>
@@ -105,17 +105,17 @@ export function ReadingCard({
                   <div
                     className="bar-grow h-full rounded-full bg-primary/80"
                     style={{
-                      width: `${Math.min((book.currentPage! / book.pageCount!) * 100, 100)}%`,
+                      width: `${Math.min((game.currentPage! / game.pageCount!) * 100, 100)}%`,
                     }}
                   />
                 </div>
                 <p className="text-xs text-muted-foreground tabular-nums">
-                  {progressFigure(book.currentPage!, info)}
+                  {progressFigure(game.currentPage!, info)}
                 </p>
               </div>
             )}
-            {reading && <QuickLog book={book} />}
-            <ProgressChart entries={passEntries} status={book.status} info={info} />
+            {reading && <QuickLog game={game} />}
+            <ProgressChart entries={passEntries} status={game.status} info={info} />
           </div>
         )}
 
@@ -128,7 +128,7 @@ export function ReadingCard({
           <div className="flex flex-wrap items-end gap-4">
             <div className="grid gap-2">
               <Label htmlFor="status">Status</Label>
-              <Select name="status" defaultValue={book.status}>
+              <Select name="status" defaultValue={game.status}>
                 <SelectTrigger id="status" className="w-44">
                   <SelectValue />
                 </SelectTrigger>
@@ -143,7 +143,7 @@ export function ReadingCard({
             </div>
             <div className="grid gap-2">
               <Label>Rating</Label>
-              <StarRatingInput name="rating" defaultValue={book.rating ?? 0} />
+              <StarRatingInput name="rating" defaultValue={game.rating ?? 0} />
             </div>
           </div>
 
@@ -155,20 +155,20 @@ export function ReadingCard({
                 name="dateStarted"
                 type="date"
                 className="w-40"
-                defaultValue={toDateInputValue(book.dateStarted, prefs.timeZone)}
+                defaultValue={toDateInputValue(game.dateStarted, prefs.timeZone)}
               />
             </div>
             <FinishedDateField
-              defaultDate={toDateInputValue(book.dateFinished, prefs.timeZone)}
-              defaultUnknown={book.status === ReadingStatus.READ && !book.dateFinished}
+              defaultDate={toDateInputValue(game.dateFinished, prefs.timeZone)}
+              defaultUnknown={game.status === ReadingStatus.READ && !game.dateFinished}
             />
             {reading ? (
-              // Ignored while the book is still being read (the server keeps
+              // Ignored while the game is still being read (the server keeps
               // its own page); it matters only if another tab has moved the
-              // book off Currently Reading since.
-              <input type="hidden" name="currentPage" value={book.currentPage ?? ""} />
+              // game off Currently Reading since.
+              <input type="hidden" name="currentPage" value={game.currentPage ?? ""} />
             ) : (
-              <CurrentPageField bookId={book.id} info={info} initialPage={book.currentPage} />
+              <CurrentPageField gameId={game.id} info={info} initialPage={game.currentPage} />
             )}
           </div>
 
@@ -180,7 +180,7 @@ export function ReadingCard({
               rows={5}
               className="long-text"
               placeholder="What did you think?"
-              defaultValue={book.review ?? ""}
+              defaultValue={game.review ?? ""}
             />
           </div>
 
@@ -197,7 +197,7 @@ export function ReadingCard({
 
         {progress.length > 0 && (
           <div className="border-t pt-3">
-            <ProgressLog entries={progress} book={book} />
+            <ProgressLog entries={progress} game={game} />
           </div>
         )}
       </CardContent>

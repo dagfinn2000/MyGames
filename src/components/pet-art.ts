@@ -1,7 +1,7 @@
 /**
  * The pet who follows the avatar about the reading room (lib/pets.ts), as
  * pixel art: trotting along (two frames that swap as it goes, like the
- * avatar's legs) and curled up asleep at the armchair while a book is
+ * avatar's legs) and curled up asleep at the armchair while a game is
  * read. Each is drawn as a text grid of fills facing right; the outline
  * goes round it by itself.
  *

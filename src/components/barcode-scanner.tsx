@@ -38,7 +38,7 @@ function getDetectorCtor(): BarcodeDetectorCtor | null {
     .BarcodeDetector;
 }
 
-/** EAN-13 barcodes starting 978/979 are ISBN-13s — i.e. book barcodes. */
+/** EAN-13 barcodes starting 978/979 are ISBN-13s — i.e. game barcodes. */
 function isIsbn13(code: string): boolean {
   return /^97[89]\d{10}$/.test(code);
 }
@@ -53,7 +53,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 /** Where the "Keep scanning" switch is remembered, per device. */
-const KEEP_SCANNING_KEY = "myreads:keep-scanning";
+const KEEP_SCANNING_KEY = "mygames:keep-scanning";
 
 function readKeepScanning(): boolean {
   try {
@@ -87,7 +87,7 @@ export function BarcodeScanner({
   shelfScan,
 }: {
   onDetected: (isbn: string) => void;
-  /** Open the camera straight away (adding another book after a scan). */
+  /** Open the camera straight away (adding another game after a scan). */
   defaultOpen?: boolean;
   shelfScan?: {
     scan: ShelfScan;
@@ -187,7 +187,7 @@ export function BarcodeScanner({
       }}
     >
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" title="Scan a book barcode">
+        <Button type="button" variant="outline" title="Scan a game barcode">
           <ScanBarcode data-slot="icon" />
           Scan
         </Button>
@@ -197,8 +197,8 @@ export function BarcodeScanner({
           <DialogTitle>{keep ? "Scan a shelf" : "Scan ISBN barcode"}</DialogTitle>
           <DialogDescription>
             {keep
-              ? "Adds each book with your New books settings."
-              : "Point the camera at the barcode on the back of the book."}
+              ? "Adds each game with your New games settings."
+              : "Point the camera at the barcode on the back of the game."}
           </DialogDescription>
         </DialogHeader>
         {shelfScan && !error && (

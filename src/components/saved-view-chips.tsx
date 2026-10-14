@@ -36,7 +36,7 @@ export function SavedViewChips({
             )}
           >
             <Link
-              href={`/books?${view.query}`}
+              href={`/games?${view.query}`}
               className={cn("flex items-center gap-1.5 py-1 pl-3", active ? "pr-1" : "pr-3")}
             >
               <Bookmark className="size-3.5" />

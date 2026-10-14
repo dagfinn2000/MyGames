@@ -3,7 +3,7 @@
  * and the unit every reading-day statistic is counted in.
  *
  * Which day a moment falls on depends on the time zone. Without one these
- * use the server's local zone, which is how MyReads always behaved; with
+ * use the server's local zone, which is how MyGames always behaved; with
  * the reader's zone (Preferences) late-evening reading lands on the evening
  * it happened rather than on the server's next day.
  */

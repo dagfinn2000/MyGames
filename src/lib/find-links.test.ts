@@ -11,22 +11,22 @@ describe("fillFindLink", () => {
   });
 
   it("encodes the title so it can't break the query", () => {
-    const book = { ...wood, title: "Q&A? #1 / Part 2" };
-    expect(fillFindLink("https://lib.example/s?q={title}&x=1", book)).toBe(
+    const game = { ...wood, title: "Q&A? #1 / Part 2" };
+    expect(fillFindLink("https://lib.example/s?q={title}&x=1", game)).toBe(
       "https://lib.example/s?q=Q%26A%3F%20%231%20%2F%20Part%202&x=1",
     );
   });
 
   it("inserts a $& in a title as written", () => {
-    const book = { ...wood, title: "$& and $1" };
-    expect(fillFindLink("https://lib.example/?q={title}", book)).toBe(
+    const game = { ...wood, title: "$& and $1" };
+    expect(fillFindLink("https://lib.example/?q={title}", game)).toBe(
       `https://lib.example/?q=${encodeURIComponent("$& and $1")}`,
     );
   });
 
   it("uses the first author", () => {
-    const book = { ...wood, authors: ["Neil Gaiman", "Terry Pratchett"] };
-    expect(fillFindLink("https://shop.example/a/{author}", book)).toBe(
+    const game = { ...wood, authors: ["Neil Gaiman", "Terry Pratchett"] };
+    expect(fillFindLink("https://shop.example/a/{author}", game)).toBe(
       "https://shop.example/a/Neil%20Gaiman",
     );
   });
@@ -57,7 +57,7 @@ describe("fillFindLink", () => {
 });
 
 describe("findLinksFor", () => {
-  it("keeps the order and drops links this book can't fill", () => {
+  it("keeps the order and drops links this game can't fill", () => {
     const links = [
       { name: "Library", url: "https://lib.example/?q={isbn}" },
       { name: "Shop", url: "https://shop.example/?a={author}" },

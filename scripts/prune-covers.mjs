@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Deletes cover files that no book points at.
+ * Deletes cover files that no game points at.
  *
  * Two ways they accumulate: starting an upload and then abandoning the form
- * (the file is written before the book is saved), and any cover whose row
+ * (the file is written before the game is saved), and any cover whose row
  * vanished without the cleanup running. Nothing else ever removes them.
  *
  * Deliberately NOT wired into the container entrypoint. This deletes files
@@ -32,12 +32,12 @@ try {
   try {
     files = await fs.readdir(dir);
   } catch {
-    console.log(`[myreads] no cover directory at ${dir} — nothing to do`);
+    console.log(`[mygames] no cover directory at ${dir} — nothing to do`);
     process.exit(0);
   }
 
-  // Every locally-cached cover currently referenced by a book.
-  const rows = await prisma.book.findMany({
+  // Every locally-cached cover currently referenced by a game.
+  const rows = await prisma.game.findMany({
     where: { coverUrl: { startsWith: "/api/covers/" } },
     select: { coverUrl: true },
   });
@@ -75,11 +75,11 @@ try {
   const mb = (bytes / 1024 / 1024).toFixed(1);
   console.log(
     apply
-      ? `[myreads] deleted ${deleted} orphaned cover(s), freed ${mb} MB`
-      : `[myreads] ${deleted} orphaned cover(s) totalling ${mb} MB — re-run with --yes to delete`,
+      ? `[mygames] deleted ${deleted} orphaned cover(s), freed ${mb} MB`
+      : `[mygames] ${deleted} orphaned cover(s) totalling ${mb} MB — re-run with --yes to delete`,
   );
   if (keptYoung > 0) {
-    console.log(`[myreads] kept ${keptYoung} unreferenced file(s) newer than 24h`);
+    console.log(`[mygames] kept ${keptYoung} unreferenced file(s) newer than 24h`);
   }
 } finally {
   await prisma.$disconnect();

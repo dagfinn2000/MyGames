@@ -35,9 +35,9 @@ export function foldForSearch(s: string): string {
     .replace(/[æøœßđðłþ]/g, (c) => FOLDED_LETTERS[c]);
 }
 
-/** Folded title+authors+series blob stored on Book.searchText: makes
+/** Folded title+authors+series blob stored on Game.searchText: makes
  *  case- and accent-insensitive search a `contains` query (Prisma can't
- *  substring-search a String[] column). Shared by the book actions and the
+ *  substring-search a String[] column). Shared by the game actions and the
  *  backup import so the two can never drift. */
 export function buildSearchText(
   title: string,
@@ -48,7 +48,7 @@ export function buildSearchText(
 }
 
 /** Escapes LIKE's wildcards. Prisma's `contains` passes `%` and `_` through,
- *  so a search for "%" would otherwise match every book. */
+ *  so a search for "%" would otherwise match every game. */
 export function escapeLike(s: string): string {
   return s.replace(/[\\%_]/g, "\\$&");
 }

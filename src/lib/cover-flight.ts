@@ -3,9 +3,9 @@ import { motionAllowed } from "@/lib/motion";
 
 /** The view-transition name the travelling cover carries. Only ever on one
  *  element at a time: two elements with the same name abort a transition. */
-const NAME = "book-cover";
+const NAME = "game-cover";
 
-/** How long to hold the old page while the book page (or, closing it, the
+/** How long to hold the old page while the game page (or, closing it, the
  *  library) loads. Past this the page swaps without the flight rather than
  *  look frozen. */
 const WAIT_LIMIT_MS = 1500;
@@ -17,17 +17,17 @@ export function canFlyCover(): boolean {
 }
 
 /**
- * Opens a book's page with its cover flying from where it was clicked
- * (`cover`, in the library or a series strip) to its place on the book
+ * Opens a game's page with its cover flying from where it was clicked
+ * (`cover`, in the library or a series strip) to its place on the game
  * page, while the rest of the page cross-fades.
  *
  * The browser snapshots the page with the clicked cover named, then holds
- * that picture while `navigate` runs. Once the book page's cover — the
- * BookCover marked `data-cover-for` with this book's id — is in the
+ * that picture while `navigate` runs. Once the game page's cover — the
+ * GameCover marked `data-cover-for` with this game's id — is in the
  * document, it takes the name and the browser animates one into the other.
  */
-export function flyCover(cover: HTMLElement, bookId: string, navigate: () => void): void {
-  const selector = `[data-cover-for="${CSS.escape(bookId)}"]`;
+export function flyCover(cover: HTMLElement, gameId: string, navigate: () => void): void {
+  const selector = `[data-cover-for="${CSS.escape(gameId)}"]`;
   cover.style.viewTransitionName = NAME;
 
   const transition = document.startViewTransition(
@@ -60,33 +60,33 @@ export function flyCover(cover: HTMLElement, bookId: string, navigate: () => voi
     .catch(() => {});
 }
 
-/** The library's card for a book: the cover inside its BookLink, or the
+/** The library's card for a game: the cover inside its GameLink, or the
  *  link itself for a spine in the reading room. A grouped library can show a
- *  book in more than one group. */
-function libraryCovers(bookId: string): HTMLElement[] {
-  const link = `[data-book-link="${CSS.escape(bookId)}"]`;
+ *  game in more than one group. */
+function libraryCovers(gameId: string): HTMLElement[] {
+  const link = `[data-game-link="${CSS.escape(gameId)}"]`;
   return [
-    ...document.querySelectorAll<HTMLElement>(`${link} .book-cover, ${link}[data-flight-cover]`),
+    ...document.querySelectorAll<HTMLElement>(`${link} .game-cover, ${link}[data-flight-cover]`),
   ];
 }
 
-/** True while a book page closes, until the library is back. The library
+/** True while a game page closes, until the library is back. The library
  *  reads it as it mounts and leaves out its cards' rise-in, so it comes back
  *  the way it was left (components/library-view.tsx). */
 let closing = false;
-export function isClosingBook(): boolean {
+export function isClosingGame(): boolean {
   return closing;
 }
 
-/** How long a closed book page keeps watching for the library to put its
+/** How long a closed game page keeps watching for the library to put its
  *  scroll position back, after the flight itself has given up. */
 const LIBRARY_WAIT_MS = 10_000;
 
 /**
- * Waits for the library to render after a book page closes, then puts it
- * back where it was scrolled to and finds the card the book was opened from
+ * Waits for the library to render after a game page closes, then puts it
+ * back where it was scrolled to and finds the card the game was opened from
  * (the one nearest where the clicked cover sat; a grouped library can show
- * a book twice). Resolves with that card's cover, or null when the book
+ * a game twice). Resolves with that card's cover, or null when the game
  * isn't in the library any more (its status moved it off this tab, say) or
  * the library never came.
  */
@@ -98,7 +98,7 @@ function whenLibraryShows(back: LibraryReturn): Promise<HTMLElement | null> {
       resolve(target);
     };
     const observer = new MutationObserver(() => {
-      // [data-library-view] marks the library proper (or its "no books"
+      // [data-library-view] marks the library proper (or its "no games"
       // box, or the reading room's house), not its loading skeleton.
       const view = document.querySelector("[data-library-view]");
       if (!view?.getClientRects().length) return;
@@ -106,7 +106,7 @@ function whenLibraryShows(back: LibraryReturn): Promise<HTMLElement | null> {
       window.scrollTo({ top: back.scrollY, behavior: "instant" });
       const distance = (el: HTMLElement) =>
         Math.abs(el.getBoundingClientRect().top + window.scrollY - back.coverY);
-      const target = libraryCovers(back.bookId).sort((a, b) => distance(a) - distance(b))[0];
+      const target = libraryCovers(back.gameId).sort((a, b) => distance(a) - distance(b))[0];
       if (!target) return finish(null);
 
       // A window resized since, say: bring the card into view so the cover
@@ -124,16 +124,16 @@ function whenLibraryShows(back: LibraryReturn): Promise<HTMLElement | null> {
 }
 
 /**
- * Closes a book's page back to the library it was opened from (the X,
- * components/close-book-button.tsx; lib/library-return.ts). `navigate` goes
+ * Closes a game's page back to the library it was opened from (the X,
+ * components/close-game-button.tsx; lib/library-return.ts). `navigate` goes
  * back to the library; this puts it back at the scroll position it had and
- * flies the book page's cover back into its card, the opening flight in
+ * flies the game page's cover back into its card, the opening flight in
  * reverse. Without view transitions or with animations off the library just
  * comes back where it was.
  */
 export function flyCoverHome(back: LibraryReturn, navigate: () => void): void {
   const hero = document.querySelector<HTMLElement>(
-    `[data-cover-for="${CSS.escape(back.bookId)}"]`,
+    `[data-cover-for="${CSS.escape(back.gameId)}"]`,
   );
   closing = true;
   const fly = hero && canFlyCover();

@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { BookFormat, BookOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
 
 /**
  * What a stored cover URL may be: a local path ("/api/covers/…") or an
  * http(s) URL. Not `javascript:` or `data:`, and not a protocol-relative
  * `//host/x` or `/\host/x`, which start with "/" but point off-site.
- * Shared by the book form and the backup import.
+ * Shared by the game form and the backup import.
  */
 export function isAllowedCoverUrl(s: string): boolean {
   return s === "" || /^\/(?![/\\])/.test(s) || /^https?:\/\//i.test(s);
@@ -38,9 +38,9 @@ export const changePasswordSchema = z.object({
   newPassword: passwordSchema,
 });
 
-/** Shared shape for creating and editing books. Forms submit strings; this
+/** Shared shape for creating and editing games. Forms submit strings; this
  *  schema does the coercion so server actions can pass FormData through. */
-export const bookSchema = z.object({
+export const gameSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(500),
   /** Comma-separated in the form; stored as an array. */
   authors: z
@@ -135,10 +135,10 @@ export const bookSchema = z.object({
     (v) => (typeof v === "string" && v.trim() === "" ? null : v),
     z.coerce.number().min(0).max(10000).nullable().optional().catch(null),
   ),
-  format: z.nativeEnum(BookFormat),
+  format: z.nativeEnum(GameFormat),
   /** Defaults to OWNED so a form that omits the field (or sends something
-   *  unexpected) still saves as an ordinary book on your shelf. */
-  ownership: z.nativeEnum(BookOwnership).catch(BookOwnership.OWNED),
+   *  unexpected) still saves as an ordinary game on your shelf. */
+  ownership: z.nativeEnum(GameOwnership).catch(GameOwnership.OWNED),
   openLibraryId: z
     .string()
     .trim()
@@ -180,7 +180,7 @@ function checkReadDates(
   }
 }
 
-/** Personal reading data, editable from the book detail page. */
+/** Personal reading data, editable from the game detail page. */
 export const readingSchema = z.object({
   status: z.nativeEnum(ReadingStatus),
   /** 1–10 half-star units; empty string/0 clears the rating. */
@@ -216,7 +216,7 @@ export const readingSchema = z.object({
   finishedUnknown: z.preprocess((v) => v === "on" || v === "true" || v === true, z.boolean()),
 }).superRefine(checkReadDates);
 
-/** A past read of a book (the read-history card). Everything is optional:
+/** A past read of a game (the read-history card). Everything is optional:
  *  "I know I read this in 2019" and a fully undated "read it before" are
  *  both valid entries. */
 export const pastReadSchema = z.object({
@@ -242,7 +242,7 @@ export const pastReadSchema = z.object({
     .optional(),
 }).superRefine(checkReadDates);
 
-/** A quote/highlight from the book detail page. Forms submit strings. */
+/** A quote/highlight from the game detail page. Forms submit strings. */
 export const quoteSchema = z.object({
   text: z
     .string()
@@ -295,5 +295,5 @@ export const shelfNameSchema = z
   .min(1, "Shelf name is required")
   .max(50, "Shelf name must be at most 50 characters");
 
-export type BookInput = z.infer<typeof bookSchema>;
+export type GameInput = z.infer<typeof gameSchema>;
 export type ReadingInput = z.infer<typeof readingSchema>;

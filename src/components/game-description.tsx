@@ -1,18 +1,18 @@
 "use client";
 
 import { useId, useLayoutEffect, useRef, useState } from "react";
-import { descriptionMayOverflow } from "@/lib/book-page";
+import { descriptionMayOverflow } from "@/lib/game-page";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 /**
- * A book's description cut to its first four lines, with a More button when
- * there is more (Preferences > Book page). The cut is only visual, so a
+ * A game's description cut to its first four lines, with a More button when
+ * there is more (Preferences > Game page). The cut is only visual, so a
  * screen reader still reads the whole text. Whether it runs over is guessed
  * on the server, so a long description has its button from the first paint,
  * then measured, and measured again when the width changes.
  */
-export function BookDescription({ text }: { text: string }) {
+export function GameDescription({ text }: { text: string }) {
   const id = useId();
   const ref = useRef<HTMLParagraphElement>(null);
   const [expanded, setExpanded] = useState(false);

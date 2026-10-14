@@ -7,7 +7,7 @@ import type { ImportSummary } from "@/lib/import";
 import { Button } from "@/components/ui/button";
 
 /**
- * "Restore backup" button on the account page: picks a MyReads export (zip
+ * "Restore backup" button on the account page: picks a MyGames export (zip
  * with covers, or a legacy JSON), posts it to /api/import, and reports what
  * was merged in.
  */
@@ -33,9 +33,9 @@ export function RestoreBackup() {
       // "1 cover", "2 covers"; "1 past read", "2 past reads".
       const n = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
       const parts = [
-        `${n(data.booksCreated, "book")} restored`,
-        data.booksSkipped > 0 ? `${data.booksSkipped} already present` : null,
-        data.booksInvalid > 0 ? `${data.booksInvalid} invalid` : null,
+        `${n(data.gamesCreated, "game")} restored`,
+        data.gamesSkipped > 0 ? `${data.gamesSkipped} already present` : null,
+        data.gamesInvalid > 0 ? `${data.gamesInvalid} invalid` : null,
         data.coversRestored > 0 ? `${n(data.coversRestored, "cover")} restored` : null,
         data.quotesRestored > 0 ? `${n(data.quotesRestored, "quote")} restored` : null,
         data.readsRestored > 0 ? `${n(data.readsRestored, "past read")} restored` : null,
@@ -48,7 +48,7 @@ export function RestoreBackup() {
       ].filter(Boolean);
       // A restore that stopped early must not read as a clean success — say
       // what landed and that re-running finishes the job (already-restored
-      // books are skipped as duplicates).
+      // games are skipped as duplicates).
       setMessage(
         data.incomplete
           ? `${parts.join(", ")} — then stopped early (${data.incomplete.reason}). ` +
@@ -57,7 +57,7 @@ export function RestoreBackup() {
       );
       router.refresh();
     } catch {
-      setMessage("Restore failed — is this a MyReads export file?");
+      setMessage("Restore failed — is this a MyGames export file?");
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = "";

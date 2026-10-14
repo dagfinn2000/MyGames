@@ -198,7 +198,7 @@ export function AvatarMaker({
           <span>
             Show me in the reading room
             <span className="block text-xs text-muted-foreground">
-              Walking about, or in the armchair while you&apos;re reading a book.
+              Walking about, or in the armchair while you&apos;re reading a game.
             </span>
           </span>
         </label>
@@ -474,7 +474,7 @@ export function AvatarMaker({
 }
 
 /** The avatar against a bit of wall: on its feet, and in the armchair with
- *  a book. */
+ *  a game. */
 function Stage({ look, pet, scene }: { look: AvatarLook; pet: Pet; scene: Record<string, string | undefined> }) {
   const avatar = useAvatar(look, pet)!;
   const s = 3;

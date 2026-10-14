@@ -1,9 +1,9 @@
-import { BookFormat } from "@prisma/client";
+import { GameFormat } from "@prisma/client";
 import type { AudiobookUnit, EbookUnit, QuickLogSteps } from "@/lib/preferences";
 
 /**
- * Reading positions in a book's own unit. A position is always stored as a
- * page (Book.currentPage, ProgressEntry.page), so stats, goals and the
+ * Reading positions in a game's own unit. A position is always stored as a
+ * page (Game.currentPage, ProgressEntry.page), so stats, goals and the
  * reading calendar never need to know about units. An ebook can be shown and
  * entered in percent, and an audiobook in time listened; both convert
  * through the page count (and, for time, the audiobook's length).
@@ -14,7 +14,7 @@ export type ProgressUnit = "page" | "percent" | "time";
 export interface UnitInfo {
   /** The unit in use. */
   unit: ProgressUnit;
-  /** The unit Preferences asked for. Differs from `unit` while the book
+  /** The unit Preferences asked for. Differs from `unit` while the game
    *  lacks what that unit needs. */
   wanted: ProgressUnit;
   pageCount: number | null;
@@ -23,27 +23,27 @@ export interface UnitInfo {
   fallback: null | "noPageCount" | "noLength";
 }
 
-export interface UnitBook {
-  format: BookFormat;
+export interface UnitGame {
+  format: GameFormat;
   pageCount: number | null;
   lengthMinutes: number | null;
 }
 
-/** Which unit a book's progress is shown and entered in. Physical books are
+/** Which unit a game's progress is shown and entered in. Physical games are
  *  always pages; percent needs a page count, time needs that and the
  *  audiobook's length. */
 export function unitFor(
-  book: UnitBook,
+  game: UnitGame,
   prefs: { ebookUnit: EbookUnit; audiobookUnit: AudiobookUnit },
 ): UnitInfo {
   const wanted: ProgressUnit =
-    book.format === BookFormat.EBOOK
+    game.format === GameFormat.EBOOK
       ? prefs.ebookUnit
-      : book.format === BookFormat.AUDIOBOOK
+      : game.format === GameFormat.AUDIOBOOK
         ? prefs.audiobookUnit
         : "page";
-  const pageCount = book.pageCount || null;
-  const lengthMinutes = book.format === BookFormat.AUDIOBOOK ? book.lengthMinutes || null : null;
+  const pageCount = game.pageCount || null;
+  const lengthMinutes = game.format === GameFormat.AUDIOBOOK ? game.lengthMinutes || null : null;
   const base = { wanted, pageCount, lengthMinutes };
   if (wanted !== "page" && !pageCount) return { ...base, unit: "page", fallback: "noPageCount" };
   if (wanted === "time" && !lengthMinutes) return { ...base, unit: "page", fallback: "noLength" };
@@ -55,9 +55,9 @@ function clamp(n: number, lo: number, hi: number): number {
 }
 
 /**
- * A fraction of the book as a page. Anything above nothing is at least
- * page 1 (so 1% of a short book still logs), and anything short of the
- * whole book stays short of the last page (so 99% never asks "Mark as
+ * A fraction of the game as a page. Anything above nothing is at least
+ * page 1 (so 1% of a short game still logs), and anything short of the
+ * whole game stays short of the last page (so 99% never asks "Mark as
  * Read?").
  */
 function fractionToPage(fraction: number, pageCount: number): number {
@@ -128,21 +128,21 @@ export function formatLength(minutes: number): string {
   return m === 0 ? `${h} h` : `${h} h ${m} min`;
 }
 
-/** A page as a value in the book's unit (a page, a percent, minutes). */
+/** A page as a value in the game's unit (a page, a percent, minutes). */
 export function pageToUnit(page: number, info: UnitInfo): number {
   if (info.unit === "percent") return pageToPercent(page, info.pageCount!);
   if (info.unit === "time") return pageToMinutes(page, info.pageCount!, info.lengthMinutes!);
   return page;
 }
 
-/** A value in the book's unit as a page. */
+/** A value in the game's unit as a page. */
 export function unitToPage(value: number, info: UnitInfo): number {
   if (info.unit === "percent") return percentToPage(value, info.pageCount!);
   if (info.unit === "time") return minutesToPage(value, info.lengthMinutes!, info.pageCount!);
   return value;
 }
 
-/** A value in the book's unit as an input box shows it. */
+/** A value in the game's unit as an input box shows it. */
 export function unitText(value: number, info: UnitInfo): string {
   return info.unit === "time" ? formatDuration(value) : String(value);
 }
@@ -161,13 +161,13 @@ export function unitMax(info: UnitInfo): number | null {
 
 /** The refusal for a page past the last one, shared with the server. */
 export function pastTheEnd(page: number, pageCount: number): string {
-  return `Page ${page} is past the end of the book (${pageCount} pages).`;
+  return `Page ${page} is past the end of the game (${pageCount} pages).`;
 }
 
 export type ParsedPosition = { value: number; page: number } | { error: string };
 
 /**
- * What's typed in a progress box: the value in the book's unit and the page
+ * What's typed in a progress box: the value in the game's unit and the page
  * it is saved as, or why it can't be saved. Null when the box is empty.
  */
 export function parseUnitText(text: string, info: UnitInfo): ParsedPosition | null {
@@ -206,7 +206,7 @@ export function parseBoxText(text: string, info: UnitInfo, stored: number | null
   return parseUnitText(text, info);
 }
 
-/** A value in the book's unit in running text: "page 212", "42%", "5:11". */
+/** A value in the game's unit in running text: "page 212", "42%", "5:11". */
 export function formatUnitValue(value: number, info: UnitInfo, opts?: { capital?: boolean }): string {
   if (info.unit === "percent") return `${value}%`;
   if (info.unit === "time") return formatDuration(value);
@@ -233,14 +233,14 @@ export function progressFigure(page: number, info: UnitInfo): string {
 }
 
 export interface LogStep {
-  /** In the book's unit: pages, percentage points or minutes. */
+  /** In the game's unit: pages, percentage points or minutes. */
   amount: number;
   label: string;
   ariaLabel: string;
 }
 
-/** The step buttons next to the progress box, in the book's own unit.
- *  "+5%" is 5% of the book whatever the unit, so it needs a page count;
+/** The step buttons next to the progress box, in the game's own unit.
+ *  "+5%" is 5% of the game whatever the unit, so it needs a page count;
  *  without one the buttons are +10 and +25. */
 export function stepsFor(choice: QuickLogSteps, info: UnitInfo): LogStep[] {
   if (choice === "5pct" && info.pageCount) {
@@ -250,7 +250,7 @@ export function stepsFor(choice: QuickLogSteps, info: UnitInfo): LogStep[] {
         : info.unit === "time"
           ? Math.max(Math.round(info.lengthMinutes! * 0.05), 1)
           : Math.max(Math.round(info.pageCount * 0.05), 1);
-    return [{ amount, label: "+5%", ariaLabel: "Add 5% of the book" }];
+    return [{ amount, label: "+5%", ariaLabel: "Add 5% of the game" }];
   }
   const amounts = choice === "5-10" ? [5, 10] : [10, 25];
   return amounts.map((n) =>
@@ -264,7 +264,7 @@ export function stepsFor(choice: QuickLogSteps, info: UnitInfo): LogStep[] {
 
 /** The box's text after a step button: the step added to what's typed, or
  *  to the current position when nothing valid is, and kept within the
- *  book. */
+ *  game. */
 export function addStep(text: string, step: number, currentPage: number | null, info: UnitInfo): string {
   const typed = parseUnitText(text, info);
   const base =
@@ -273,7 +273,7 @@ export function addStep(text: string, step: number, currentPage: number | null, 
   return unitText(Math.min(base + step, max ?? 100_000), info);
 }
 
-/** A setting that can't apply to this book yet, split around the words
+/** A setting that can't apply to this game yet, split around the words
  *  that link to its Edit page. */
 export function fallbackHint(info: UnitInfo): { before: string; after: string } | null {
   if (info.fallback === "noLength") {

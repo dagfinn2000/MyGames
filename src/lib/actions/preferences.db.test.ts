@@ -59,18 +59,18 @@ describe("savePreferences", () => {
     expect(await storedPreferences()).toEqual({ textSize: "normal" });
   });
 
-  it("stores only the Find it at links that are safe, and every book-page card", async () => {
+  it("stores only the Find it at links that are safe, and every game-page card", async () => {
     await savePreferences({
       findLinks: [
         { name: "Sneaky", url: "javascript:alert(1)" },
         { name: " Library ", url: " https://lib.example/search?q={isbn} " },
         { name: "Unknown", url: "https://lib.example/?q={publisher}" },
       ],
-      bookPageCards: ["quotes", "bogus"],
+      gamePageCards: ["quotes", "bogus"],
     } as unknown as Parameters<typeof savePreferences>[0]);
     expect(await storedPreferences()).toEqual({
       findLinks: [{ name: "Library", url: "https://lib.example/search?q={isbn}" }],
-      bookPageCards: ["quotes", "shelves", "reading", "history", "lending"],
+      gamePageCards: ["quotes", "shelves", "reading", "history", "lending"],
     });
   });
 
@@ -147,11 +147,11 @@ describe("setReadingGoal", () => {
     expect(goal).toMatchObject({ target: 8000, unit: "PAGES", countRereads: false });
   });
 
-  it("falls back to a book count for an unknown unit", async () => {
+  it("falls back to a game count for an unknown unit", async () => {
     await setReadingGoal(
       goalForm({ year: "2026", target: "12", unit: "CHAPTERS", countRereads: "on" }),
     );
     const goal = await prisma.readingGoal.findFirstOrThrow({ where: { userId } });
-    expect(goal).toMatchObject({ target: 12, unit: "BOOKS", countRereads: true });
+    expect(goal).toMatchObject({ target: 12, unit: "GAMES", countRereads: true });
   });
 });

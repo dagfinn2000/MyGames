@@ -7,7 +7,7 @@ const earlier = new Date("2026-09-01T00:00:00.000Z");
 const blank = { dateStarted: null, dateFinished: null, currentPage: null };
 
 describe("settleReadingState", () => {
-  it("dates and counts a book marked Read without a finish date", () => {
+  it("dates and counts a game marked Read without a finish date", () => {
     const s = settleReadingState(ReadingStatus.READING, { ...blank, status: ReadingStatus.READ }, 2, now);
     expect(s.dateFinished).toBe(now);
     expect(s.timesRead).toBe(3);
@@ -24,7 +24,7 @@ describe("settleReadingState", () => {
     expect(s.timesRead).toBe(1);
   });
 
-  it("uncounts the current pass when a book leaves Read", () => {
+  it("uncounts the current pass when a game leaves Read", () => {
     const s = settleReadingState(
       ReadingStatus.READ,
       { ...blank, status: ReadingStatus.WANT_TO_READ, dateFinished: earlier },
@@ -34,21 +34,21 @@ describe("settleReadingState", () => {
     expect(s.timesRead).toBe(1);
   });
 
-  it("starts today when a book moves from Want to Read (or is new) to Reading", () => {
+  it("starts today when a game moves from Want to Read (or is new) to Reading", () => {
     for (const prev of [ReadingStatus.WANT_TO_READ, null]) {
       const s = settleReadingState(prev, { ...blank, status: ReadingStatus.READING }, 0, now);
       expect(s.dateStarted).toBe(now);
     }
   });
 
-  it("does not move the start date of a book resumed from Did Not Finish", () => {
+  it("does not move the start date of a game resumed from Did Not Finish", () => {
     // Its log entries are placed relative to the start date; moving it to
     // today would re-credit them.
     const s = settleReadingState(ReadingStatus.DNF, { ...blank, status: ReadingStatus.READING }, 0, now);
     expect(s.dateStarted).toBeNull();
   });
 
-  it("leaves a book marked Read undated when asked to, and still counts the read", () => {
+  it("leaves a game marked Read undated when asked to, and still counts the read", () => {
     const s = settleReadingState(
       ReadingStatus.WANT_TO_READ,
       { ...blank, status: ReadingStatus.READ },
@@ -71,14 +71,14 @@ describe("settleReadingState", () => {
     expect(s.dateFinished).toBe(earlier);
   });
 
-  it("keeps an already-Read book undated when it is saved without a date", () => {
+  it("keeps an already-Read game undated when it is saved without a date", () => {
     // A later save (a new rating) must not stamp today on it.
     const s = settleReadingState(ReadingStatus.READ, { ...blank, status: ReadingStatus.READ }, 0, now);
     expect(s.dateFinished).toBeNull();
     expect(s.timesRead).toBe(1);
   });
 
-  it("still finishes today when a book moves to Read without a date", () => {
+  it("still finishes today when a game moves to Read without a date", () => {
     const s = settleReadingState(ReadingStatus.READING, { ...blank, status: ReadingStatus.READ }, 0, now, {});
     expect(s.dateFinished).toBe(now);
   });

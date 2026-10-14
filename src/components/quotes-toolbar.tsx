@@ -22,7 +22,7 @@ import {
 const ORDER_OPTIONS: { value: QuoteOrder; label: string }[] = [
   { value: "newest", label: "Newest first" },
   { value: "oldest", label: "Oldest first" },
-  { value: "book", label: "By book" },
+  { value: "game", label: "By game" },
   { value: "shuffle", label: "Shuffle" },
 ];
 
@@ -40,7 +40,7 @@ export function QuotesToolbar({
   hasQuotes,
 }: {
   params: Omit<QuotesParams, "limit">;
-  /** Shelves and tags whose books have quotes. */
+  /** Shelves and tags whose games have quotes. */
   shelves: { id: string; name: string }[];
   tags: string[];
   /** False when there are no quotes at all: only the search box shows. */
@@ -69,7 +69,7 @@ export function QuotesToolbar({
 
   function toggleGroup() {
     navigate({ group: !params.group });
-    savePreferences({ quotesGroupByBook: !params.group }).catch(() => {});
+    savePreferences({ quotesGroupByGame: !params.group }).catch(() => {});
   }
 
   // From: one shelf or one tag. A pick that's no longer offered (its last
@@ -83,7 +83,7 @@ export function QuotesToolbar({
       : "all";
   const fromLabel = params.shelfId
     ? (shelf?.name ?? "shelf not found")
-    : params.tag || "all books";
+    : params.tag || "all games";
   const missingShelf = Boolean(params.shelfId) && !shelf;
   const missingTag = !params.shelfId && Boolean(params.tag) && !tags.includes(params.tag);
   const showFrom = shelves.length + tags.length > 0 || fromValue !== "all";
@@ -107,7 +107,7 @@ export function QuotesToolbar({
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search quotes, notes, books…"
+          placeholder="Search quotes, notes, games…"
           aria-label="Search quotes"
           className="w-full pl-8"
         />
@@ -121,7 +121,7 @@ export function QuotesToolbar({
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">From: all books</SelectItem>
+            <SelectItem value="all">From: all games</SelectItem>
             {(shelves.length > 0 || missingShelf) && (
               <SelectGroup>
                 <SelectLabel>Shelves</SelectLabel>
@@ -185,7 +185,7 @@ export function QuotesToolbar({
             )}
           >
             {params.group ? <Check data-slot="icon" /> : <BookCopy data-slot="icon" />}
-            Group by book
+            Group by game
           </Button>
         </div>
       )}

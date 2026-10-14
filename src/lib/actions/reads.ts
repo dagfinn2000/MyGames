@@ -8,50 +8,50 @@ import { pastReadSchema } from "@/lib/validation";
 import { requireUserId } from "@/lib/actions/helpers";
 import type { ActionState } from "@/lib/actions/helpers";
 
-/** Keep Book.timesRead = archived passes + the current one when finished.
+/** Keep Game.timesRead = archived passes + the current one when finished.
  *  Runs on the caller's transaction client so the recount sees (and commits
  *  with) the write that made it necessary. */
 async function syncTimesRead(
   db: Prisma.TransactionClient,
-  bookId: string,
+  gameId: string,
 ): Promise<void> {
-  const book = await db.book.findUnique({
-    where: { id: bookId },
+  const game = await db.game.findUnique({
+    where: { id: gameId },
     select: { status: true, _count: { select: { reads: true } } },
   });
-  if (!book) return;
-  await db.book.update({
-    where: { id: bookId },
+  if (!game) return;
+  await db.game.update({
+    where: { id: gameId },
     data: {
       timesRead:
-        book._count.reads + (book.status === ReadingStatus.READ ? 1 : 0),
+        game._count.reads + (game.status === ReadingStatus.READ ? 1 : 0),
     },
   });
 }
 
-function revalidateBook(bookId: string) {
-  revalidatePath("/books");
-  revalidatePath(`/books/${bookId}`);
+function revalidateGame(gameId: string) {
+  revalidatePath("/games");
+  revalidatePath(`/games/${gameId}`);
   revalidatePath("/stats");
 }
 
 /**
  * Start a re-read: archive the current finished pass (dates + what you rated
- * it that time) into the Read table, then flip the book back to Currently
- * Reading starting today. The overall rating on the book stays yours to keep
+ * it that time) into the Read table, then flip the game back to Currently
+ * Reading starting today. The overall rating on the game stays yours to keep
  * or change.
  */
-export async function readAgain(bookId: string): Promise<void> {
+export async function readAgain(gameId: string): Promise<void> {
   const userId = await requireUserId();
 
-  const book = await prisma.book.findFirst({
-    where: { id: bookId, userId },
+  const game = await prisma.game.findFirst({
+    where: { id: gameId, userId },
     select: { status: true, dateStarted: true, dateFinished: true, rating: true },
   });
-  if (!book || book.status !== ReadingStatus.READ) return;
+  if (!game || game.status !== ReadingStatus.READ) return;
 
   const now = new Date();
-  // One atomic unit — failing between these writes would strand the book
+  // One atomic unit — failing between these writes would strand the game
   // half-archived. The progress entry is the new pass's page-0 anchor at the
   // exact re-read moment: the date form field only keeps day precision, so
   // without it a re-read started on a day with already-logged entries would
@@ -60,14 +60,14 @@ export async function readAgain(bookId: string): Promise<void> {
   await prisma.$transaction([
     prisma.read.create({
       data: {
-        bookId,
-        dateStarted: book.dateStarted,
-        dateFinished: book.dateFinished,
-        rating: book.rating,
+        gameId,
+        dateStarted: game.dateStarted,
+        dateFinished: game.dateFinished,
+        rating: game.rating,
       },
     }),
-    prisma.book.update({
-      where: { id: bookId },
+    prisma.game.update({
+      where: { id: gameId },
       data: {
         status: ReadingStatus.READING,
         dateStarted: now,
@@ -76,27 +76,27 @@ export async function readAgain(bookId: string): Promise<void> {
       },
     }),
     prisma.progressEntry.create({
-      data: { bookId, page: 0, date: now },
+      data: { gameId, page: 0, date: now },
     }),
   ]);
 
-  revalidateBook(bookId);
+  revalidateGame(gameId);
 }
 
-/** Record a read from before the app (the form carries the bookId). */
+/** Record a read from before the app (the form carries the gameId). */
 export async function addPastRead(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   const userId = await requireUserId();
 
-  const bookId = formData.get("bookId");
-  if (typeof bookId !== "string" || !bookId) return { error: "Book not found" };
-  const book = await prisma.book.findFirst({
-    where: { id: bookId, userId },
+  const gameId = formData.get("gameId");
+  if (typeof gameId !== "string" || !gameId) return { error: "Game not found" };
+  const game = await prisma.game.findFirst({
+    where: { id: gameId, userId },
     select: { id: true },
   });
-  if (!book) return { error: "Book not found" };
+  if (!game) return { error: "Game not found" };
 
   const parsed = pastReadSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
@@ -107,21 +107,21 @@ export async function addPastRead(
   await prisma.$transaction(async (tx) => {
     await tx.read.create({
       data: {
-        bookId,
+        gameId,
         dateStarted: data.dateStarted ?? null,
         dateFinished: data.dateFinished ?? null,
         rating: data.rating || null, // 0 = unrated
         note: data.note ?? null,
       },
     });
-    await syncTimesRead(tx, bookId);
+    await syncTimesRead(tx, gameId);
   });
 
-  revalidateBook(bookId);
+  revalidateGame(gameId);
   return { success: true };
 }
 
-/** Edit a past read (ownership checked through the book). */
+/** Edit a past read (ownership checked through the game). */
 export async function updatePastRead(
   readId: string,
   _prev: ActionState,
@@ -130,8 +130,8 @@ export async function updatePastRead(
   const userId = await requireUserId();
 
   const existing = await prisma.read.findFirst({
-    where: { id: readId, book: { userId } },
-    select: { bookId: true },
+    where: { id: readId, game: { userId } },
+    select: { gameId: true },
   });
   if (!existing) return { error: "Read not found" };
 
@@ -153,24 +153,24 @@ export async function updatePastRead(
     },
   });
 
-  revalidateBook(existing.bookId);
+  revalidateGame(existing.gameId);
   return { success: true };
 }
 
-/** Delete a past read (ownership checked through the book). */
+/** Delete a past read (ownership checked through the game). */
 export async function deletePastRead(readId: string): Promise<void> {
   const userId = await requireUserId();
 
   const existing = await prisma.read.findFirst({
-    where: { id: readId, book: { userId } },
-    select: { bookId: true },
+    where: { id: readId, game: { userId } },
+    select: { gameId: true },
   });
   if (!existing) return;
 
   await prisma.$transaction(async (tx) => {
     await tx.read.delete({ where: { id: readId } });
-    await syncTimesRead(tx, existing.bookId);
+    await syncTimesRead(tx, existing.gameId);
   });
 
-  revalidateBook(existing.bookId);
+  revalidateGame(existing.gameId);
 }

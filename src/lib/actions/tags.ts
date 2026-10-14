@@ -19,7 +19,7 @@ import {
 
 export interface TagActionResult {
   error?: string;
-  /** Number of books whose tags changed. */
+  /** Number of games whose tags changed. */
   count?: number;
   /** A rule for future imports was stored (renameTag's remember,
    *  deleteTag's neverImport). */
@@ -35,7 +35,7 @@ const renameOptions = z.object({ remember: z.boolean().optional() }).optional().
 const deleteOptions = z.object({ neverImport: z.boolean().optional() }).optional().catch(undefined);
 
 /**
- * Changes the user's rules for imported subjects (Preferences, New books).
+ * Changes the user's rules for imported subjects (Preferences, New games).
  * The row is locked while it is read and written, so two quick rule edits
  * can't each start from the same list and drop the other's change; the
  * write is the same jsonb merge as savePreferences, so other settings are
@@ -57,10 +57,10 @@ async function editTagRules(userId: string, change: (rules: TagRules) => TagRule
 }
 
 /**
- * Renames a tag on every book that carries it. Renaming to a tag that
- * already exists merges the two (the array is deduped per book). With
+ * Renames a tag on every game that carries it. Renaming to a tag that
+ * already exists merges the two (the array is deduped per game). With
  * `remember`, catalogue subjects by the old name are imported under the
- * new one from now on, even if no book carried it yet.
+ * new one from now on, even if no game carried it yet.
  */
 export async function renameTag(
   from: string,
@@ -72,22 +72,22 @@ export async function renameTag(
   const target = normalizeTag(to);
   if (!source || !target) return { error: "Tag name is required" };
   if (target.length > TAG_RULE_MAX) return { error: "Tag must be at most 50 characters" };
-  // The book form splits tags on commas, so one with a comma in it would
-  // come apart the next time the book is saved.
+  // The game form splits tags on commas, so one with a comma in it would
+  // come apart the next time the game is saved.
   if (target.includes(",")) return { error: "Tags can't contain commas." };
   if (source === target) return { count: 0 };
-  // A tag too long to be a rule (an old import) is still renamed on books.
+  // A tag too long to be a rule (an old import) is still renamed on games.
   const remember =
     renameOptions.parse(options)?.remember === true && normalizeRuleTag(source) !== null;
 
-  const books = await prisma.book.findMany({
+  const games = await prisma.game.findMany({
     where: { userId, tags: { has: source } },
     select: { id: true, tags: true },
   });
 
   await prisma.$transaction(
-    books.map((b) =>
-      prisma.book.update({
+    games.map((b) =>
+      prisma.game.update({
         where: { id: b.id },
         data: {
           tags: [...new Set(b.tags.map((t) => (t === source ? target : t)))],
@@ -97,13 +97,13 @@ export async function renameTag(
   );
   if (remember) await editTagRules(userId, (rules) => withRenameRule(rules, source, target));
 
-  revalidatePath("/books");
+  revalidatePath("/games");
   revalidatePath("/stats");
-  return { count: books.length, ...(remember && { ruleSaved: true }) };
+  return { count: games.length, ...(remember && { ruleSaved: true }) };
 }
 
 /**
- * Removes a tag from every book that carries it. Books are untouched
+ * Removes a tag from every game that carries it. Games are untouched
  * otherwise. With `neverImport`, catalogue subjects by that name are left
  * out of future imports.
  */
@@ -117,14 +117,14 @@ export async function deleteTag(
   const neverImport =
     deleteOptions.parse(options)?.neverImport === true && normalizeRuleTag(tag) !== null;
 
-  const books = await prisma.book.findMany({
+  const games = await prisma.game.findMany({
     where: { userId, tags: { has: tag } },
     select: { id: true, tags: true },
   });
 
   await prisma.$transaction(
-    books.map((b) =>
-      prisma.book.update({
+    games.map((b) =>
+      prisma.game.update({
         where: { id: b.id },
         data: { tags: b.tags.filter((t) => t !== tag) },
       }),
@@ -132,9 +132,9 @@ export async function deleteTag(
   );
   if (neverImport) await editTagRules(userId, (rules) => withSkipRule(rules, tag));
 
-  revalidatePath("/books");
+  revalidatePath("/games");
   revalidatePath("/stats");
-  return { count: books.length, ...(neverImport && { ruleSaved: true }) };
+  return { count: games.length, ...(neverImport && { ruleSaved: true }) };
 }
 
 const ruleSchema = z

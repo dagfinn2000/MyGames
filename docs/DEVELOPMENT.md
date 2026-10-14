@@ -1,6 +1,6 @@
-# Developing MyReads
+# Developing MyGames
 
-How to run MyReads from source, run the tests, and find your way around the
+How to run MyGames from source, run the tests, and find your way around the
 code. To just use the app, follow the install steps in the
 [README](../README.md) instead.
 
@@ -36,7 +36,7 @@ password matches `POSTGRES_PASSWORD`. Every setting is described in
 | `npm run db:migrate` | Apply database migrations |
 | `npm run db:studio` | Browse the database in Prisma Studio |
 | `npm run db:prune` | Delete expired search-cache rows (also runs on every container start) |
-| `npm run covers:prune` | Report cover files no book uses; add `-- --yes` to delete them |
+| `npm run covers:prune` | Report cover files no game uses; add `-- --yes` to delete them |
 
 ## Tests
 
@@ -51,10 +51,10 @@ password matches `POSTGRES_PASSWORD`. Every setting is described in
   type detection, and the size limits on uploads and backup files.
 - **`npm run test:db:docker`** starts a `postgres:16-alpine` container, runs
   the database tests, and removes it. They cover backup and restore (the
-  round trip, merging, duplicates, and settings), re-read counts, the book
+  round trip, merging, duplicates, and settings), re-read counts, the game
   form and the reading log it writes, library search, bulk edit, saving
   preferences and saved views, and the checks that stop one user from
-  touching another user's books.
+  touching another user's games.
 
 These run against a real database because a stand-in would copy Postgres's
 behaviour wrongly in exactly the places that matter, and because restore is
@@ -79,8 +79,8 @@ type check, both test suites and a production build on every pull request.
 src/
 ├─ app/
 │  ├─ (auth)/          login and register pages
-│  ├─ (app)/           pages behind login: books (the library), books/new,
-│  │                   books/[id], books/[id]/edit, books/check, quotes,
+│  ├─ (app)/           pages behind login: games (the library), games/new,
+│  │                   games/[id], games/[id]/edit, games/check, quotes,
 │  │                   room (the reading room), stats, stats/year/[year],
 │  │                   account
 │  └─ api/             Auth.js, register, metadata search/details/covers,
@@ -98,15 +98,15 @@ src/
 ├─ lib/
 │  ├─ actions/         server actions for every change, each checking that
 │  │                   the data belongs to the signed-in user
-│  ├─ metadata/        Open Library, Google Books and nb.no clients, plus
+│  ├─ metadata/        Open Library, Google Games and nb.no clients, plus
 │  │                   the database cache
 │  ├─ cover-art.ts     colours and layout of drawn covers
-│  ├─ cover-flight.ts  a book's cover flying to its page, and back to the
+│  ├─ cover-flight.ts  a game's cover flying to its page, and back to the
 │  │                   library when the page is closed
 │  ├─ covers.ts        downloading and caching cover images
 │  ├─ dates.ts         which calendar day a date falls on, by time zone
 │  ├─ library-return.ts
-│  │                   where a book page's X goes back to: the library
+│  │                   where a game page's X goes back to: the library
 │  │                   page it was opened from, and how far down it was
 │  ├─ avatar.ts        the avatar's choices and their colours
 │  ├─ motion.ts        whether animations may run right now
@@ -130,8 +130,8 @@ src/
 
 ## Design decisions
 
-- **Reading data lives on the Book row.** Each book belongs to one user, so
-  a separate "reading entry" table would add nothing. The Book row holds the
+- **Reading data lives on the Game row.** Each game belongs to one user, so
+  a separate "reading entry" table would add nothing. The Game row holds the
   latest read; earlier reads are archived in the `Read` table, and
   `timesRead` is worked out from both.
 - **Ratings are stored as whole numbers from 1 to 10**, in half stars. `7`
@@ -146,7 +146,7 @@ src/
   changed keys in SQL, so two quick changes can't undo each other.
 - **Appearance settings are attributes on `<html>`.** The root layout
   writes the theme, accent, fonts, corners, card style, background, cover
-  style, book page backdrop and animation setting as `data-*` attributes,
+  style, game page backdrop and animation setting as `data-*` attributes,
   and
   [globals.css](../src/app/globals.css) does the rest, so server and client
   components never pass them down. Preferences sets the attribute at once
@@ -154,7 +154,7 @@ src/
 - **Motion always has an off switch.** One CSS rule stops every animation
   and transition when the device asks for reduced motion or Animations is
   off, and animations started from script (confetti, the theme reveal, the
-  cover flying to a book's page and back) check the same two things through
+  cover flying to a game's page and back) check the same two things through
   `motionAllowed()` in [motion.ts](../src/lib/motion.ts).
 - **Moving backgrounds slide pictures, they don't redraw them.**
   [background-scene.tsx](../src/components/background-scene.tsx) puts one
@@ -214,10 +214,10 @@ src/
   used, so a flaky Open Library doesn't break lookups that worked before.
 - **Cover images are stored locally.** After a save, the cover is downloaded
   to `COVERS_DIR` in the background (with `after()`, so saving never waits
-  for it) and the book is pointed at `/api/covers/<id>-<hash>.<ext>`. The
+  for it) and the game is pointed at `/api/covers/<id>-<hash>.<ext>`. The
   hash in the name means a changed cover gets a new URL, so browsers can
   cache covers forever. A slow host gets one retry. If the download fails,
-  the book keeps the remote URL. A cover file is deleted only when no book
+  the game keeps the remote URL. A cover file is deleted only when no game
   uses it any more.
 - **Changes go through server actions** that check ownership, and pages
   are server components that query Prisma directly. API routes are used

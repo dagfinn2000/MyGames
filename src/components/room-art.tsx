@@ -66,8 +66,8 @@ const KEY: Record<string, Paint> = {
   i: "flower",
   E: "lamp-green",
   K: "ink",
-  "1": "book",
-  "2": "book-lo",
+  "1": "game",
+  "2": "game-lo",
   U: "cushion",
   V: "cushion-lo",
   z: "steam",
@@ -551,8 +551,8 @@ export const SIDE_TABLE = art([
 ]);
 export const TEACUP = art(["yyyy.", "yyyyY", "Yyyy.", "YYYYY"]);
 export const STEAM = [grid(["z.", ".z", "z."]), grid([".z", "z.", ".z"])];
-/** The book being read, open on the table, in its spine colour. */
-export const OPEN_BOOK = art([".yyy.yyy.", "yyyyYyyyy", "211111112"]);
+/** The game being read, open on the table, in its spine colour. */
+export const OPEN_GAME = art([".yyy.yyy.", "yyyyYyyyy", "211111112"]);
 
 /** Floor lamp, 12 × 60. */
 export function floorLampArt(): Art {
@@ -710,7 +710,7 @@ export const PENDULUM = [
 /** A writing desk with a green banker's lamp, 34 × 36. */
 export function deskArt(): Art {
   const R: Rect[] = [];
-  // Lamp, ink and books on top.
+  // Lamp, ink and games on top.
   R.push(...grid(["..EEEEE..", ".EEEEEEE.", "EEEEEEEEE", "....n....", "....n....", "...nBn...", "..nBBBn.."], 2, 3));
   R.push(...grid(["33333333", "44444444", "yyyyyyYy", "KKKKKKKK"], 13, 6));
   R.push(...grid(["....y", "...y.", "..y..", ".KK..", "KKKK."], 25, 5));

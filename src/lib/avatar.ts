@@ -2,7 +2,7 @@
  * The reader's avatar in the reading room (Decorate › Avatar on the Room
  * page): how they look. Kept free of React so Preferences can check the
  * choices. components/avatar-art.ts draws them, and reading-room.tsx has
- * them walk about the house, or sit in the armchair with the book they're
+ * them walk about the house, or sit in the armchair with the game they're
  * reading.
  */
 
@@ -163,9 +163,9 @@ export const AVATAR_ACCESSORIES = [
 ] as const;
 export type AvatarAccessory = (typeof AVATAR_ACCESSORIES)[number];
 
-/** Something carried about the house (not while reading: then the book's
+/** Something carried about the house (not while reading: then the game's
  *  in their hands). */
-export const AVATAR_HELD = ["nothing", "mug", "book", "lantern", "wand", "teddy", "sunflower"] as const;
+export const AVATAR_HELD = ["nothing", "mug", "game", "lantern", "wand", "teddy", "sunflower"] as const;
 export type AvatarHeld = (typeof AVATAR_HELD)[number];
 
 /** Clothes colours: tops, and what's worn below. */
@@ -589,7 +589,7 @@ export const AVATAR_LABELS: Record<string, string> = {
   // In your hand
   nothing: "Nothing",
   mug: "A mug of tea",
-  book: "A book",
+  game: "A game",
   lantern: "A lantern",
   wand: "A magic wand",
   teddy: "A teddy bear",

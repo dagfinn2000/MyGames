@@ -1,6 +1,6 @@
 -- Accent-insensitive search: "bronte" finds "Brontë", "bjorn" finds "Bjørn".
 --
--- Book.searchText was the lowercased title + authors + series. It is now
+-- Game.searchText was the lowercased title + authors + series. It is now
 -- also accent-folded (foldForSearch in src/lib/utils.ts), and the words
 -- typed into search are folded the same way. Existing rows are folded here
 -- with the same steps, in the same order, starting from the text that is
@@ -10,8 +10,8 @@
 --   3. recompose (NFC) whatever else was decomposed (kana, hangul),
 --   4. spell out letters NFD leaves whole: ø đ ð ł æ œ ß þ.
 -- If foldForSearch changes, rows saved before the change keep the old
--- folding until the book is edited, so change both together.
-UPDATE "Book"
+-- folding until the game is edited, so change both together.
+UPDATE "Game"
 SET "searchText" =
   replace(replace(replace(replace(
     translate(

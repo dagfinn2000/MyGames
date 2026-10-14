@@ -2,8 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { buildBookWhere, parseFilters } from "@/lib/library-filters";
-import { resolveBookWhere } from "@/lib/library-where";
+import { buildGameWhere, parseFilters } from "@/lib/library-filters";
+import { resolveGameWhere } from "@/lib/library-where";
 import type { SearchField } from "@/lib/preferences";
 import { buildSearchText, foldForSearch } from "@/lib/utils";
 
@@ -21,15 +21,15 @@ beforeEach(async () => {
     data: { username: `srch-${Date.now()}-${Math.random()}`, passwordHash: "x" },
   });
   userId = user.id;
-  const books: [string, string[]][] = [
+  const games: [string, string[]][] = [
     ["The Hobbit", ["J.R.R. Tolkien"]],
     ["Jane Eyre", ["Charlotte Brontë"]],
     ["Lykkeland", ["Bjørn Olav Nordahl"]],
     ["100% Cotton", ["Some Author"]],
     ["Harry Potter and the Philosopher's Stone", ["J.K. Rowling"]],
   ];
-  await prisma.book.createMany({
-    data: books.map(([title, authors]) => ({
+  await prisma.game.createMany({
+    data: games.map(([title, authors]) => ({
       userId,
       title,
       authors,
@@ -43,8 +43,8 @@ afterEach(async () => {
 });
 
 async function search(q: string): Promise<string[]> {
-  const where = buildBookWhere(userId, parseFilters({ q }));
-  const rows = await prisma.book.findMany({ where, select: { title: true }, orderBy: { title: "asc" } });
+  const where = buildGameWhere(userId, parseFilters({ q }));
+  const rows = await prisma.game.findMany({ where, select: { title: true }, orderBy: { title: "asc" } });
   return rows.map((r) => r.title);
 }
 
@@ -71,25 +71,25 @@ describe("library search", () => {
 
   it("survives a null byte in the URL", async () => {
     // Postgres refuses \0 in text; the page used to crash on ?tag=%00.
-    const where = buildBookWhere(userId, parseFilters({ tag: "\0", q: "hob\0bit" }));
-    await expect(prisma.book.count({ where })).resolves.toBe(1);
+    const where = buildGameWhere(userId, parseFilters({ tag: "\0", q: "hob\0bit" }));
+    await expect(prisma.game.count({ where })).resolves.toBe(1);
   });
 });
 
 describe("searching tags, ISBN and reviews too", () => {
   /** Search as the reader with these Preferences would. */
   async function searchIn(q: string, fields: SearchField[]): Promise<string[]> {
-    const where = await resolveBookWhere(userId, parseFilters({ q }), {
+    const where = await resolveGameWhere(userId, parseFilters({ q }), {
       searchAlsoIn: fields,
       timeZone: "UTC",
     });
-    const rows = await prisma.book.findMany({ where, select: { title: true }, orderBy: { title: "asc" } });
+    const rows = await prisma.game.findMany({ where, select: { title: true }, orderBy: { title: "asc" } });
     return rows.map((r) => r.title);
   }
 
   beforeEach(async () => {
     const set = (title: string, data: object) =>
-      prisma.book.updateMany({ where: { userId, title }, data });
+      prisma.game.updateMany({ where: { userId, title }, data });
     await set("The Hobbit", { tags: ["fantasy", "æventyr"], isbn: "9780261102217" });
     // Saved the way updateReading and import save a review: with its
     // folded copy, which is what search reads.
@@ -146,7 +146,7 @@ describe("searching tags, ISBN and reviews too", () => {
       data: { username: `srch-o-${Date.now()}-${Math.random()}`, passwordHash: "x" },
     });
     try {
-      await prisma.book.create({
+      await prisma.game.create({
         data: {
           userId: other.id,
           title: "Theirs",
@@ -166,7 +166,7 @@ describe("searching tags, ISBN and reviews too", () => {
 
   it("matches reviews in SQL, without reading them first", async () => {
     // However many reviews match, the search is one condition per word.
-    const where = await resolveBookWhere(userId, parseFilters({ q: "bronte better" }), {
+    const where = await resolveGameWhere(userId, parseFilters({ q: "bronte better" }), {
       searchAlsoIn: ["review"],
       timeZone: "UTC",
     });
@@ -188,7 +188,7 @@ describe("accent_insensitive_search migration", () => {
     ];
     const created = await Promise.all(
       titles.map(([title, authors, series]) =>
-        prisma.book.create({
+        prisma.game.create({
           data: {
             userId,
             title,
@@ -207,7 +207,7 @@ describe("accent_insensitive_search migration", () => {
     await prisma.$executeRawUnsafe(sql);
 
     for (const [i, [title, authors, series]] of titles.entries()) {
-      const row = await prisma.book.findUniqueOrThrow({ where: { id: created[i].id } });
+      const row = await prisma.game.findUniqueOrThrow({ where: { id: created[i].id } });
       expect(row.searchText, title).toBe(buildSearchText(title, authors, series));
     }
   });
@@ -224,10 +224,10 @@ describe("review_search_text migration", () => {
     ];
     const created = await Promise.all(
       reviews.map((review) =>
-        prisma.book.create({ data: { userId, title: "Reviewed", review } }),
+        prisma.game.create({ data: { userId, title: "Reviewed", review } }),
       ),
     );
-    const unreviewed = await prisma.book.create({ data: { userId, title: "Unreviewed" } });
+    const unreviewed = await prisma.game.create({ data: { userId, title: "Unreviewed" } });
 
     const sql = await fs.readFile(
       path.join(__dirname, "../../prisma/migrations/20261012010000_review_search_text/migration.sql"),
@@ -237,10 +237,10 @@ describe("review_search_text migration", () => {
     await prisma.$executeRawUnsafe(sql.slice(sql.indexOf("DO $do$")));
 
     for (const [i, review] of reviews.entries()) {
-      const row = await prisma.book.findUniqueOrThrow({ where: { id: created[i].id } });
+      const row = await prisma.game.findUniqueOrThrow({ where: { id: created[i].id } });
       expect(row.reviewSearchText, review).toBe(foldForSearch(review));
     }
-    const row = await prisma.book.findUniqueOrThrow({ where: { id: unreviewed.id } });
+    const row = await prisma.game.findUniqueOrThrow({ where: { id: unreviewed.id } });
     expect(row.reviewSearchText).toBe("");
   });
 });

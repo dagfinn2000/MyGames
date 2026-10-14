@@ -42,8 +42,8 @@ const lastBackupAt = async (id: string) =>
 
 describe("export and lastBackupAt", () => {
   it("is set once the whole zip has been read, for this account only", async () => {
-    await prisma.book.create({
-      data: { userId, title: "A Book", searchText: "a book", quotes: { create: [{ text: "Hi" }] } },
+    await prisma.game.create({
+      data: { userId, title: "A Game", searchText: "a game", quotes: { create: [{ text: "Hi" }] } },
     });
     expect(await lastBackupAt(userId)).toBeNull();
 
@@ -103,7 +103,7 @@ describe("export and lastBackupAt", () => {
   });
 
   it("writes nothing when the client reads no bytes, however long it waits", async () => {
-    await prisma.book.create({ data: { userId, title: "A Book", searchText: "a book" } });
+    await prisma.game.create({ data: { userId, title: "A Game", searchText: "a game" } });
     const res = await exportRoute();
     // Time enough for a server that generates ahead of the client to finish.
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -156,7 +156,7 @@ describe("export and lastBackupAt", () => {
   });
 
   it("waits until the client has read the last chunk", async () => {
-    await prisma.book.create({ data: { userId, title: "A Book", searchText: "a book" } });
+    await prisma.game.create({ data: { userId, title: "A Game", searchText: "a game" } });
     const res = await exportRoute();
     const reader = res.body!.getReader();
     const chunks: Uint8Array[] = [];

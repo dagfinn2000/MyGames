@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BookFormat } from "@prisma/client";
+import { GameFormat } from "@prisma/client";
 import { dayKey, zonedDayStart } from "@/lib/dates";
 import { unitFor } from "@/lib/progress-units";
 import {
@@ -174,9 +174,9 @@ describe("passAround", () => {
 
 describe("positionTexts", () => {
   const prefs = { ebookUnit: "percent", audiobookUnit: "time" } as const;
-  const ebook = unitFor({ format: BookFormat.EBOOK, pageCount: 412, lengthMinutes: null }, prefs);
-  const audio = unitFor({ format: BookFormat.AUDIOBOOK, pageCount: 400, lengthMinutes: 700 }, prefs);
-  const paper = unitFor({ format: BookFormat.PHYSICAL, pageCount: 300, lengthMinutes: null }, prefs);
+  const ebook = unitFor({ format: GameFormat.EBOOK, pageCount: 412, lengthMinutes: null }, prefs);
+  const audio = unitFor({ format: GameFormat.AUDIOBOOK, pageCount: 400, lengthMinutes: 700 }, prefs);
+  const paper = unitFor({ format: GameFormat.PHYSICAL, pageCount: 300, lengthMinutes: null }, prefs);
 
   it("says a typed value back as typed", () => {
     // 5:11 saves as page 178, which reads back as 5:12.

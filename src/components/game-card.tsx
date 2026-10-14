@@ -1,5 +1,5 @@
-import type { Book } from "@prisma/client";
-import { BookOwnership, ReadingStatus } from "@prisma/client";
+import type { Game } from "@prisma/client";
+import { GameOwnership, ReadingStatus } from "@prisma/client";
 import {
   ArrowLeftRight,
   BookOpen,
@@ -8,7 +8,7 @@ import {
   Heart,
   type LucideIcon,
 } from "lucide-react";
-import { BookLink } from "@/components/book-link";
+import { GameLink } from "@/components/game-link";
 import { Badge } from "@/components/ui/badge";
 import { Stars } from "@/components/stars";
 import {
@@ -24,65 +24,65 @@ import { coverArt } from "@/lib/cover-art";
 import type { LibraryDisplay } from "@/lib/library-view";
 import { cn } from "@/lib/utils";
 
-/** Cover image, or a stand-in when the book has none.
+/** Cover image, or a stand-in when the game has none.
  *  Lazy by default — grids request hundreds of covers at once, and the
  *  below-the-fold ones shouldn't compete with the visible page. The detail
  *  page passes `loading="eager"` for its above-the-fold hero cover. */
-export function BookCover({
-  book,
+export function GameCover({
+  game,
   className,
   loading = "lazy",
   flightTarget,
 }: {
-  book: Pick<Book, "title" | "coverUrl"> & { authors?: string[] };
+  game: Pick<Game, "title" | "coverUrl"> & { authors?: string[] };
   className?: string;
   loading?: "eager" | "lazy";
-  /** The book's id, on the book page's own cover: where a cover clicked
+  /** The game's id, on the game page's own cover: where a cover clicked
    *  elsewhere flies to (lib/cover-flight.ts). */
   flightTarget?: string;
 }) {
   return (
     <div
-      className={cn("book-cover relative overflow-hidden rounded-md bg-muted", className)}
+      className={cn("game-cover relative overflow-hidden rounded-md bg-muted", className)}
       data-cover-for={flightTarget}
     >
-      {book.coverUrl ? (
+      {game.coverUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={book.coverUrl}
-          alt={`Cover of ${book.title}`}
+          src={game.coverUrl}
+          alt={`Cover of ${game.title}`}
           loading={loading}
           decoding="async"
           className="h-full w-full object-cover"
         />
       ) : (
-        <MissingCover title={book.title} author={book.authors?.[0]} />
+        <MissingCover title={game.title} author={game.authors?.[0]} />
       )}
     </div>
   );
 }
 
 /**
- * A soft wash of a book's cover colours behind the top of its page: the
+ * A soft wash of a game's cover colours behind the top of its page: the
  * cover itself, stretched across the page width, blurred until only its
- * colours are left, and faded out downwards (globals.css, `.book-backdrop`).
- * A book without a cover image gets its drawn cover's colour instead, unless
- * drawn covers are off. "Behind a book's page: Nothing" in Preferences hides
- * it, through `data-book-backdrop` on <html>.
+ * colours are left, and faded out downwards (globals.css, `.game-backdrop`).
+ * A game without a cover image gets its drawn cover's colour instead, unless
+ * drawn covers are off. "Behind a game's page: Nothing" in Preferences hides
+ * it, through `data-game-backdrop` on <html>.
  */
-export function BookBackdrop({ book }: { book: Pick<Book, "title" | "coverUrl"> }) {
-  if (book.coverUrl) {
+export function GameBackdrop({ game }: { game: Pick<Game, "title" | "coverUrl"> }) {
+  if (game.coverUrl) {
     return (
-      <div className="book-backdrop" aria-hidden="true">
+      <div className="game-backdrop" aria-hidden="true">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={book.coverUrl} alt="" decoding="async" />
+        <img src={game.coverUrl} alt="" decoding="async" />
       </div>
     );
   }
-  const art = coverArt(book.title);
+  const art = coverArt(game.title);
   return (
     <div
-      className="book-backdrop"
+      className="game-backdrop"
       data-drawn=""
       aria-hidden="true"
       style={
@@ -97,15 +97,15 @@ export function BookBackdrop({ book }: { book: Pick<Book, "title" | "coverUrl"> 
 }
 
 /**
- * The stand-in for a book without a cover image. Both kinds are rendered and
- * CSS shows one, following "Books without a cover" in Preferences
+ * The stand-in for a game without a cover image. Both kinds are rendered and
+ * CSS shows one, following "Games without a cover" in Preferences
  * (`data-covers` on <html>; see globals.css) — so this stays a plain
  * component that server and client pages can share without passing the
  * setting down.
  *
  * The drawn cover is a coloured board with the title and first author,
  * coloured from the title (lib/cover-art.ts). The plain one is the old grey
- * box with a book icon.
+ * box with a game icon.
  */
 function MissingCover({ title, author }: { title: string; author?: string }) {
   const art = coverArt(title);
@@ -137,11 +137,11 @@ function MissingCover({ title, author }: { title: string; author?: string }) {
   );
 }
 
-/** The slice of a Book the library grid actually renders. The books page
+/** The slice of a Game the library grid actually renders. The games page
  *  fetches exactly this (plus its sort keys) instead of full rows, so large
  *  text fields (description, review, searchText) never reach the client. */
-export type BookCardBook = Pick<
-  Book,
+export type GameCardGame = Pick<
+  Game,
   | "id"
   | "title"
   | "authors"
@@ -158,7 +158,7 @@ export type BookCardBook = Pick<
   lentOut?: boolean;
   /** For the details the View menu can add: an ownership badge, and a list
    *  row's date. */
-  ownership?: BookOwnership;
+  ownership?: GameOwnership;
   createdAt?: Date;
   dateFinished?: Date | null;
 };
@@ -178,10 +178,10 @@ const ALL_DETAILS: CardDetails = {
   showPageCount: false,
 };
 
-/** Reading progress as 0–1 while a book is being read, else null. */
-function readingProgress(book: BookCardBook): number | null {
-  return book.status === ReadingStatus.READING && book.currentPage != null && book.pageCount
-    ? Math.min(book.currentPage / book.pageCount, 1)
+/** Reading progress as 0–1 while a game is being read, else null. */
+function readingProgress(game: GameCardGame): number | null {
+  return game.status === ReadingStatus.READING && game.currentPage != null && game.pageCount
+    ? Math.min(game.currentPage / game.pageCount, 1)
     : null;
 }
 
@@ -198,7 +198,7 @@ function LentBadge() {
   );
 }
 
-const OWNERSHIP_ICONS: Record<Exclude<BookOwnership, "OWNED">, LucideIcon> = {
+const OWNERSHIP_ICONS: Record<Exclude<GameOwnership, "OWNED">, LucideIcon> = {
   WISHLIST: Heart,
   BORROWED: ArrowLeftRight,
   GIVEN_AWAY: Gift,
@@ -206,8 +206,8 @@ const OWNERSHIP_ICONS: Record<Exclude<BookOwnership, "OWNED">, LucideIcon> = {
 
 /** Wishlist, Borrowed or Given away. Owned is the usual case and gets no
  *  badge, so the ones worth noticing stand out. */
-function OwnershipBadge({ ownership }: { ownership: BookOwnership }) {
-  if (ownership === BookOwnership.OWNED) return null;
+function OwnershipBadge({ ownership }: { ownership: GameOwnership }) {
+  if (ownership === GameOwnership.OWNED) return null;
   const Icon = OWNERSHIP_ICONS[ownership];
   return (
     <Badge
@@ -221,67 +221,67 @@ function OwnershipBadge({ ownership }: { ownership: BookOwnership }) {
   );
 }
 
-function seriesLabel(book: BookCardBook): string {
-  return `${book.seriesName}${book.seriesNumber != null ? ` #${book.seriesNumber}` : ""}`;
+function seriesLabel(game: GameCardGame): string {
+  return `${game.seriesName}${game.seriesNumber != null ? ` #${game.seriesNumber}` : ""}`;
 }
 
 /** A list row's extra line: the date added or finished and the page count,
  *  as the View menu asks. Empty when there is nothing to show (a date
- *  finished for a book not finished, say). */
-function rowFacts(book: BookCardBook, details: CardDetails, formatPrefs?: FormatPrefs): string {
+ *  finished for a game not finished, say). */
+function rowFacts(game: GameCardGame, details: CardDetails, formatPrefs?: FormatPrefs): string {
   const facts: string[] = [];
-  if (details.rowDate === "added" && book.createdAt) {
-    facts.push(`Added ${formatDate(book.createdAt, formatPrefs)}`);
+  if (details.rowDate === "added" && game.createdAt) {
+    facts.push(`Added ${formatDate(game.createdAt, formatPrefs)}`);
   }
-  if (details.rowDate === "finished" && book.dateFinished) {
-    facts.push(`Finished ${formatDate(book.dateFinished, formatPrefs)}`);
+  if (details.rowDate === "finished" && game.dateFinished) {
+    facts.push(`Finished ${formatDate(game.dateFinished, formatPrefs)}`);
   }
-  if (details.showPageCount && book.pageCount) {
-    facts.push(`${formatNumber(book.pageCount, formatPrefs)} pages`);
+  if (details.showPageCount && game.pageCount) {
+    facts.push(`${formatNumber(game.pageCount, formatPrefs)} pages`);
   }
   return facts.join(" · ");
 }
 
 /**
- * One line per book for the library's list layout: a small cover, title,
+ * One line per game for the library's list layout: a small cover, title,
  * author and series, then rating and badges on the right. For long
  * libraries, where scanning titles beats scanning covers.
  */
-export function BookRow({
-  book,
+export function GameRow({
+  game,
   details = ALL_DETAILS,
   formatPrefs,
 }: {
-  book: BookCardBook;
+  game: GameCardGame;
   details?: CardDetails;
   /** The reader's date and number formats, for the date and page count
    *  line. Passed in so this file stays free of hooks: server pages import
-   *  BookCover from it. */
+   *  GameCover from it. */
   formatPrefs?: FormatPrefs;
 }) {
-  const progress = readingProgress(book);
-  const facts = rowFacts(book, details, formatPrefs);
+  const progress = readingProgress(game);
+  const facts = rowFacts(game, details, formatPrefs);
   return (
-    <BookLink
-      bookId={book.id}
+    <GameLink
+      gameId={game.id}
       className="surface lift group flex items-center gap-3 rounded-lg border bg-card p-2 shadow-(--surface-shadow) transition-colors hover:border-ring/60"
     >
-      <BookCover book={book} className="aspect-[2/3] w-10 shrink-0" />
+      <GameCover game={game} className="aspect-[2/3] w-10 shrink-0" />
       <div className="grid min-w-0 flex-1 gap-0.5">
         <p className="truncate font-heading text-sm font-medium group-hover:underline">
-          {book.title}
+          {game.title}
         </p>
         <p className="truncate text-xs text-muted-foreground">
-          {book.authors.join(", ")}
-          {details.showSeries && book.seriesName && (
-            <span className="italic text-muted-foreground/80"> · {seriesLabel(book)}</span>
+          {game.authors.join(", ")}
+          {details.showSeries && game.seriesName && (
+            <span className="italic text-muted-foreground/80"> · {seriesLabel(game)}</span>
           )}
         </p>
         {facts && <p className="truncate text-xs text-muted-foreground tabular-nums">{facts}</p>}
         {progress !== null && (
           <div
             className="mt-0.5 h-1 max-w-40 rounded-full bg-muted"
-            title={`Page ${book.currentPage} of ${book.pageCount}`}
+            title={`Page ${game.currentPage} of ${game.pageCount}`}
           >
             <div
               className="bar-grow h-full rounded-full bg-primary/80"
@@ -291,45 +291,45 @@ export function BookRow({
         )}
       </div>
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-        {details.showRating && book.rating ? <Stars value={book.rating} /> : null}
-        {details.showOwnership && book.ownership && <OwnershipBadge ownership={book.ownership} />}
-        {book.lentOut && <LentBadge />}
+        {details.showRating && game.rating ? <Stars value={game.rating} /> : null}
+        {details.showOwnership && game.ownership && <OwnershipBadge ownership={game.ownership} />}
+        {game.lentOut && <LentBadge />}
         {details.showStatus && (
-          <Badge className={`${STATUS_BADGE_CLASS[book.status]} hidden text-[10px] sm:inline-flex`}>
-            {STATUS_LABELS[book.status]}
+          <Badge className={`${STATUS_BADGE_CLASS[game.status]} hidden text-[10px] sm:inline-flex`}>
+            {STATUS_LABELS[game.status]}
           </Badge>
         )}
       </div>
-    </BookLink>
+    </GameLink>
   );
 }
 
 /** Grid tile for the library view. */
-export function BookCard({
-  book,
+export function GameCard({
+  game,
   details = ALL_DETAILS,
   compact = false,
 }: {
-  book: BookCardBook;
+  game: GameCardGame;
   details?: CardDetails;
   /** Small covers: tighter padding, no author line. */
   compact?: boolean;
 }) {
-  const progress = readingProgress(book);
+  const progress = readingProgress(game);
 
   return (
-    <BookLink
-      bookId={book.id}
+    <GameLink
+      gameId={game.id}
       className={cn(
         "surface lift group flex flex-col rounded-lg border bg-card shadow-(--surface-shadow) transition-colors hover:border-ring/60",
         compact ? "gap-1.5 p-2" : "gap-2 p-3",
       )}
     >
-      <BookCover book={book} className="aspect-[2/3] w-full" />
+      <GameCover game={game} className="aspect-[2/3] w-full" />
       {progress !== null && (
         <div
           className="-mt-1 h-1.5 rounded-full bg-muted"
-          title={`Page ${book.currentPage} of ${book.pageCount}`}
+          title={`Page ${game.currentPage} of ${game.pageCount}`}
         >
           <div
             className="bar-grow h-full rounded-full bg-primary/80"
@@ -344,49 +344,49 @@ export function BookCard({
             compact ? "text-xs" : "text-sm",
           )}
         >
-          {book.title}
+          {game.title}
         </p>
         {!compact && (
           <p className="line-clamp-1 text-xs text-muted-foreground">
-            {book.authors.join(", ")}
+            {game.authors.join(", ")}
           </p>
         )}
-        {details.showSeries && book.seriesName && (
+        {details.showSeries && game.seriesName && (
           <p className="line-clamp-1 text-xs italic text-muted-foreground/80">
-            {seriesLabel(book)}
+            {seriesLabel(game)}
           </p>
         )}
         {/* flex-wrap: on narrow cards the badge drops below the stars
             instead of overflowing the card. */}
         <div className="mt-auto flex flex-wrap items-center justify-between gap-1 pt-1">
-          {details.showRating && book.rating ? <Stars value={book.rating} /> : <span />}
+          {details.showRating && game.rating ? <Stars value={game.rating} /> : <span />}
           <span className="flex flex-wrap items-center gap-1">
-            {details.showOwnership && book.ownership && (
-              <OwnershipBadge ownership={book.ownership} />
+            {details.showOwnership && game.ownership && (
+              <OwnershipBadge ownership={game.ownership} />
             )}
-            {book.lentOut && <LentBadge />}
+            {game.lentOut && <LentBadge />}
             {details.showStatus && (
-              <Badge className={`${STATUS_BADGE_CLASS[book.status]} text-[10px]`}>
-                {STATUS_LABELS[book.status]}
+              <Badge className={`${STATUS_BADGE_CLASS[game.status]} text-[10px]`}>
+                {STATUS_LABELS[game.status]}
               </Badge>
             )}
           </span>
         </div>
       </div>
-    </BookLink>
+    </GameLink>
   );
 }
 
 /** "Covers only": the cover and title with no frame, details or badges. */
-export function BookCoverTile({ book, compact = false }: { book: BookCardBook; compact?: boolean }) {
-  const progress = readingProgress(book);
+export function GameCoverTile({ game, compact = false }: { game: GameCardGame; compact?: boolean }) {
+  const progress = readingProgress(game);
   return (
-    <BookLink bookId={book.id} className="lift-cover group flex flex-col gap-1.5">
-      <BookCover book={book} className="cover-shadow aspect-[2/3] w-full" />
+    <GameLink gameId={game.id} className="lift-cover group flex flex-col gap-1.5">
+      <GameCover game={game} className="cover-shadow aspect-[2/3] w-full" />
       {progress !== null && (
         <div
           className="h-1 rounded-full bg-muted"
-          title={`Page ${book.currentPage} of ${book.pageCount}`}
+          title={`Page ${game.currentPage} of ${game.pageCount}`}
         >
           <div
             className="bar-grow h-full rounded-full bg-primary/80"
@@ -400,20 +400,20 @@ export function BookCoverTile({ book, compact = false }: { book: BookCardBook; c
           compact ? "text-[11px]" : "text-xs",
         )}
       >
-        {book.title}
+        {game.title}
       </p>
-    </BookLink>
+    </GameLink>
   );
 }
 
 /** "Bookshelf": just the cover, standing on the shelf its slot draws
  *  (globals.css). The title shows on hover and to screen readers. */
-export function BookOnShelf({ book }: { book: BookCardBook }) {
-  const byline = book.authors.length ? ` by ${book.authors.join(", ")}` : "";
+export function GameOnShelf({ game }: { game: GameCardGame }) {
+  const byline = game.authors.length ? ` by ${game.authors.join(", ")}` : "";
   return (
-    <BookLink bookId={book.id} className="lift-cover block" title={`${book.title}${byline}`}>
-      <BookCover book={book} className="cover-shadow aspect-[2/3] w-full" />
-      <span className="sr-only">{book.title}</span>
-    </BookLink>
+    <GameLink gameId={game.id} className="lift-cover block" title={`${game.title}${byline}`}>
+      <GameCover game={game} className="cover-shadow aspect-[2/3] w-full" />
+      <span className="sr-only">{game.title}</span>
+    </GameLink>
   );
 }

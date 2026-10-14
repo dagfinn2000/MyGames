@@ -5,7 +5,7 @@ CREATE SCHEMA IF NOT EXISTS "public";
 CREATE TYPE "ReadingStatus" AS ENUM ('WANT_TO_READ', 'READING', 'READ', 'DNF');
 
 -- CreateEnum
-CREATE TYPE "BookFormat" AS ENUM ('PHYSICAL', 'EBOOK', 'AUDIOBOOK');
+CREATE TYPE "GameFormat" AS ENUM ('PHYSICAL', 'EBOOK', 'AUDIOBOOK');
 
 -- CreateTable
 CREATE TABLE "User" (
@@ -18,7 +18,7 @@ CREATE TABLE "User" (
 );
 
 -- CreateTable
-CREATE TABLE "Book" (
+CREATE TABLE "Game" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE "Book" (
     "pageCount" INTEGER,
     "publishedDate" TEXT,
     "tags" TEXT[] DEFAULT ARRAY[]::TEXT[],
-    "format" "BookFormat" NOT NULL DEFAULT 'PHYSICAL',
+    "format" "GameFormat" NOT NULL DEFAULT 'PHYSICAL',
     "owned" BOOLEAN NOT NULL DEFAULT true,
     "openLibraryId" TEXT,
     "status" "ReadingStatus" NOT NULL DEFAULT 'WANT_TO_READ',
@@ -42,7 +42,7 @@ CREATE TABLE "Book" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "Book_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Game_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -61,14 +61,14 @@ CREATE TABLE "MetadataCache" (
 CREATE UNIQUE INDEX "User_username_key" ON "User"("username");
 
 -- CreateIndex
-CREATE INDEX "Book_userId_status_idx" ON "Book"("userId", "status");
+CREATE INDEX "Game_userId_status_idx" ON "Game"("userId", "status");
 
 -- CreateIndex
-CREATE INDEX "Book_userId_createdAt_idx" ON "Book"("userId", "createdAt");
+CREATE INDEX "Game_userId_createdAt_idx" ON "Game"("userId", "createdAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "MetadataCache_source_query_key" ON "MetadataCache"("source", "query");
 
 -- AddForeignKey
-ALTER TABLE "Book" ADD CONSTRAINT "Book_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Game" ADD CONSTRAINT "Game_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 

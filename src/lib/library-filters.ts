@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { BookFormat, BookOwnership, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, ReadingStatus } from "@prisma/client";
 import { isbnVariants, looksLikeIsbn, normalizeIsbn } from "@/lib/isbn";
 import type { SearchField } from "@/lib/preferences";
 import { searchTerms } from "@/lib/utils";
@@ -15,9 +15,9 @@ export interface LibraryFilters {
   shelf: string;
   shelfId: string;
   q: string;
-  /** One author, exactly as written on the book (the book page links here). */
+  /** One author, exactly as written on the game (the game page links here). */
   author: string;
-  /** Tags to include, comma-joined: books with any of them, or with all of
+  /** Tags to include, comma-joined: games with any of them, or with all of
    *  them when tagMatch is "all". */
   tag: string;
   /** "all" or "" (any). Only ever "all" alongside some tags. */
@@ -28,9 +28,9 @@ export interface LibraryFilters {
   owned: string;
   /** Lowest rating, 1–10, or "unrated". */
   minRating: string;
-  /** A year ("2024"): books finished then, re-reads included. */
+  /** A year ("2024"): games finished then, re-reads included. */
   finished: string;
-  /** One of MISSING_FILTERS: books lacking that detail. */
+  /** One of MISSING_FILTERS: games lacking that detail. */
   missing: string;
   series: string;
 }
@@ -42,15 +42,15 @@ function param(v: string | string[] | undefined): string {
 }
 
 /** The `owned` param's values. "lent" is not an ownership state at all (a
- *  lent book is still owned), so it is handled separately below. */
+ *  lent game is still owned), so it is handled separately below. */
 const OWNED_FILTERS = ["all", "owned", "wishlist", "borrowed", "given_away", "lent"] as const;
 
 /** Filter value -> ownership state. */
-const OWNERSHIP_FILTERS: Partial<Record<string, BookOwnership>> = {
-  owned: BookOwnership.OWNED,
-  wishlist: BookOwnership.WISHLIST,
-  borrowed: BookOwnership.BORROWED,
-  given_away: BookOwnership.GIVEN_AWAY,
+const OWNERSHIP_FILTERS: Partial<Record<string, GameOwnership>> = {
+  owned: GameOwnership.OWNED,
+  wishlist: GameOwnership.WISHLIST,
+  borrowed: GameOwnership.BORROWED,
+  given_away: GameOwnership.GIVEN_AWAY,
 };
 
 /** The details the "Missing" filter can look for. */
@@ -121,7 +121,7 @@ const ZONE_SLACK_MS = 15 * 60 * 60 * 1000;
 /**
  * Finish dates for a "Finished in" year: `sure` is certainly that year in
  * every time zone; dates in the two `edges` around New Year need the
- * reader's zone, so resolveBookWhere checks them one by one.
+ * reader's zone, so resolveGameWhere checks them one by one.
  */
 export function finishedYearRanges(year: number): {
   sure: { gte: Date; lt: Date };
@@ -136,7 +136,7 @@ export function finishedYearRanges(year: number): {
   };
 }
 
-/** What resolveBookWhere looks up ahead for the filters that need it. All
+/** What resolveGameWhere looks up ahead for the filters that need it. All
  *  optional: without it the library searches title, author and series as
  *  it always has. */
 export interface WhereContext {
@@ -144,7 +144,7 @@ export interface WhereContext {
   searchIn?: readonly SearchField[];
   /** Per search word, in searchTerms order: the reader's tags containing it. */
   tagsByTerm?: string[][];
-  /** Books finished in the `finished` year close to New Year, by the
+  /** Games finished in the `finished` year close to New Year, by the
    *  reader's clock. */
   finishedEdgeIds?: string[];
 }
@@ -167,8 +167,8 @@ export function searchTermWhere(
   term: string,
   i: number,
   ctx: WhereContext,
-): Prisma.BookWhereInput {
-  const or: Prisma.BookWhereInput[] = [{ searchText: { contains: term } }];
+): Prisma.GameWhereInput {
+  const or: Prisma.GameWhereInput[] = [{ searchText: { contains: term } }];
   const tags = ctx.tagsByTerm?.[i];
   if (tags?.length) or.push({ tags: { hasSome: tags } });
   const isbn = ctx.searchIn?.includes("isbn") ? isbnFragment(term) : null;
@@ -179,18 +179,18 @@ export function searchTermWhere(
 }
 
 /**
- * The Prisma `where` for a filter state. Pure: resolveBookWhere
+ * The Prisma `where` for a filter state. Pure: resolveGameWhere
  * (library-where.ts) runs the lookups some filters need and passes them in
  * `ctx`; the library page, Pick for me and bulk edit all go through it, so
  * they can never disagree about what "the current view" means.
  */
-export function buildBookWhere(
+export function buildGameWhere(
   userId: string,
   filters: LibraryFilters,
   ctx: WhereContext = {},
-): Prisma.BookWhereInput {
+): Prisma.GameWhereInput {
   const shelf = Object.values(ReadingStatus).find((s) => s === filters.shelf);
-  const format = Object.values(BookFormat).find((f) => f === filters.format);
+  const format = Object.values(GameFormat).find((f) => f === filters.format);
   // The URL keeps the `owned` param name so existing bookmarks and shared
   // links still work; its values just grew beyond owned/wishlist.
   const ownership = Object.hasOwn(OWNERSHIP_FILTERS, filters.owned)
@@ -204,7 +204,7 @@ export function buildBookWhere(
   // Everything that can't share a top-level key. The status tab owns
   // `status` (Pick for me replaces it), so "unrated" keeps its own status
   // rule in here.
-  const and: Prisma.BookWhereInput[] = [];
+  const and: Prisma.GameWhereInput[] = [];
 
   if (terms.length > 0) {
     // Every word has to appear somewhere: in title, authors or series, or
@@ -223,7 +223,7 @@ export function buildBookWhere(
   if (exclude.length > 0) and.push({ NOT: { tags: { hasSome: exclude } } });
 
   if (filters.minRating === "unrated") {
-    // Want to Read books are unrated by nature; they'd bury the ones that
+    // Want to Read games are unrated by nature; they'd bury the ones that
     // were read and never rated.
     and.push({ rating: null }, { status: { not: ReadingStatus.WANT_TO_READ } });
   }
@@ -234,7 +234,7 @@ export function buildBookWhere(
   if (filters.missing === "tags") and.push({ tags: { isEmpty: true } });
 
   if (filters.finished) {
-    // The current pass counts once the book is Read; archived passes
+    // The current pass counts once the game is Read; archived passes
     // always do. The same finishes Stats counts per year.
     const { sure } = finishedYearRanges(Number(filters.finished));
     const edgeIds = ctx.finishedEdgeIds ?? [];

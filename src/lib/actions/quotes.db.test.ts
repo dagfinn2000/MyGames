@@ -29,10 +29,10 @@ function form(fields: Record<string, string>) {
 }
 
 async function makeQuote(owner: string, text = "Original") {
-  const book = await prisma.book.create({
-    data: { userId: owner, title: "Book", searchText: "book" },
+  const game = await prisma.game.create({
+    data: { userId: owner, title: "Game", searchText: "game" },
   });
-  return prisma.quote.create({ data: { bookId: book.id, text, page: 10, note: "n" } });
+  return prisma.quote.create({ data: { gameId: game.id, text, page: 10, note: "n" } });
 }
 
 beforeEach(async () => {
@@ -60,7 +60,7 @@ describe("quote actions", () => {
     const saved = await prisma.quote.findUniqueOrThrow({ where: { id: q.id } });
     expect(saved).toMatchObject({ text: "Edited", page: null, note: null });
     expect(revalidated).toContain("/quotes");
-    expect(revalidated).toContain(`/books/${q.bookId}`);
+    expect(revalidated).toContain(`/games/${q.gameId}`);
   });
 
   it("updateQuote refuses another reader's quote and leaves it alone", async () => {
@@ -84,31 +84,31 @@ describe("quote actions", () => {
     expect(await prisma.quote.findUnique({ where: { id: theirs.id } })).not.toBeNull();
   });
 
-  it("addQuote refuses another reader's book", async () => {
+  it("addQuote refuses another reader's game", async () => {
     const theirs = await makeQuote(otherUserId);
-    const res = await addQuote({}, form({ bookId: theirs.bookId, text: "Sneaky" }));
-    expect(res).toEqual({ error: "Book not found" });
-    expect(await prisma.quote.count({ where: { bookId: theirs.bookId } })).toBe(1);
+    const res = await addQuote({}, form({ gameId: theirs.gameId, text: "Sneaky" }));
+    expect(res).toEqual({ error: "Game not found" });
+    expect(await prisma.quote.count({ where: { gameId: theirs.gameId } })).toBe(1);
   });
 
-  it("refuses a page past the end of the book, as the reading card does", async () => {
+  it("refuses a page past the end of the game, as the reading card does", async () => {
     const q = await makeQuote(userId);
-    await prisma.book.update({ where: { id: q.bookId }, data: { pageCount: 300 } });
+    await prisma.game.update({ where: { id: q.gameId }, data: { pageCount: 300 } });
 
-    const added = await addQuote({}, form({ bookId: q.bookId, text: "Typo", page: "3000" }));
-    expect(added).toEqual({ error: "Page 3000 is past the end of the book (300 pages)" });
+    const added = await addQuote({}, form({ gameId: q.gameId, text: "Typo", page: "3000" }));
+    expect(added).toEqual({ error: "Page 3000 is past the end of the game (300 pages)" });
     const edited = await updateQuote(q.id, {}, form({ text: "Edited", page: "301" }));
-    expect(edited).toEqual({ error: "Page 301 is past the end of the book (300 pages)" });
-    expect(await prisma.quote.findMany({ where: { bookId: q.bookId } })).toMatchObject([
+    expect(edited).toEqual({ error: "Page 301 is past the end of the game (300 pages)" });
+    expect(await prisma.quote.findMany({ where: { gameId: q.gameId } })).toMatchObject([
       { text: "Original", page: 10 },
     ]);
 
-    // The last page itself, and any page of a book with no page count, are fine.
+    // The last page itself, and any page of a game with no page count, are fine.
     expect(await updateQuote(q.id, {}, form({ text: "Last", page: "300" }))).toEqual({
       success: true,
     });
-    await prisma.book.update({ where: { id: q.bookId }, data: { pageCount: null } });
-    expect(await addQuote({}, form({ bookId: q.bookId, text: "Any", page: "3000" }))).toEqual({
+    await prisma.game.update({ where: { id: q.gameId }, data: { pageCount: null } });
+    expect(await addQuote({}, form({ gameId: q.gameId, text: "Any", page: "3000" }))).toEqual({
       success: true,
     });
   });

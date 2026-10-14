@@ -1,7 +1,7 @@
 /**
  * ISBN helpers for matching a scanned/typed ISBN against the library.
  *
- * Books get stored with whichever form the metadata source returned (often
+ * Games get stored with whichever form the metadata source returned (often
  * ISBN-10 from older Open Library records), while barcodes always scan as
  * ISBN-13 — so an ownership check has to try both forms of the same number.
  */
@@ -12,8 +12,8 @@ export function normalizeIsbn(raw: string): string {
 }
 
 /** True when `raw` has the shape of an ISBN-10 or ISBN-13 (spaces and
- *  hyphens allowed). The check digit isn't verified: a book with a
- *  misprinted ISBN is still a book someone might own. */
+ *  hyphens allowed). The check digit isn't verified: a game with a
+ *  misprinted ISBN is still a game someone might own. */
 export function looksLikeIsbn(raw: string): boolean {
   return /^(\d{9}[\dX]|\d{13})$/.test(normalizeIsbn(raw));
 }

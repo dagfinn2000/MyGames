@@ -83,7 +83,7 @@ export async function changePassword(
 
 /**
  * Delete the account and everything in it. The database rows cascade from
- * the User delete (books → quotes/reads/progress, shelves, goals); cached
+ * the User delete (games → quotes/reads/progress, shelves, goals); cached
  * cover files don't live in Postgres, so they're cleaned up first. Signs
  * out afterwards — with JWT sessions there's no server-side session row,
  * and a cookie for a deleted user must not linger looking signed-in.
@@ -104,16 +104,16 @@ export async function deleteAccount(
   // Collect the cover paths *before* the delete (the rows are about to go),
   // but unlink the files only once the database delete has actually landed.
   // The other order loses your images to a failed delete, leaving a library
-  // that still lists every book with a broken cover — the same trap
-  // updateBook already avoids when it replaces a cover.
-  const books = await prisma.book.findMany({
+  // that still lists every game with a broken cover — the same trap
+  // updateGame already avoids when it replaces a cover.
+  const games = await prisma.game.findMany({
     where: { userId: user.id },
     select: { coverUrl: true },
   });
 
   await prisma.user.delete({ where: { id: user.id } });
 
-  for (const b of books) {
+  for (const b of games) {
     await deleteCachedCover(b.coverUrl); // tolerates already-missing files
   }
 

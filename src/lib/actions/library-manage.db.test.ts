@@ -2,12 +2,12 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { BookFormat, BookOwnership, PrismaClient, ReadingStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, PrismaClient, ReadingStatus } from "@prisma/client";
 
 /**
  * Library housekeeping against a real database: renaming and merging
  * shelves, renaming saved views, and bulk edit and delete, including "every
- * book that matches" and its 2,000-id limit.
+ * game that matches" and its 2,000-id limit.
  *
  * Kept apart from actions.db.test.ts so other work on those actions doesn't
  * collide with these.
@@ -25,7 +25,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 const { renameShelf } = await import("@/lib/actions/shelves");
 const { renameView } = await import("@/lib/actions/saved-views");
-const { bulkUpdateBooks, bulkDeleteBooks } = await import("@/lib/actions/bulk");
+const { bulkUpdateGames, bulkDeleteGames } = await import("@/lib/actions/bulk");
 const { prisma: appPrisma } = await import("@/lib/prisma");
 
 let userId: string;
@@ -34,7 +34,7 @@ let coversDir: string;
 const savedCoversDir = process.env.COVERS_DIR;
 
 beforeAll(async () => {
-  coversDir = await fs.mkdtemp(path.join(os.tmpdir(), "myreads-covers-"));
+  coversDir = await fs.mkdtemp(path.join(os.tmpdir(), "mygames-covers-"));
   process.env.COVERS_DIR = coversDir;
 });
 
@@ -59,29 +59,29 @@ afterEach(async () => {
   await prisma.user.deleteMany({ where: { id: { in: [userId, otherUserId] } } });
 });
 
-async function makeBook(over: Record<string, unknown> = {}, owner = userId) {
-  return prisma.book.create({
-    data: { userId: owner, title: "Test Book", searchText: "test book", pageCount: 300, ...over },
+async function makeGame(over: Record<string, unknown> = {}, owner = userId) {
+  return prisma.game.create({
+    data: { userId: owner, title: "Test Game", searchText: "test game", pageCount: 300, ...over },
   });
 }
 
-async function makeShelf(name: string, books: { id: string }[] = [], owner = userId) {
+async function makeShelf(name: string, games: { id: string }[] = [], owner = userId) {
   return prisma.shelf.create({
-    data: { userId: owner, name, books: { connect: books.map(({ id }) => ({ id })) } },
+    data: { userId: owner, name, games: { connect: games.map(({ id }) => ({ id })) } },
   });
 }
 
-async function shelfBookIds(shelfId: string) {
+async function shelfGameIds(shelfId: string) {
   const shelf = await prisma.shelf.findUniqueOrThrow({
     where: { id: shelfId },
-    select: { books: { select: { id: true } } },
+    select: { games: { select: { id: true } } },
   });
-  return shelf.books.map((b) => b.id).sort();
+  return shelf.games.map((b) => b.id).sort();
 }
 
 describe("renameShelf", () => {
-  it("renames a shelf and keeps its books", async () => {
-    const bk = await makeBook();
+  it("renames a shelf and keeps its games", async () => {
+    const bk = await makeGame();
     const shelf = await makeShelf("Sci fi", [bk]);
 
     expect(await renameShelf(shelf.id, "  Science fiction ")).toEqual({
@@ -90,7 +90,7 @@ describe("renameShelf", () => {
     });
     const after = await prisma.shelf.findUniqueOrThrow({ where: { id: shelf.id } });
     expect(after.name).toBe("Science fiction");
-    expect(await shelfBookIds(shelf.id)).toEqual([bk.id]);
+    expect(await shelfGameIds(shelf.id)).toEqual([bk.id]);
   });
 
   it("renames the same shelf when only the case changes", async () => {
@@ -102,8 +102,8 @@ describe("renameShelf", () => {
     expect((await prisma.shelf.findUniqueOrThrow({ where: { id: shelf.id } })).name).toBe("Sci fi");
   });
 
-  it("merges onto another shelf's name in any case, once per book", async () => {
-    const [onlySource, both, onlyTarget] = await Promise.all([makeBook(), makeBook(), makeBook()]);
+  it("merges onto another shelf's name in any case, once per game", async () => {
+    const [onlySource, both, onlyTarget] = await Promise.all([makeGame(), makeGame(), makeGame()]);
     const source = await makeShelf("Sci fi", [onlySource, both]);
     const target = await makeShelf("Sci-fi", [both, onlyTarget]);
 
@@ -111,9 +111,9 @@ describe("renameShelf", () => {
 
     expect(res).toEqual({ merged: true, shelfId: target.id, name: "Sci-fi", count: 3 });
     expect(await prisma.shelf.findUnique({ where: { id: source.id } })).toBeNull();
-    expect(await shelfBookIds(target.id)).toEqual([onlySource.id, both.id, onlyTarget.id].sort());
-    // The books themselves are untouched.
-    expect(await prisma.book.count({ where: { userId } })).toBe(3);
+    expect(await shelfGameIds(target.id)).toEqual([onlySource.id, both.id, onlyTarget.id].sort());
+    // The games themselves are untouched.
+    expect(await prisma.game.count({ where: { userId } })).toBe(3);
   });
 
   it("points saved views on the merged shelf at the shelf it merged into", async () => {
@@ -191,107 +191,107 @@ describe("renameView", () => {
   });
 });
 
-describe("bulkUpdateBooks, more fields", () => {
+describe("bulkUpdateGames, more fields", () => {
   it("sets format and ownership on the selection only", async () => {
     const [a, b, untouched] = await Promise.all([
-      makeBook({ format: BookFormat.AUDIOBOOK, lengthMinutes: 600 }),
-      makeBook(),
-      makeBook(),
+      makeGame({ format: GameFormat.AUDIOBOOK, lengthMinutes: 600 }),
+      makeGame(),
+      makeGame(),
     ]);
 
-    const res = await bulkUpdateBooks({
-      bookIds: [a.id, b.id],
-      format: BookFormat.EBOOK,
-      ownership: BookOwnership.BORROWED,
+    const res = await bulkUpdateGames({
+      gameIds: [a.id, b.id],
+      format: GameFormat.EBOOK,
+      ownership: GameOwnership.BORROWED,
     });
     expect(res).toEqual({ count: 2 });
 
-    const rows = await prisma.book.findMany({ where: { userId } });
+    const rows = await prisma.game.findMany({ where: { userId } });
     const byId = new Map(rows.map((r) => [r.id, r]));
     for (const id of [a.id, b.id]) {
-      expect(byId.get(id)?.format).toBe(BookFormat.EBOOK);
-      expect(byId.get(id)?.ownership).toBe(BookOwnership.BORROWED);
+      expect(byId.get(id)?.format).toBe(GameFormat.EBOOK);
+      expect(byId.get(id)?.ownership).toBe(GameOwnership.BORROWED);
     }
     // Only an audiobook keeps a running time.
     expect(byId.get(a.id)?.lengthMinutes).toBeNull();
-    expect(byId.get(untouched.id)?.format).toBe(BookFormat.PHYSICAL);
-    expect(byId.get(untouched.id)?.ownership).toBe(BookOwnership.OWNED);
+    expect(byId.get(untouched.id)?.format).toBe(GameFormat.PHYSICAL);
+    expect(byId.get(untouched.id)?.ownership).toBe(GameOwnership.OWNED);
   });
 
   it("removes tags, alone or while adding others", async () => {
-    const a = await makeBook({ tags: ["fantasy", "epic", "owned"] });
-    const b = await makeBook({ tags: ["epic"] });
+    const a = await makeGame({ tags: ["fantasy", "epic", "owned"] });
+    const b = await makeGame({ tags: ["epic"] });
 
-    await bulkUpdateBooks({ bookIds: [a.id, b.id], removeTags: ["epic"] });
-    expect((await prisma.book.findUniqueOrThrow({ where: { id: a.id } })).tags).toEqual([
+    await bulkUpdateGames({ gameIds: [a.id, b.id], removeTags: ["epic"] });
+    expect((await prisma.game.findUniqueOrThrow({ where: { id: a.id } })).tags).toEqual([
       "fantasy",
       "owned",
     ]);
-    expect((await prisma.book.findUniqueOrThrow({ where: { id: b.id } })).tags).toEqual([]);
+    expect((await prisma.game.findUniqueOrThrow({ where: { id: b.id } })).tags).toEqual([]);
 
-    await bulkUpdateBooks({ bookIds: [a.id], addTags: ["reread"], removeTags: ["owned"] });
-    expect((await prisma.book.findUniqueOrThrow({ where: { id: a.id } })).tags).toEqual([
+    await bulkUpdateGames({ gameIds: [a.id], addTags: ["reread"], removeTags: ["owned"] });
+    expect((await prisma.game.findUniqueOrThrow({ where: { id: a.id } })).tags).toEqual([
       "fantasy",
       "reread",
     ]);
   });
 
   it("refuses a tag both added and removed, writing nothing", async () => {
-    const bk = await makeBook({ tags: ["epic"] });
+    const bk = await makeGame({ tags: ["epic"] });
     expect(
-      await bulkUpdateBooks({ bookIds: [bk.id], addTags: ["new"], removeTags: ["new"] }),
+      await bulkUpdateGames({ gameIds: [bk.id], addTags: ["new"], removeTags: ["new"] }),
     ).toEqual({ error: "“new” is in both Add tags and Remove tags." });
-    expect((await prisma.book.findUniqueOrThrow({ where: { id: bk.id } })).tags).toEqual(["epic"]);
+    expect((await prisma.game.findUniqueOrThrow({ where: { id: bk.id } })).tags).toEqual(["epic"]);
   });
 
-  it("applies to every book matching the filters, past any page, and only the reader's", async () => {
+  it("applies to every game matching the filters, past any page, and only the reader's", async () => {
     const tagged = await Promise.all(
-      Array.from({ length: 205 }, (_, i) => makeBook({ title: `Tagged ${i}`, tags: ["x"] })),
+      Array.from({ length: 205 }, (_, i) => makeGame({ title: `Tagged ${i}`, tags: ["x"] })),
     );
-    const untagged = await makeBook({ tags: ["y"] });
-    const theirs = await makeBook({ tags: ["x"] }, otherUserId);
+    const untagged = await makeGame({ tags: ["y"] });
+    const theirs = await makeGame({ tags: ["x"] }, otherUserId);
 
-    const res = await bulkUpdateBooks({
+    const res = await bulkUpdateGames({
       matching: { tag: "x", sort: "title", dir: "asc", group: "none", limit: "200" },
-      ownership: BookOwnership.WISHLIST,
+      ownership: GameOwnership.WISHLIST,
     });
 
     expect(res).toEqual({ count: tagged.length });
     expect(
-      await prisma.book.count({ where: { userId, ownership: BookOwnership.WISHLIST } }),
+      await prisma.game.count({ where: { userId, ownership: GameOwnership.WISHLIST } }),
     ).toBe(205);
-    expect((await prisma.book.findUniqueOrThrow({ where: { id: untagged.id } })).ownership).toBe(
-      BookOwnership.OWNED,
+    expect((await prisma.game.findUniqueOrThrow({ where: { id: untagged.id } })).ownership).toBe(
+      GameOwnership.OWNED,
     );
-    expect((await prisma.book.findUniqueOrThrow({ where: { id: theirs.id } })).ownership).toBe(
-      BookOwnership.OWNED,
+    expect((await prisma.game.findUniqueOrThrow({ where: { id: theirs.id } })).ownership).toBe(
+      GameOwnership.OWNED,
     );
   });
 
   it("matches on a shelf only when the shelf is the reader's", async () => {
-    const theirBook = await makeBook({}, otherUserId);
-    const theirShelf = await makeShelf("Theirs", [theirBook], otherUserId);
-    await makeBook();
+    const theirGame = await makeGame({}, otherUserId);
+    const theirShelf = await makeShelf("Theirs", [theirGame], otherUserId);
+    await makeGame();
 
     expect(
-      await bulkUpdateBooks({ matching: { shelfId: theirShelf.id }, status: ReadingStatus.DNF }),
-    ).toEqual({ error: "No matching books" });
-    expect((await prisma.book.findUniqueOrThrow({ where: { id: theirBook.id } })).status).toBe(
+      await bulkUpdateGames({ matching: { shelfId: theirShelf.id }, status: ReadingStatus.DNF }),
+    ).toEqual({ error: "No matching games" });
+    expect((await prisma.game.findUniqueOrThrow({ where: { id: theirGame.id } })).status).toBe(
       ReadingStatus.WANT_TO_READ,
     );
   });
 
-  it("dates and counts every matching book moved to Read", async () => {
-    const books = await Promise.all([
-      makeBook({ status: ReadingStatus.READING, tags: ["club"] }),
-      makeBook({ status: ReadingStatus.WANT_TO_READ, tags: ["club"] }),
+  it("dates and counts every matching game moved to Read", async () => {
+    const games = await Promise.all([
+      makeGame({ status: ReadingStatus.READING, tags: ["club"] }),
+      makeGame({ status: ReadingStatus.WANT_TO_READ, tags: ["club"] }),
     ]);
 
-    const res = await bulkUpdateBooks({ matching: { tag: "club" }, status: ReadingStatus.READ });
+    const res = await bulkUpdateGames({ matching: { tag: "club" }, status: ReadingStatus.READ });
     expect(res).toEqual({ count: 2 });
 
-    for (const bk of books) {
-      const after = await prisma.book.findUniqueOrThrow({ where: { id: bk.id } });
+    for (const bk of games) {
+      const after = await prisma.game.findUniqueOrThrow({ where: { id: bk.id } });
       expect(after.status).toBe(ReadingStatus.READ);
       expect(after.dateFinished).not.toBeNull();
       expect(after.timesRead).toBe(1);
@@ -299,74 +299,74 @@ describe("bulkUpdateBooks, more fields", () => {
   });
 
   it("takes 2,000 ids, and explains 2,001 instead of 'Invalid input'", async () => {
-    const bk = await makeBook();
+    const bk = await makeGame();
     const ids = [bk.id, ...Array.from({ length: 1999 }, (_, i) => `missing${i}`)];
-    expect(await bulkUpdateBooks({ bookIds: ids, status: ReadingStatus.READ })).toEqual({
+    expect(await bulkUpdateGames({ gameIds: ids, status: ReadingStatus.READ })).toEqual({
       count: 1,
     });
 
     expect(
-      await bulkUpdateBooks({ bookIds: [...ids, "one-more"], status: ReadingStatus.DNF }),
+      await bulkUpdateGames({ gameIds: [...ids, "one-more"], status: ReadingStatus.DNF }),
     ).toEqual({
-      error: "That's more than 2,000 books. Use “Select all books that match” instead.",
+      error: "That's more than 2,000 games. Use “Select all games that match” instead.",
     });
   });
 });
 
-describe("bulkDeleteBooks", () => {
+describe("bulkDeleteGames", () => {
   it("deletes the selection with its history, and nothing else", async () => {
-    const [gone, kept] = await Promise.all([makeBook(), makeBook()]);
-    const theirs = await makeBook({}, otherUserId);
-    await prisma.read.create({ data: { bookId: gone.id } });
-    await prisma.quote.create({ data: { bookId: gone.id, text: "A line" } });
-    await prisma.loan.create({ data: { bookId: gone.id, borrower: "Sam" } });
+    const [gone, kept] = await Promise.all([makeGame(), makeGame()]);
+    const theirs = await makeGame({}, otherUserId);
+    await prisma.read.create({ data: { gameId: gone.id } });
+    await prisma.quote.create({ data: { gameId: gone.id, text: "A line" } });
+    await prisma.loan.create({ data: { gameId: gone.id, borrower: "Sam" } });
 
-    expect(await bulkDeleteBooks({ bookIds: [gone.id, theirs.id] })).toEqual({ count: 1 });
+    expect(await bulkDeleteGames({ gameIds: [gone.id, theirs.id] })).toEqual({ count: 1 });
 
-    expect(await prisma.book.findUnique({ where: { id: gone.id } })).toBeNull();
-    expect(await prisma.read.count({ where: { bookId: gone.id } })).toBe(0);
-    expect(await prisma.quote.count({ where: { bookId: gone.id } })).toBe(0);
-    expect(await prisma.loan.count({ where: { bookId: gone.id } })).toBe(0);
-    expect(await prisma.book.findUnique({ where: { id: kept.id } })).not.toBeNull();
-    expect(await prisma.book.findUnique({ where: { id: theirs.id } })).not.toBeNull();
+    expect(await prisma.game.findUnique({ where: { id: gone.id } })).toBeNull();
+    expect(await prisma.read.count({ where: { gameId: gone.id } })).toBe(0);
+    expect(await prisma.quote.count({ where: { gameId: gone.id } })).toBe(0);
+    expect(await prisma.loan.count({ where: { gameId: gone.id } })).toBe(0);
+    expect(await prisma.game.findUnique({ where: { id: kept.id } })).not.toBeNull();
+    expect(await prisma.game.findUnique({ where: { id: theirs.id } })).not.toBeNull();
   });
 
   it("deletes every match only while the count is the one shown", async () => {
-    await Promise.all([makeBook({ tags: ["weed"] }), makeBook({ tags: ["weed"] })]);
-    const other = await makeBook({ tags: ["keep"] });
+    await Promise.all([makeGame({ tags: ["weed"] }), makeGame({ tags: ["weed"] })]);
+    const other = await makeGame({ tags: ["keep"] });
 
-    expect(await bulkDeleteBooks({ matching: { tag: "weed" }, expectedCount: 3 })).toEqual({
-      error: "The books that match have changed. Check the count and try again.",
+    expect(await bulkDeleteGames({ matching: { tag: "weed" }, expectedCount: 3 })).toEqual({
+      error: "The games that match have changed. Check the count and try again.",
     });
-    expect(await prisma.book.count({ where: { userId } })).toBe(3);
+    expect(await prisma.game.count({ where: { userId } })).toBe(3);
 
-    expect(await bulkDeleteBooks({ matching: { tag: "weed" }, expectedCount: 2 })).toEqual({
+    expect(await bulkDeleteGames({ matching: { tag: "weed" }, expectedCount: 2 })).toEqual({
       count: 2,
     });
-    expect(await prisma.book.findMany({ where: { userId }, select: { id: true } })).toEqual([
+    expect(await prisma.game.findMany({ where: { userId }, select: { id: true } })).toEqual([
       { id: other.id },
     ]);
   });
 
   it("refuses when a match turns up after the count", async () => {
-    await Promise.all([makeBook({ tags: ["weed"] }), makeBook({ tags: ["weed"] })]);
-    // Another tab adds a matching book just after the server counted two.
-    const count = vi.spyOn(appPrisma.book, "count").mockImplementationOnce((async (
-      args: Parameters<typeof appPrisma.book.count>[0],
+    await Promise.all([makeGame({ tags: ["weed"] }), makeGame({ tags: ["weed"] })]);
+    // Another tab adds a matching game just after the server counted two.
+    const count = vi.spyOn(appPrisma.game, "count").mockImplementationOnce((async (
+      args: Parameters<typeof appPrisma.game.count>[0],
     ) => {
       count.mockRestore();
-      const n = await appPrisma.book.count(args);
-      await makeBook({ tags: ["weed"] });
+      const n = await appPrisma.game.count(args);
+      await makeGame({ tags: ["weed"] });
       return n;
     }) as never);
 
-    expect(await bulkDeleteBooks({ matching: { tag: "weed" }, expectedCount: 2 })).toEqual({
-      error: "The books that match have changed. Check the count and try again.",
+    expect(await bulkDeleteGames({ matching: { tag: "weed" }, expectedCount: 2 })).toEqual({
+      error: "The games that match have changed. Check the count and try again.",
     });
-    expect(await prisma.book.count({ where: { userId } })).toBe(3);
+    expect(await prisma.game.count({ where: { userId } })).toBe(3);
   });
 
-  it("removes cached covers no other book uses, and keeps shared ones", async () => {
+  it("removes cached covers no other game uses, and keeps shared ones", async () => {
     const write = async (name: string) => {
       await fs.writeFile(path.join(coversDir, name), "cover");
       return `/api/covers/${name}`;
@@ -378,12 +378,12 @@ describe("bulkDeleteBooks", () => {
       );
     const own = await write("own-cover.jpg");
     const shared = await write("shared-cover.jpg");
-    const a = await makeBook({ coverUrl: own });
-    const b = await makeBook({ coverUrl: shared });
-    await makeBook({ coverUrl: shared }, otherUserId);
-    const remote = await makeBook({ coverUrl: "https://covers.example.org/x.jpg" });
+    const a = await makeGame({ coverUrl: own });
+    const b = await makeGame({ coverUrl: shared });
+    await makeGame({ coverUrl: shared }, otherUserId);
+    const remote = await makeGame({ coverUrl: "https://covers.example.org/x.jpg" });
 
-    expect(await bulkDeleteBooks({ bookIds: [a.id, b.id, remote.id] })).toEqual({ count: 3 });
+    expect(await bulkDeleteGames({ gameIds: [a.id, b.id, remote.id] })).toEqual({ count: 3 });
 
     expect(await exists(own)).toBe(false);
     expect(await exists(shared)).toBe(true);

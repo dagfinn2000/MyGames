@@ -21,7 +21,7 @@ export interface ThemeDef {
   swatch: [string, string];
 }
 
-export const THEME_STORAGE_KEY = "myreads-theme";
+export const THEME_STORAGE_KEY = "mygames-theme";
 
 export const THEMES: ThemeDef[] = [
   // Built-in shadcn bases (no data-theme CSS block needed).

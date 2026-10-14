@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BookOwnership } from "@prisma/client";
+import { GameOwnership } from "@prisma/client";
 import { LENDING_NOTE, lendingMode, outFor, showsLendingCard } from "@/lib/loans";
 
 const at = (iso: string) => new Date(iso);
@@ -28,10 +28,10 @@ describe("outFor", () => {
 
 describe("lendingMode", () => {
   it("only lets a copy you own be lent", () => {
-    expect(lendingMode(BookOwnership.OWNED)).toBe("lendable");
-    expect(lendingMode(BookOwnership.BORROWED)).toBe("borrowed");
-    expect(lendingMode(BookOwnership.GIVEN_AWAY)).toBe("given-away");
-    expect(lendingMode(BookOwnership.WISHLIST)).toBe("wishlist");
+    expect(lendingMode(GameOwnership.OWNED)).toBe("lendable");
+    expect(lendingMode(GameOwnership.BORROWED)).toBe("borrowed");
+    expect(lendingMode(GameOwnership.GIVEN_AWAY)).toBe("given-away");
+    expect(lendingMode(GameOwnership.WISHLIST)).toBe("wishlist");
   });
 
   it("says why for each kind of copy", () => {
@@ -43,16 +43,16 @@ describe("lendingMode", () => {
 });
 
 describe("showsLendingCard", () => {
-  it("hides the card for a wishlist book with nothing on record", () => {
-    expect(showsLendingCard(BookOwnership.WISHLIST, 0)).toBe(false);
+  it("hides the card for a wishlist game with nothing on record", () => {
+    expect(showsLendingCard(GameOwnership.WISHLIST, 0)).toBe(false);
   });
 
-  it("keeps a wishlist book's loan history visible", () => {
-    expect(showsLendingCard(BookOwnership.WISHLIST, 2)).toBe(true);
+  it("keeps a wishlist game's loan history visible", () => {
+    expect(showsLendingCard(GameOwnership.WISHLIST, 2)).toBe(true);
   });
 
   it("shows the card for every other copy", () => {
-    for (const o of [BookOwnership.OWNED, BookOwnership.BORROWED, BookOwnership.GIVEN_AWAY]) {
+    for (const o of [GameOwnership.OWNED, GameOwnership.BORROWED, GameOwnership.GIVEN_AWAY]) {
       expect(showsLendingCard(o, 0)).toBe(true);
     }
   });

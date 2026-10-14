@@ -67,12 +67,12 @@ export function GoalForm({
         </div>
         <div className="grid gap-1">
           <span className="text-xs text-muted-foreground">Counting</span>
-          <Select name="unit" defaultValue={goal?.unit ?? "BOOKS"}>
+          <Select name="unit" defaultValue={goal?.unit ?? "GAMES"}>
             <SelectTrigger className="w-28" aria-label="What the goal counts">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="BOOKS">Books</SelectItem>
+              <SelectItem value="GAMES">Games</SelectItem>
               <SelectItem value="PAGES">Pages</SelectItem>
             </SelectContent>
           </Select>

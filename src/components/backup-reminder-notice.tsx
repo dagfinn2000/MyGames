@@ -8,8 +8,8 @@ import { snoozeBackupReminder } from "@/lib/actions/backup";
 import { useBackupWatch } from "@/components/backup-download";
 import { Button } from "@/components/ui/button";
 
-/** The Library and Stats pages; not a book page, Add, Quotes or Account. */
-const SHOWN_ON = new Set(["/books", "/stats"]);
+/** The Library and Stats pages; not a game page, Add, Quotes or Account. */
+const SHOWN_ON = new Set(["/games", "/stats"]);
 
 /**
  * The monthly backup reminder. The server has already decided it's due

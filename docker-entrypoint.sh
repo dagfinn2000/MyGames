@@ -5,7 +5,7 @@
 # container exits and `restart: unless-stopped` retries.
 set -e
 
-echo "[myreads] applying database migrations…"
+echo "[mygames] applying database migrations…"
 prisma migrate deploy --schema /app/prisma/schema.prisma
 
 # Housekeeping: drop expired third-party metadata lookups. Cheap, and the
@@ -13,5 +13,5 @@ prisma migrate deploy --schema /app/prisma/schema.prisma
 # own errors so a hiccup here can't stop the app from starting.
 node scripts/prune-metadata-cache.mjs || true
 
-echo "[myreads] starting server on :${PORT:-3000}"
+echo "[mygames] starting server on :${PORT:-3000}"
 exec node server.js

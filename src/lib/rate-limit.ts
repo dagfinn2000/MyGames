@@ -1,5 +1,5 @@
 /**
- * Minimal in-memory rate limiter for auth endpoints. A self-hosted MyReads
+ * Minimal in-memory rate limiter for auth endpoints. A self-hosted MyGames
  * runs as a single Node process, so a Map is all the shared state needed —
  * no Redis, no extra service. State resets on restart, which is fine: the
  * point is to make online password guessing impractically slow, not to keep

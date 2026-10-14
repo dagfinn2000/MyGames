@@ -1,31 +1,31 @@
 "use server";
 
-import type { BookFormat, BookOwnership } from "@prisma/client";
+import type { GameFormat, GameOwnership } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUserId } from "@/lib/actions/helpers";
 import { metadataBudgetUsed, takeMetadataBudget } from "@/lib/api-guard";
-import { catalogueBookValues } from "@/lib/catalogue-values";
+import { catalogueGameValues } from "@/lib/catalogue-values";
 import { localizeCoverAfterResponse } from "@/lib/cover-localize";
 import { deleteCachedCover } from "@/lib/covers";
 import { getPreferences } from "@/lib/current-user";
 import { isbnVariants, looksLikeIsbn, normalizeIsbn } from "@/lib/isbn";
-import { findBookByIsbn, findBookByTitle } from "@/lib/library-match";
-import { CataloguesUnreachableError, getBookDetails, searchBooks } from "@/lib/metadata";
+import { findGameByIsbn, findGameByTitle } from "@/lib/library-match";
+import { CataloguesUnreachableError, getGameDetails, searchGames } from "@/lib/metadata";
 import { METADATA_LOOKUPS_PER_MINUTE } from "@/lib/rate-limit";
 import { settleReadingState } from "@/lib/reading-state";
 import { tagImportFor } from "@/lib/user-tags";
 import { buildSearchText } from "@/lib/utils";
-import { bookSchema, isAllowedCoverUrl } from "@/lib/validation";
+import { gameSchema, isAllowedCoverUrl } from "@/lib/validation";
 
 /** What one scanned barcode came to. */
 export type ScanResult =
-  | { kind: "added"; book: { id: string; title: string; authors: string[] } }
+  | { kind: "added"; game: { id: string; title: string; authors: string[] } }
   | {
       kind: "have";
       match: "isbn" | "title";
       /** Ownership and format word the answer as the check page does. */
-      book: { id: string; title: string; ownership: BookOwnership; format: BookFormat };
+      game: { id: string; title: string; ownership: GameOwnership; format: GameFormat };
     }
   | { kind: "notFound"; isbn: string }
   /** The lookup budget is spent: try this code again after the wait. */
@@ -39,17 +39,17 @@ export type ScanAnswer = ScanResult & {
 
 const scanSchema = z.object({
   isbn: z.string().trim().max(20).refine(looksLikeIsbn),
-  /** Add it even though a book with the same title is in the library. */
+  /** Add it even though a game with the same title is in the library. */
   force: z.boolean().optional(),
 });
 
-/** Units of the lookup budget a book's details cost: the work, the exact
- *  edition and Google Books. With the search, about three a scan. */
+/** Units of the lookup budget a game's details cost: the work, the exact
+ *  edition and Google Games. With the search, about three a scan. */
 const DETAILS_COST = 2;
 
 /**
- * Shelf scan ("Keep scanning"): looks one barcode up and adds the book with
- * the reader's New books settings, without the review form. A book whose
+ * Shelf scan ("Keep scanning"): looks one barcode up and adds the game with
+ * the reader's New games settings, without the review form. A game whose
  * ISBN is already in the library is reported, not added again, and so is
  * one with the same title in another edition unless `force` says to add it
  * anyway.
@@ -62,7 +62,7 @@ const DETAILS_COST = 2;
  * it was called from in its response, which would redraw the add page on
  * every scan; the library is rendered fresh on each visit anyway.
  */
-export async function scanAddBook(
+export async function scanAddGame(
   isbn: string,
   options?: { force?: boolean },
 ): Promise<ScanAnswer> {
@@ -76,8 +76,8 @@ export async function scanAddBook(
   if (!parsed.success) return answer({ kind: "error", message: "That isn't an ISBN" });
   const code = normalizeIsbn(parsed.data.isbn);
 
-  const owned = await findBookByIsbn(userId, code);
-  if (owned) return answer({ kind: "have", match: "isbn", book: owned });
+  const owned = await findGameByIsbn(userId, code);
+  if (owned) return answer({ kind: "have", match: "isbn", game: owned });
 
   const search = takeMetadataBudget(userId);
   if (!search.ok) return answer({ kind: "paused", retryInMs: search.retryInMs });
@@ -85,10 +85,10 @@ export async function scanAddBook(
   const prefs = await getPreferences();
   let results;
   try {
-    results = await searchBooks(code, prefs.catalogues);
+    results = await searchGames(code, prefs.catalogues);
   } catch (e) {
     if (!(e instanceof CataloguesUnreachableError)) throw e;
-    return answer({ kind: "error", message: "Couldn't reach the book catalogues" });
+    return answer({ kind: "error", message: "Couldn't reach the game catalogues" });
   }
   // The row for this very edition when there is one; an ISBN search's
   // first row otherwise.
@@ -98,45 +98,45 @@ export async function scanAddBook(
   if (!hit) return answer({ kind: "notFound", isbn: code });
 
   if (!parsed.data.force) {
-    const sameTitle = await findBookByTitle(userId, hit.title, hit.authors[0]);
-    if (sameTitle) return answer({ kind: "have", match: "title", book: sameTitle });
+    const sameTitle = await findGameByTitle(userId, hit.title, hit.authors[0]);
+    if (sameTitle) return answer({ kind: "have", match: "title", game: sameTitle });
   }
 
   // Description, subjects and a better page count. A spent budget here
-  // isn't worth a pause: the search row alone makes a good enough book.
+  // isn't worth a pause: the search row alone makes a good enough game.
   let details = null;
   if (takeMetadataBudget(userId, DETAILS_COST).ok) {
-    details = await getBookDetails(
+    details = await getGameDetails(
       { openLibraryId: hit.openLibraryId, isbn: code, title: hit.title, author: hit.authors[0] },
       prefs.catalogues,
     ).catch(() => null);
   }
 
-  const values = catalogueBookValues(hit, details, await tagImportFor(userId, prefs), code);
+  const values = catalogueGameValues(hit, details, await tagImportFor(userId, prefs), code);
   // Through the form's own schema, so the limits and cover URL rules are the
-  // ones a book added by hand gets. Catalogue text can run past the limits.
-  const book = bookSchema.safeParse({
+  // ones a game added by hand gets. Catalogue text can run past the limits.
+  const game = gameSchema.safeParse({
     ...values,
     title: values.title.slice(0, 500),
     description: values.description.slice(0, 10_000),
     publishedDate: values.publishedDate.slice(0, 20),
     coverUrl:
       values.coverUrl.length <= 2000 && isAllowedCoverUrl(values.coverUrl) ? values.coverUrl : "",
-    format: prefs.newBookFormat,
-    ownership: prefs.newBookOwnership,
+    format: prefs.newGameFormat,
+    ownership: prefs.newGameOwnership,
   });
-  if (!book.success) return answer({ kind: "error", message: "Couldn't add this book" });
-  const data = book.data;
+  if (!game.success) return answer({ kind: "error", message: "Couldn't add this game" });
+  const data = game.data;
 
   const reading = settleReadingState(
     null,
-    { status: prefs.newBookStatus, dateStarted: null, dateFinished: null, currentPage: null },
+    { status: prefs.newGameStatus, dateStarted: null, dateFinished: null, currentPage: null },
     0,
     new Date(),
     { undatedFinish: prefs.addedAsReadFinished === "undated" },
   );
 
-  const created = await prisma.book.create({
+  const created = await prisma.game.create({
     data: {
       userId,
       title: data.title,
@@ -162,26 +162,26 @@ export async function scanAddBook(
 
   return answer({
     kind: "added",
-    book: { id: created.id, title: created.title, authors: created.authors },
+    game: { id: created.id, title: created.title, authors: created.authors },
   });
 }
 
 /**
- * Undo for a scanned book: deletes it (and its cached cover) if it is the
- * reader's own. Like scanAddBook, revalidates nothing and stays on the page.
+ * Undo for a scanned game: deletes it (and its cached cover) if it is the
+ * reader's own. Like scanAddGame, revalidates nothing and stays on the page.
  */
-export async function removeScannedBook(bookId: string): Promise<{ error?: string }> {
+export async function removeScannedGame(gameId: string): Promise<{ error?: string }> {
   const userId = await requireUserId();
-  const id = z.string().min(1).max(64).safeParse(bookId);
-  if (!id.success) return { error: "Book not found" };
+  const id = z.string().min(1).max(64).safeParse(gameId);
+  if (!id.success) return { error: "Game not found" };
 
-  const book = await prisma.book.findFirst({
+  const game = await prisma.game.findFirst({
     where: { id: id.data, userId },
     select: { coverUrl: true },
   });
-  if (!book) return { error: "Book not found" };
+  if (!game) return { error: "Game not found" };
 
-  await prisma.book.delete({ where: { id: id.data } });
-  await deleteCachedCover(book.coverUrl);
+  await prisma.game.delete({ where: { id: id.data } });
+  await deleteCachedCover(game.coverUrl);
   return {};
 }

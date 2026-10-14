@@ -5,7 +5,7 @@ import { serverTimeZone } from "@/lib/preferences";
  * Pages read per calendar day, computed in the database.
  *
  * Same result as `dailyPageTotals` in lib/progress.ts — deltas between
- * consecutive entries of each book, increases only — but returning one row
+ * consecutive entries of each game, increases only — but returning one row
  * per reading day instead of every ProgressEntry ever written. The stats page
  * needs the totals, not the log; loading a decade of entries to bucket them
  * in memory was the single largest query on the page.
@@ -45,11 +45,11 @@ export async function dailyPageTotalsForUser(
       SELECT
         pe."date",
         pe."page" - LAG(pe."page") OVER (
-          PARTITION BY pe."bookId"
+          PARTITION BY pe."gameId"
           ORDER BY pe."date" ASC, pe."page" ASC
         ) AS delta
       FROM "ProgressEntry" pe
-      JOIN "Book" b ON b."id" = pe."bookId"
+      JOIN "Game" b ON b."id" = pe."gameId"
       WHERE b."userId" = ${userId}
     ) t
     WHERE t.delta > 0

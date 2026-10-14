@@ -20,8 +20,8 @@ import { readingStreaks } from "@/lib/progress";
 import { dailyPageTotalsForUser } from "@/lib/progress-query";
 import { buildPasses, countWindow, ruleNotes, tally } from "@/lib/stats-count";
 import { yearWindow } from "@/lib/stats-period";
-import { loadStatsInputs, type StatsBook } from "@/lib/stats-query";
-import { BookCover } from "@/components/book-card";
+import { loadStatsInputs, type StatsGame } from "@/lib/stats-query";
+import { GameCover } from "@/components/game-card";
 import { GoldMedal } from "@/components/gold-medal";
 import { Bar, StatCard } from "@/components/stat-blocks";
 import { Stars } from "@/components/stars";
@@ -52,14 +52,14 @@ export async function generateMetadata({
   params: Promise<{ year: string }>;
 }) {
   const { year } = await params;
-  // Same check as the page, so /stats/year/abc isn't titled "abc in books".
+  // Same check as the page, so /stats/year/abc isn't titled "abc in games".
   const parsed = parseYear(year);
-  return { title: parsed === null ? "Not found · MyReads" : `${parsed} in books · MyReads` };
+  return { title: parsed === null ? "Not found · MyGames" : `${parsed} in games · MyGames` };
 }
 
-/** One finished pass through a book, in the review year. */
+/** One finished pass through a game, in the review year. */
 interface Finish {
-  book: StatsBook;
+  game: StatsGame;
   dateStarted: Date | null;
   dateFinished: Date;
   rating: number | null;
@@ -68,7 +68,7 @@ interface Finish {
 
 /**
  * The year's wrap-up: everything finished that year — current passes on READ
- * books plus archived re-reads — turned into highlights, distributions, and
+ * games plus archived re-reads — turned into highlights, distributions, and
  * a top-rated shelf. Linked from the per-year bars on the stats page. What
  * counts follows the reader's "What counts" preferences, as on Stats.
  */
@@ -101,20 +101,20 @@ export default async function YearInReviewPage({
   ]);
 
   // Every pass that counts in this year: dated finishes (re-reads tagged,
-  // see markRereads), plus books put down and pages logged when the "What
+  // see markRereads), plus games put down and pages logged when the "What
   // counts" preferences say so.
   const passes = buildPasses(inputs, prefs, prefs.timeZone);
   const counted = countWindow(passes, yearWindow(year), prefs);
   const totals = tally(counted);
   const notes = ruleNotes(prefs, { putDown: totals.putDown }, fmt);
-  /** Passes that add a book this year: finishes, and books put down when
-   *  they count as books. */
-  const bookItems = counted.filter((i) => i.books > 0);
+  /** Passes that add a game this year: finishes, and games put down when
+   *  they count as games. */
+  const gameItems = counted.filter((i) => i.games > 0);
 
-  const finishes: Finish[] = bookItems
+  const finishes: Finish[] = gameItems
     .filter((i) => i.pass.kind === "finished")
     .map((i) => ({
-      book: i.pass.book,
+      game: i.pass.game,
       dateStarted: i.pass.dateStarted,
       dateFinished: i.pass.date!,
       rating: i.pass.rating,
@@ -122,9 +122,9 @@ export default async function YearInReviewPage({
     }));
   finishes.sort((a, b) => a.dateFinished.getTime() - b.dateFinished.getTime());
 
-  // Books put down this year, dated by their finish date or last log entry.
+  // Games put down this year, dated by their finish date or last log entry.
   const putDown =
-    prefs.statsStoppedBooks === "none"
+    prefs.statsStoppedGames === "none"
       ? []
       : counted
           .filter((i) => i.pass.kind === "stopped" && i.pass.day?.startsWith(`${year}-`))
@@ -149,7 +149,7 @@ export default async function YearInReviewPage({
           <span className="font-semibold tabular-nums">
             {fmt(goalDone)} of {fmt(goal.target)}
           </span>{" "}
-          {goal.unit === GoalUnit.PAGES ? "pages" : "books"} toward the {year} goal
+          {goal.unit === GoalUnit.PAGES ? "pages" : "games"} toward the {year} goal
           {!goal.countRereads && " (first reads only)"}.{" "}
           {describePace(pace, goal.unit, fmt, formatDayKey(`${year}-01-01`, prefs.dateFormat))}
           {goalMet && " 🎉"}
@@ -167,15 +167,15 @@ export default async function YearInReviewPage({
         </Link>
       </Button>
       <h1 className="text-2xl font-semibold tracking-tight">
-        {year} in books
+        {year} in games
       </h1>
       <span className="ml-auto flex items-center gap-1">
-        <Button asChild variant="ghost" size="icon-sm" title={`${year - 1} in books`}>
+        <Button asChild variant="ghost" size="icon-sm" title={`${year - 1} in games`}>
           <Link href={`/stats/year/${year - 1}`}>
             <ChevronLeft className="size-4" />
           </Link>
         </Button>
-        <Button asChild variant="ghost" size="icon-sm" title={`${year + 1} in books`}>
+        <Button asChild variant="ghost" size="icon-sm" title={`${year + 1} in games`}>
           <Link href={`/stats/year/${year + 1}`}>
             <ChevronRight className="size-4" />
           </Link>
@@ -204,12 +204,12 @@ export default async function YearInReviewPage({
       : null;
 
   // Highlights.
-  const paged = finishes.filter((f) => f.book.pageCount != null);
+  const paged = finishes.filter((f) => f.game.pageCount != null);
   const longest = paged.length
-    ? paged.reduce((a, b) => (b.book.pageCount! > a.book.pageCount! ? b : a))
+    ? paged.reduce((a, b) => (b.game.pageCount! > a.game.pageCount! ? b : a))
     : null;
   const shortest = paged.length
-    ? paged.reduce((a, b) => (b.book.pageCount! < a.book.pageCount! ? b : a))
+    ? paged.reduce((a, b) => (b.game.pageCount! < a.game.pageCount! ? b : a))
     : null;
   const timed = finishes
     .map((f) => ({
@@ -231,19 +231,19 @@ export default async function YearInReviewPage({
   const first = finishes[0] ?? null;
   const last = finishes[finishes.length - 1] ?? null;
 
-  // Top rated: best pass per book, once per book, top 6.
-  const bestByBook = new Map<string, Finish>();
+  // Top rated: best pass per game, once per game, top 6.
+  const bestByGame = new Map<string, Finish>();
   for (const f of rated) {
-    const prev = bestByBook.get(f.book.id);
-    if (!prev || f.rating! > prev.rating!) bestByBook.set(f.book.id, f);
+    const prev = bestByGame.get(f.game.id);
+    if (!prev || f.rating! > prev.rating!) bestByGame.set(f.game.id, f);
   }
-  const topRated = [...bestByBook.values()]
+  const topRated = [...bestByGame.values()]
     .sort((a, b) => b.rating! - a.rating!)
     .slice(0, 6);
 
   // Distributions.
   const perMonth = Array.from({ length: 12 }, () => 0);
-  for (const i of bookItems) perMonth[Number(i.pass.day!.slice(5, 7)) - 1] += i.books;
+  for (const i of gameItems) perMonth[Number(i.pass.day!.slice(5, 7)) - 1] += i.games;
   const maxMonth = Math.max(...perMonth);
 
   const ratingCounts = new Map<number, number>();
@@ -256,8 +256,8 @@ export default async function YearInReviewPage({
     : 0;
 
   const tagCounts = new Map<string, number>();
-  for (const i of bookItems) {
-    for (const t of i.pass.book.tags) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
+  for (const i of gameItems) {
+    for (const t of i.pass.game.tags) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
   }
   const topTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
   const maxTag = topTags[0]?.[1] ?? 0;
@@ -290,11 +290,11 @@ export default async function YearInReviewPage({
 
       <div className={`grid grid-cols-2 gap-4 max-lg:[&>:last-child:nth-child(odd)]:col-span-2 ${ratings ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
         <StatCard
-          label={prefs.statsStoppedBooks === "book" ? "Books read" : "Books finished"}
+          label={prefs.statsStoppedGames === "game" ? "Games read" : "Games finished"}
           icon={BookCheck}
-          note={notes.books.join(" · ")}
+          note={notes.games.join(" · ")}
         >
-          {fmt(totals.books)}
+          {fmt(totals.games)}
         </StatCard>
         <StatCard
           label={`Pages read${notes.pagesSuffix}`}
@@ -331,15 +331,15 @@ export default async function YearInReviewPage({
             <div className="flex flex-wrap gap-4">
               {topRated.map((f) => (
                 <Link
-                  key={f.book.id}
-                  href={`/books/${f.book.id}`}
+                  key={f.game.id}
+                  href={`/games/${f.game.id}`}
                   className="group w-24"
-                  title={f.book.title}
+                  title={f.game.title}
                 >
-                  <BookCover book={f.book} className="aspect-[2/3] w-24" />
+                  <GameCover game={f.game} className="aspect-[2/3] w-24" />
                   <Stars value={f.rating!} className="mt-1.5" />
                   <p className="mt-1 line-clamp-2 text-xs leading-tight text-muted-foreground group-hover:text-foreground">
-                    {f.book.title}
+                    {f.game.title}
                   </p>
                 </Link>
               ))}
@@ -355,38 +355,38 @@ export default async function YearInReviewPage({
           </CardHeader>
           <CardContent className="grid gap-2 text-sm">
             {longest && (
-              <Highlight label="Longest book">
-                <BookLink book={longest.book} /> · {longest.book.pageCount} pages
+              <Highlight label="Longest game">
+                <GameLink game={longest.game} /> · {longest.game.pageCount} pages
               </Highlight>
             )}
-            {shortest && shortest.book.id !== longest?.book.id && (
-              <Highlight label="Shortest book">
-                <BookLink book={shortest.book} /> · {shortest.book.pageCount} pages
+            {shortest && shortest.game.id !== longest?.game.id && (
+              <Highlight label="Shortest game">
+                <GameLink game={shortest.game} /> · {shortest.game.pageCount} pages
               </Highlight>
             )}
             {fastest && (
               <Highlight label="Fastest read">
-                <BookLink book={fastest.finish.book} /> · {fastest.days}{" "}
+                <GameLink game={fastest.finish.game} /> · {fastest.days}{" "}
                 {fastest.days === 1 ? "day" : "days"}
               </Highlight>
             )}
             {first && (
               <Highlight label="First finish">
-                <BookLink book={first.book} /> · {formatDate(first.dateFinished, prefs)}
+                <GameLink game={first.game} /> · {formatDate(first.dateFinished, prefs)}
               </Highlight>
             )}
-            {first && last && last.book.id !== first.book.id && (
+            {first && last && last.game.id !== first.game.id && (
               <Highlight label="Last finish">
-                <BookLink book={last.book} /> · {formatDate(last.dateFinished, prefs)}
+                <GameLink game={last.game} /> · {formatDate(last.dateFinished, prefs)}
               </Highlight>
             )}
             {putDown.length > 0 && (
               <Highlight label="Put down">
                 {putDown.slice(0, 5).map((i, n) => (
-                  <span key={i.pass.book.id}>
+                  <span key={i.pass.game.id}>
                     {n > 0 && ", "}
-                    <BookLink book={i.pass.book} />
-                    {i.pass.book.currentPage != null && ` (p. ${i.pass.book.currentPage})`}
+                    <GameLink game={i.pass.game} />
+                    {i.pass.game.currentPage != null && ` (p. ${i.pass.game.currentPage})`}
                   </span>
                 ))}
                 {putDown.length > 5 && ` and ${fmt(putDown.length - 5)} more`}
@@ -501,13 +501,13 @@ function Highlight({
   );
 }
 
-function BookLink({ book }: { book: Pick<StatsBook, "id" | "title"> }) {
+function GameLink({ game }: { game: Pick<StatsGame, "id" | "title"> }) {
   return (
     <Link
-      href={`/books/${book.id}`}
+      href={`/games/${game.id}`}
       className="font-medium hover:underline"
     >
-      {book.title}
+      {game.title}
     </Link>
   );
 }

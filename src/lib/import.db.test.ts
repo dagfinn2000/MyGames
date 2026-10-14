@@ -4,7 +4,7 @@ import { importLibrary } from "@/lib/import";
 
 /**
  * Restore is the one path that can quietly mangle a library: it decides which
- * books are duplicates, materializes read history, and rebuilds relations.
+ * games are duplicates, materializes read history, and rebuilds relations.
  * It had no tests at all. These run against a real Postgres because the
  * failures worth catching — unique constraints, cascades, nested creates —
  * are exactly the ones a hand-written fake would reproduce faithfully and
@@ -14,12 +14,12 @@ const prisma = new PrismaClient();
 
 let userId: string;
 
-/** A minimal valid export payload; `books` are merged over the defaults. */
-function payload(books: unknown[], extra: Record<string, unknown> = {}) {
-  return { format: "myreads-export", version: 1, books, ...extra };
+/** A minimal valid export payload; `games` are merged over the defaults. */
+function payload(games: unknown[], extra: Record<string, unknown> = {}) {
+  return { format: "mygames-export", version: 1, games, ...extra };
 }
 
-function book(over: Record<string, unknown> = {}) {
+function game(over: Record<string, unknown> = {}) {
   return {
     title: "The Final Empire",
     authors: ["Brandon Sanderson"],
@@ -51,18 +51,18 @@ afterEach(async () => {
 });
 
 describe("importLibrary", () => {
-  it("rejects anything that isn't a MyReads export", async () => {
-    for (const bad of [{}, { format: "other", version: 1, books: [] }, null, 42]) {
+  it("rejects anything that isn't a MyGames export", async () => {
+    for (const bad of [{}, { format: "other", version: 1, games: [] }, null, 42]) {
       const res = await importLibrary(userId, bad);
       expect(res).toHaveProperty("error");
     }
   });
 
-  it("restores a book with its quotes, reads and progress", async () => {
+  it("restores a game with its quotes, reads and progress", async () => {
     const res = await importLibrary(
       userId,
       payload([
-        book({
+        game({
           quotes: [{ text: "Life before death.", page: 42, note: "oath" }],
           reads: [{ dateFinished: "2019-05-01T00:00:00.000Z", rating: 8, note: "Read aloud" }],
           lengthMinutes: 1475,
@@ -73,15 +73,15 @@ describe("importLibrary", () => {
     );
 
     expect(res).toMatchObject({
-      booksCreated: 1,
-      booksSkipped: 0,
-      booksInvalid: 0,
+      gamesCreated: 1,
+      gamesSkipped: 0,
+      gamesInvalid: 0,
       quotesRestored: 1,
       readsRestored: 1,
       progressRestored: 1,
     });
 
-    const saved = await prisma.book.findFirstOrThrow({
+    const saved = await prisma.game.findFirstOrThrow({
       where: { userId },
       include: { quotes: true, reads: true, progress: true },
     });
@@ -96,81 +96,81 @@ describe("importLibrary", () => {
   });
 
   it("splits a tag with a comma in it, which the tag filter couldn't hold", async () => {
-    await importLibrary(userId, payload([book({ tags: ["Science, Fiction", "fantasy", "fantasy,"] })]));
-    const saved = await prisma.book.findFirstOrThrow({ where: { userId } });
+    await importLibrary(userId, payload([game({ tags: ["Science, Fiction", "fantasy", "fantasy,"] })]));
+    const saved = await prisma.game.findFirstOrThrow({ where: { userId } });
     expect([...saved.tags].sort()).toEqual(["fantasy", "fiction", "science"]);
   });
 
-  it("skips a book already present by ISBN, and does not duplicate it", async () => {
-    await importLibrary(userId, payload([book()]));
-    const second = await importLibrary(userId, payload([book({ title: "Different title" })]));
+  it("skips a game already present by ISBN, and does not duplicate it", async () => {
+    await importLibrary(userId, payload([game()]));
+    const second = await importLibrary(userId, payload([game({ title: "Different title" })]));
 
-    expect(second).toMatchObject({ booksCreated: 0, booksSkipped: 1 });
-    expect(await prisma.book.count({ where: { userId } })).toBe(1);
+    expect(second).toMatchObject({ gamesCreated: 0, gamesSkipped: 1 });
+    expect(await prisma.game.count({ where: { userId } })).toBe(1);
   });
 
-  it("skips a book already present by title + first author when ISBNs differ", async () => {
-    await importLibrary(userId, payload([book({ isbn: null })]));
-    const second = await importLibrary(userId, payload([book({ isbn: null })]));
+  it("skips a game already present by title + first author when ISBNs differ", async () => {
+    await importLibrary(userId, payload([game({ isbn: null })]));
+    const second = await importLibrary(userId, payload([game({ isbn: null })]));
 
-    expect(second).toMatchObject({ booksCreated: 0, booksSkipped: 1 });
-    expect(await prisma.book.count({ where: { userId } })).toBe(1);
+    expect(second).toMatchObject({ gamesCreated: 0, gamesSkipped: 1 });
+    expect(await prisma.game.count({ where: { userId } })).toBe(1);
   });
 
-  it("skips the second copy when one payload contains a book twice", async () => {
+  it("skips the second copy when one payload contains a game twice", async () => {
     // The dedup sets are updated as the payload is walked; this is the case
     // that breaks if that pass is ever parallelised.
-    const res = await importLibrary(userId, payload([book(), book()]));
-    expect(res).toMatchObject({ booksCreated: 1, booksSkipped: 1 });
-    expect(await prisma.book.count({ where: { userId } })).toBe(1);
+    const res = await importLibrary(userId, payload([game(), game()]));
+    expect(res).toMatchObject({ gamesCreated: 1, gamesSkipped: 1 });
+    expect(await prisma.game.count({ where: { userId } })).toBe(1);
   });
 
-  it("keeps two editions of one book from the same file", async () => {
+  it("keeps two editions of one game from the same file", async () => {
     const res = await importLibrary(
       userId,
       payload([
-        book(),
-        book({ isbn: "9780765350381", format: "EBOOK" }),
-        book({ isbn: null, format: "AUDIOBOOK" }),
-        book({ isbn: null, format: "AUDIOBOOK" }),
+        game(),
+        game({ isbn: "9780765350381", format: "EBOOK" }),
+        game({ isbn: null, format: "AUDIOBOOK" }),
+        game({ isbn: null, format: "AUDIOBOOK" }),
       ]),
     );
-    expect(res).toMatchObject({ booksCreated: 3, booksSkipped: 1 });
-    expect(await prisma.book.count({ where: { userId } })).toBe(3);
+    expect(res).toMatchObject({ gamesCreated: 3, gamesSkipped: 1 });
+    expect(await prisma.game.count({ where: { userId } })).toBe(3);
 
     // And a second restore of that file still adds nothing.
-    const again = await importLibrary(userId, payload([book(), book({ isbn: "9780765350381", format: "EBOOK" })]));
-    expect(again).toMatchObject({ booksCreated: 0, booksSkipped: 2 });
+    const again = await importLibrary(userId, payload([game(), game({ isbn: "9780765350381", format: "EBOOK" })]));
+    expect(again).toMatchObject({ gamesCreated: 0, gamesSkipped: 2 });
   });
 
   it("is safe to re-run: a second restore of the same file adds nothing", async () => {
-    const file = payload([book(), book({ title: "Mistborn 2", isbn: "9780765316882" })]);
+    const file = payload([game(), game({ title: "Mistborn 2", isbn: "9780765316882" })]);
     const first = await importLibrary(userId, file);
     const second = await importLibrary(userId, file);
 
-    expect(first).toMatchObject({ booksCreated: 2 });
-    expect(second).toMatchObject({ booksCreated: 0, booksSkipped: 2 });
-    expect(await prisma.book.count({ where: { userId } })).toBe(2);
+    expect(first).toMatchObject({ gamesCreated: 2 });
+    expect(second).toMatchObject({ gamesCreated: 0, gamesSkipped: 2 });
+    expect(await prisma.game.count({ where: { userId } })).toBe(2);
   });
 
-  it("counts invalid books without aborting the rest of the restore", async () => {
+  it("counts invalid games without aborting the rest of the restore", async () => {
     const res = await importLibrary(
       userId,
-      payload([book(), { title: "" }, book({ title: "Elantris", isbn: "9780765350374" })]),
+      payload([game(), { title: "" }, game({ title: "Elantris", isbn: "9780765350374" })]),
     );
-    expect(res).toMatchObject({ booksCreated: 2, booksInvalid: 1 });
+    expect(res).toMatchObject({ gamesCreated: 2, gamesInvalid: 1 });
   });
 
-  it("creates shelves referenced only by books, and links them", async () => {
+  it("creates shelves referenced only by games, and links them", async () => {
     const res = await importLibrary(
       userId,
-      payload([book({ shelves: ["Sanderson", "Favourites"] })], {
+      payload([game({ shelves: ["Sanderson", "Favourites"] })], {
         shelves: [{ name: "Sanderson" }],
       }),
     );
-    expect(res).toMatchObject({ booksCreated: 1 });
+    expect(res).toMatchObject({ gamesCreated: 1 });
 
-    const saved = await prisma.book.findFirstOrThrow({
+    const saved = await prisma.game.findFirstOrThrow({
       where: { userId },
       include: { shelves: true },
     });
@@ -179,7 +179,7 @@ describe("importLibrary", () => {
 
   it("reuses an existing shelf rather than duplicating it", async () => {
     await prisma.shelf.create({ data: { userId, name: "Sanderson" } });
-    await importLibrary(userId, payload([book({ shelves: ["Sanderson"] })]));
+    await importLibrary(userId, payload([game({ shelves: ["Sanderson"] })]));
 
     expect(await prisma.shelf.count({ where: { userId, name: "Sanderson" } })).toBe(1);
   });
@@ -188,13 +188,13 @@ describe("importLibrary", () => {
     const mine = await prisma.shelf.create({ data: { userId, name: "Favourites" } });
     const res = await importLibrary(
       userId,
-      payload([book({ shelves: ["favourites", "FAVOURITES"] })], {
+      payload([game({ shelves: ["favourites", "FAVOURITES"] })], {
         shelves: [{ name: "favourites" }],
       }),
     );
-    expect(res).toMatchObject({ booksCreated: 1, shelvesCreated: 0 });
+    expect(res).toMatchObject({ gamesCreated: 1, shelvesCreated: 0 });
 
-    const saved = await prisma.book.findFirstOrThrow({
+    const saved = await prisma.game.findFirstOrThrow({
       where: { userId },
       include: { shelves: true },
     });
@@ -203,18 +203,18 @@ describe("importLibrary", () => {
 
   it("takes shelf names the way the shelf form does, one at a time", async () => {
     // Trimmed, and a name past 50 characters dropped on its own: it used to
-    // be created as it was, while the book lost every one of its shelves.
+    // be created as it was, while the game lost every one of its shelves.
     const res = await importLibrary(
       userId,
-      payload([book({ shelves: ["  Padded  ", "x".repeat(5000), "Kept", 7] })], {
+      payload([game({ shelves: ["  Padded  ", "x".repeat(5000), "Kept", 7] })], {
         shelves: [{ name: "y".repeat(51) }, { name: " Listed " }, null],
       }),
     );
-    expect(res).toMatchObject({ booksCreated: 1, shelvesCreated: 3 });
+    expect(res).toMatchObject({ gamesCreated: 1, shelvesCreated: 3 });
 
     const shelves = await prisma.shelf.findMany({ where: { userId }, orderBy: { name: "asc" } });
     expect(shelves.map((s) => s.name)).toEqual(["Kept", "Listed", "Padded"]);
-    const saved = await prisma.book.findFirstOrThrow({
+    const saved = await prisma.game.findFirstOrThrow({
       where: { userId },
       include: { shelves: true },
     });
@@ -224,9 +224,9 @@ describe("importLibrary", () => {
   it("materializes history from timesRead when the export predates `reads`", async () => {
     // Old exports carry only a count. Three reads = the current pass plus two
     // archived ones, so timesRead stays consistent with the rows created.
-    await importLibrary(userId, payload([book({ timesRead: 3, reads: [] })]));
+    await importLibrary(userId, payload([game({ timesRead: 3, reads: [] })]));
 
-    const saved = await prisma.book.findFirstOrThrow({
+    const saved = await prisma.game.findFirstOrThrow({
       where: { userId },
       include: { reads: true },
     });
@@ -243,21 +243,21 @@ describe("importLibrary", () => {
   });
 
   it("clears a local cover path whose file cannot be restored", async () => {
-    await importLibrary(userId, payload([book({ coverUrl: "/api/covers/gone-12345678.jpg" })]));
+    await importLibrary(userId, payload([game({ coverUrl: "/api/covers/gone-12345678.jpg" })]));
 
-    const saved = await prisma.book.findFirstOrThrow({ where: { userId } });
+    const saved = await prisma.game.findFirstOrThrow({ where: { userId } });
     expect(saved.coverUrl).toBeNull();
   });
 
   it("keeps a remote cover URL as-is", async () => {
     const url = "https://covers.openlibrary.org/b/id/240727-L.jpg";
-    await importLibrary(userId, payload([book({ coverUrl: url })]));
+    await importLibrary(userId, payload([game({ coverUrl: url })]));
 
-    const saved = await prisma.book.findFirstOrThrow({ where: { userId } });
+    const saved = await prisma.game.findFirstOrThrow({ where: { userId } });
     expect(saved.coverUrl).toBe(url);
   });
 
-  it("writes a cover bundled with the backup and points the book at it", async () => {
+  it("writes a cover bundled with the backup and points the game at it", async () => {
     // Unique per run: a fixed name would be left behind in COVERS_DIR, and
     // resolveCoverUrl treats an already-present file as "nothing to restore",
     // so the assertion below would pass once and fail on every re-run against
@@ -266,12 +266,12 @@ describe("importLibrary", () => {
     const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
     const res = await importLibrary(
       userId,
-      payload([book({ coverUrl: `/api/covers/${name}` })]),
+      payload([game({ coverUrl: `/api/covers/${name}` })]),
       async (f) => (f === name ? png : null),
     );
 
     expect(res).toMatchObject({ coversRestored: 1 });
-    const saved = await prisma.book.findFirstOrThrow({ where: { userId } });
+    const saved = await prisma.game.findFirstOrThrow({ where: { userId } });
     expect(saved.coverUrl).toBe(`/api/covers/${name}`);
   });
 
@@ -280,7 +280,7 @@ describe("importLibrary", () => {
     let requested: string | null = null;
     await importLibrary(
       userId,
-      payload([book({ coverUrl: "/api/covers/../../evil.sh" })]),
+      payload([game({ coverUrl: "/api/covers/../../evil.sh" })]),
       async (f) => {
         requested = f;
         return new Uint8Array([1]);
@@ -288,7 +288,7 @@ describe("importLibrary", () => {
     );
 
     expect(requested).toBeNull();
-    const saved = await prisma.book.findFirstOrThrow({ where: { userId } });
+    const saved = await prisma.game.findFirstOrThrow({ where: { userId } });
     expect(saved.coverUrl).toBeNull();
   });
 
@@ -299,25 +299,25 @@ describe("importLibrary", () => {
     const html = new TextEncoder().encode("<html><script>alert(1)</script></html>");
     const res = await importLibrary(
       userId,
-      payload([book({ coverUrl: `/api/covers/${name}` })]),
+      payload([game({ coverUrl: `/api/covers/${name}` })]),
       async (f) => (f === name ? html : null),
     );
 
     expect(res).toMatchObject({ coversRestored: 0 });
-    const saved = await prisma.book.findFirstOrThrow({ where: { userId } });
+    const saved = await prisma.game.findFirstOrThrow({ where: { userId } });
     expect(saved.coverUrl).toBeNull();
   });
 
-  it("drops a cover URL the book form would refuse, but keeps the book", async () => {
+  it("drops a cover URL the game form would refuse, but keeps the game", async () => {
     await importLibrary(
       userId,
       payload([
-        book({ title: "A", isbn: null, coverUrl: "javascript:alert(1)" }),
-        book({ title: "B", isbn: null, coverUrl: "//evil.example/x.jpg" }),
+        game({ title: "A", isbn: null, coverUrl: "javascript:alert(1)" }),
+        game({ title: "B", isbn: null, coverUrl: "//evil.example/x.jpg" }),
       ]),
     );
 
-    const saved = await prisma.book.findMany({ where: { userId }, orderBy: { title: "asc" } });
+    const saved = await prisma.game.findMany({ where: { userId }, orderBy: { title: "asc" } });
     expect(saved.map((b) => [b.title, b.coverUrl])).toEqual([
       ["A", null],
       ["B", null],
@@ -326,16 +326,16 @@ describe("importLibrary", () => {
 
   it("preserves the original date added, so library ordering survives", async () => {
     const when = "2020-03-04T05:06:07.000Z";
-    await importLibrary(userId, payload([book({ createdAt: when })]));
+    await importLibrary(userId, payload([game({ createdAt: when })]));
 
-    const saved = await prisma.book.findFirstOrThrow({ where: { userId } });
+    const saved = await prisma.game.findFirstOrThrow({ where: { userId } });
     expect(saved.createdAt.toISOString()).toBe(when);
   });
 
-  it("builds searchText so restored books are findable", async () => {
-    await importLibrary(userId, payload([book({ seriesName: "Mistborn" })]));
+  it("builds searchText so restored games are findable", async () => {
+    await importLibrary(userId, payload([game({ seriesName: "Mistborn" })]));
 
-    const found = await prisma.book.findFirst({
+    const found = await prisma.game.findFirst({
       where: { userId, searchText: { contains: "sanderson" } },
     });
     expect(found).not.toBeNull();
@@ -345,12 +345,12 @@ describe("importLibrary", () => {
     const other = await prisma.user.create({
       data: { username: `other-${Date.now()}`, passwordHash: "x" },
     });
-    await importLibrary(userId, payload([book()]));
+    await importLibrary(userId, payload([game()]));
 
-    expect(await prisma.book.count({ where: { userId: other.id } })).toBe(0);
+    expect(await prisma.game.count({ where: { userId: other.id } })).toBe(0);
 
     await prisma.user.delete({ where: { id: userId } });
-    expect(await prisma.book.count({ where: { userId } })).toBe(0);
+    expect(await prisma.game.count({ where: { userId } })).toBe(0);
     // Recreate so afterEach's delete stays harmless.
     const revived = await prisma.user.create({
       data: { username: `imp-revived-${Date.now()}`, passwordHash: "x" },
@@ -360,23 +360,23 @@ describe("importLibrary", () => {
   });
 
   it("normalizes ISBNs so a hyphenated duplicate is still a duplicate", async () => {
-    await importLibrary(userId, payload([book({ isbn: "9780765311788" })]));
+    await importLibrary(userId, payload([game({ isbn: "9780765311788" })]));
     const second = await importLibrary(
       userId,
-      payload([book({ title: "Other", authors: ["X"], isbn: "978-0-7653-1178-8" })]),
+      payload([game({ title: "Other", authors: ["X"], isbn: "978-0-7653-1178-8" })]),
     );
 
-    expect(second).toMatchObject({ booksCreated: 0, booksSkipped: 1 });
+    expect(second).toMatchObject({ gamesCreated: 0, gamesSkipped: 1 });
   });
 
   describe("when a restore fails partway through", () => {
-    /** Fails the Nth book create, delegating the rest to the real client. */
+    /** Fails the Nth game create, delegating the rest to the real client. */
     async function failOnNthCreate(n: number) {
       const { prisma: lib } = await import("@/lib/prisma");
-      const real = lib.book.create.bind(lib.book);
+      const real = lib.game.create.bind(lib.game);
       let calls = 0;
       return vi
-        .spyOn(lib.book, "create")
+        .spyOn(lib.game, "create")
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .mockImplementation((async (args: any) => {
           if (++calls === n) throw new Error("connection lost");
@@ -393,22 +393,22 @@ describe("importLibrary", () => {
       const res = await importLibrary(
         userId,
         payload([
-          book({ title: "One", isbn: "1111111111111" }),
-          book({ title: "Two", isbn: "2222222222222" }),
-          book({ title: "Three", isbn: "3333333333333" }),
-          book({ title: "Four", isbn: "4444444444444" }),
+          game({ title: "One", isbn: "1111111111111" }),
+          game({ title: "Two", isbn: "2222222222222" }),
+          game({ title: "Three", isbn: "3333333333333" }),
+          game({ title: "Four", isbn: "4444444444444" }),
         ]),
       );
 
       expect(res).not.toHaveProperty("error");
-      const summary = res as Extract<typeof res, { booksCreated: number }>;
+      const summary = res as Extract<typeof res, { gamesCreated: number }>;
 
       // The whole point: the caller must be able to tell this apart from a
       // clean run, rather than seeing a smaller number and assuming that was
       // simply all there was.
       expect(summary.incomplete).toBeDefined();
       expect(summary.incomplete?.reason).toContain("connection lost");
-      expect(summary.booksCreated).toBeLessThan(4);
+      expect(summary.gamesCreated).toBeLessThan(4);
     });
 
     it("reports a count that matches what actually reached the database", async () => {
@@ -421,28 +421,28 @@ describe("importLibrary", () => {
         userId,
         payload(
           Array.from({ length: 8 }, (_, i) =>
-            book({ title: `Book ${i}`, isbn: `${i}${i}${i}${i}${i}${i}${i}${i}${i}${i}${i}${i}${i}` }),
+            game({ title: `Game ${i}`, isbn: `${i}${i}${i}${i}${i}${i}${i}${i}${i}${i}${i}${i}${i}` }),
           ),
         ),
       );
-      const summary = res as Extract<typeof res, { booksCreated: number }>;
+      const summary = res as Extract<typeof res, { gamesCreated: number }>;
 
-      const actuallyStored = await prisma.book.count({ where: { userId } });
-      expect(summary.booksCreated).toBe(actuallyStored);
+      const actuallyStored = await prisma.game.count({ where: { userId } });
+      expect(summary.gamesCreated).toBe(actuallyStored);
     });
 
     it("is resumable: re-running finishes the job and skips what landed", async () => {
       const file = payload([
-        book({ title: "One", isbn: "1111111111111" }),
-        book({ title: "Two", isbn: "2222222222222" }),
-        book({ title: "Three", isbn: "3333333333333" }),
-        book({ title: "Four", isbn: "4444444444444" }),
+        game({ title: "One", isbn: "1111111111111" }),
+        game({ title: "Two", isbn: "2222222222222" }),
+        game({ title: "Three", isbn: "3333333333333" }),
+        game({ title: "Four", isbn: "4444444444444" }),
       ]);
 
       const spy = await failOnNthCreate(3);
       const first = (await importLibrary(userId, file)) as Extract<
         Awaited<ReturnType<typeof importLibrary>>,
-        { booksCreated: number }
+        { gamesCreated: number }
       >;
       expect(first.incomplete).toBeDefined();
       spy.mockRestore();
@@ -450,33 +450,33 @@ describe("importLibrary", () => {
       // Same file again, nothing failing this time.
       const second = (await importLibrary(userId, file)) as Extract<
         Awaited<ReturnType<typeof importLibrary>>,
-        { booksCreated: number }
+        { gamesCreated: number }
       >;
       expect(second.incomplete).toBeUndefined();
-      expect(second.booksSkipped).toBe(first.booksCreated);
+      expect(second.gamesSkipped).toBe(first.gamesCreated);
 
-      // Every book present exactly once — the advice to re-run must not
+      // Every game present exactly once — the advice to re-run must not
       // produce duplicates.
-      expect(await prisma.book.count({ where: { userId } })).toBe(4);
-      const titles = (await prisma.book.findMany({ where: { userId } })).map((b) => b.title);
+      expect(await prisma.game.count({ where: { userId } })).toBe(4);
+      const titles = (await prisma.game.findMany({ where: { userId } })).map((b) => b.title);
       expect([...titles].sort()).toEqual(["Four", "One", "Three", "Two"]);
     });
 
     it("leaves a clean run with no incomplete marker", async () => {
-      const res = await importLibrary(userId, payload([book()]));
-      const summary = res as Extract<typeof res, { booksCreated: number }>;
+      const res = await importLibrary(userId, payload([game()]));
+      const summary = res as Extract<typeof res, { gamesCreated: number }>;
       expect(summary.incomplete).toBeUndefined();
-      expect(summary.booksCreated).toBe(1);
+      expect(summary.gamesCreated).toBe(1);
     });
   });
 
   it("restores a status other than READ without inventing history", async () => {
     await importLibrary(
       userId,
-      payload([book({ status: "READING", currentPage: 120, timesRead: 0, rating: null })]),
+      payload([game({ status: "READING", currentPage: 120, timesRead: 0, rating: null })]),
     );
 
-    const saved = await prisma.book.findFirstOrThrow({
+    const saved = await prisma.game.findFirstOrThrow({
       where: { userId },
       include: { reads: true },
     });
@@ -494,12 +494,12 @@ describe("ownership and lending", () => {
     await importLibrary(
       userId,
       payload([
-        { ...book({ isbn: "1000000000001" }), ownership: undefined, owned: true },
-        { ...book({ title: "Wanted", isbn: "1000000000002" }), ownership: undefined, owned: false },
+        { ...game({ isbn: "1000000000001" }), ownership: undefined, owned: true },
+        { ...game({ title: "Wanted", isbn: "1000000000002" }), ownership: undefined, owned: false },
       ]),
     );
 
-    const rows = await prisma.book.findMany({ where: { userId }, orderBy: { title: "asc" } });
+    const rows = await prisma.game.findMany({ where: { userId }, orderBy: { title: "asc" } });
     expect(rows.map((b) => [b.title, b.ownership])).toEqual([
       ["The Final Empire", "OWNED"],
       ["Wanted", "WISHLIST"],
@@ -508,19 +508,19 @@ describe("ownership and lending", () => {
 
   it("prefers `ownership` when a backup carries both", async () => {
     // Current exports write both for backwards compatibility; the richer
-    // field wins, so a borrowed book does not degrade to a wishlist entry.
+    // field wins, so a borrowed game does not degrade to a wishlist entry.
     await importLibrary(
       userId,
-      payload([{ ...book(), owned: false, ownership: "BORROWED" }]),
+      payload([{ ...game(), owned: false, ownership: "BORROWED" }]),
     );
 
-    const saved = await prisma.book.findFirstOrThrow({ where: { userId } });
+    const saved = await prisma.game.findFirstOrThrow({ where: { userId } });
     expect(saved.ownership).toBe("BORROWED");
   });
 
   it("defaults to OWNED when a backup says nothing about ownership", async () => {
-    await importLibrary(userId, payload([{ ...book(), ownership: undefined }]));
-    const saved = await prisma.book.findFirstOrThrow({ where: { userId } });
+    await importLibrary(userId, payload([{ ...game(), ownership: undefined }]));
+    const saved = await prisma.game.findFirstOrThrow({ where: { userId } });
     expect(saved.ownership).toBe("OWNED");
   });
 
@@ -528,34 +528,34 @@ describe("ownership and lending", () => {
     const res = await importLibrary(
       userId,
       payload([
-        book({
+        game({
           loans: [
             { borrower: "Kari", lentAt: "2026-01-05T00:00:00.000Z", returnedAt: "2026-02-01T00:00:00.000Z" },
-            { borrower: "Ola", lentAt: "2026-03-01T00:00:00.000Z", returnedAt: null, note: "book club" },
+            { borrower: "Ola", lentAt: "2026-03-01T00:00:00.000Z", returnedAt: null, note: "game club" },
           ],
         }),
       ]),
     );
     expect(res).toMatchObject({ loansRestored: 2 });
 
-    const saved = await prisma.book.findFirstOrThrow({
+    const saved = await prisma.game.findFirstOrThrow({
       where: { userId },
       include: { loans: { orderBy: { lentAt: "asc" } } },
     });
     expect(saved.loans).toHaveLength(2);
     expect(saved.loans[0].returnedAt).not.toBeNull();
-    // The still-open loan is what makes the book "lent out".
+    // The still-open loan is what makes the game "lent out".
     expect(saved.loans[1].borrower).toBe("Ola");
     expect(saved.loans[1].returnedAt).toBeNull();
-    expect(saved.loans[1].note).toBe("book club");
+    expect(saved.loans[1].note).toBe("game club");
   });
 
   it("gives an undated loan a date rather than dropping it", async () => {
     await importLibrary(
       userId,
-      payload([book({ loans: [{ borrower: "Someone" }] })]),
+      payload([game({ loans: [{ borrower: "Someone" }] })]),
     );
-    const saved = await prisma.book.findFirstOrThrow({
+    const saved = await prisma.game.findFirstOrThrow({
       where: { userId },
       include: { loans: true },
     });
@@ -563,17 +563,17 @@ describe("ownership and lending", () => {
     expect(saved.loans[0].lentAt).toBeInstanceOf(Date);
   });
 
-  it("drops a loan with no borrower instead of failing the book", async () => {
+  it("drops a loan with no borrower instead of failing the game", async () => {
     const res = await importLibrary(
       userId,
-      payload([book({ loans: [{ borrower: "" }] })]),
+      payload([game({ loans: [{ borrower: "" }] })]),
     );
-    // The book still lands; only the unusable loan is discarded.
-    expect(res).toMatchObject({ booksCreated: 1, loansRestored: 0 });
+    // The game still lands; only the unusable loan is discarded.
+    expect(res).toMatchObject({ gamesCreated: 1, loansRestored: 0 });
   });
 });
 
-describe("book-page settings", () => {
+describe("game-page settings", () => {
   it("restores them cleaned the way a save is", async () => {
     await importLibrary(
       userId,
@@ -582,8 +582,8 @@ describe("book-page settings", () => {
           theme: null,
           defaultViewName: null,
           preferences: {
-            bookPageCards: ["reading", "bogus", "reading"],
-            hiddenBookPageCards: ["lending"],
+            gamePageCards: ["reading", "bogus", "reading"],
+            hiddenGamePageCards: ["lending"],
             findLinks: [
               { name: "Old", url: "http://lib.example/?q={isbn}" },
               { name: "Library", url: "https://lib.example/?q={isbn}" },
@@ -594,8 +594,8 @@ describe("book-page settings", () => {
     );
     const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
     expect(user.preferences).toEqual({
-      bookPageCards: ["reading", "shelves", "history", "lending", "quotes"],
-      hiddenBookPageCards: ["lending"],
+      gamePageCards: ["reading", "shelves", "history", "lending", "quotes"],
+      hiddenGamePageCards: ["lending"],
       findLinks: [{ name: "Library", url: "https://lib.example/?q={isbn}" }],
     });
   });

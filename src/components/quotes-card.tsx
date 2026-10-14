@@ -16,15 +16,15 @@ import {
 } from "@/components/ui/card";
 
 /**
- * Quotes & highlights on the book detail page: passages worth keeping, each
+ * Quotes & highlights on the game detail page: passages worth keeping, each
  * with an optional page reference and personal note. Quotes are listed in
  * page order (unpaged ones last), with inline edit and delete.
  */
 export function QuotesCard({
-  bookId,
+  gameId,
   quotes,
 }: {
-  bookId: string;
+  gameId: string;
   quotes: Quote[];
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -97,20 +97,20 @@ export function QuotesCard({
             ))}
           </ul>
         )}
-        <QuoteForm bookId={bookId} />
+        <QuoteForm gameId={gameId} />
       </CardContent>
     </Card>
   );
 }
 
-/** Add form (pass `bookId`) or inline edit form (pass `quote` + `onDone`).
+/** Add form (pass `gameId`) or inline edit form (pass `quote` + `onDone`).
  *  The edit form opens with the text focused, and Escape cancels it. */
 export function QuoteForm({
-  bookId,
+  gameId,
   quote,
   onDone,
 }: {
-  bookId?: string;
+  gameId?: string;
   quote?: Pick<Quote, "id" | "text" | "page" | "note">;
   onDone?: () => void;
 }) {
@@ -143,7 +143,7 @@ export function QuoteForm({
           : undefined
       }
     >
-      {!quote && bookId && <input type="hidden" name="bookId" value={bookId} />}
+      {!quote && gameId && <input type="hidden" name="gameId" value={gameId} />}
       <Textarea
         name="text"
         rows={2}
@@ -199,7 +199,7 @@ export function QuoteForm({
 /**
  * Where focus goes once a quote is deleted and its row disappears: the next
  * quote's pencil in the same list (`data-quote-scope`), else the previous
- * one's, else the scope's fallback (the add form on a book page), else the
+ * one's, else the scope's fallback (the add form on a game page), else the
  * page heading. Worked out before the delete, while the row is still there.
  */
 function focusAfterDelete(from: HTMLElement): HTMLElement | null {
