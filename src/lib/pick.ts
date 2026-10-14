@@ -7,8 +7,8 @@ import { isNextInSeries, seriesKey, type SeriesMember } from "@/lib/series";
  * apart from the database (actions/pick.ts does the fetching).
  *
  * The rule: the games on screen (the tab and filters), minus what the
- * Preferences switches leave out; then, on the All tab only, Want to Read
- * games when any are left. A status tab is never swapped for Want to Read.
+ * Preferences switches leave out; then, on the All tab only, Want to Play
+ * games when any are left. A status tab is never swapped for Want to Play.
  */
 
 /** A game in the current view, with what the rules look at. */
@@ -64,8 +64,8 @@ export function pickPool(rows: PickRow[], rules: PickRules, series: SeriesRow[] 
       if (list) list.push(b);
       else bySeries.set(key, [b]);
     }
-    // Only Want to Read games wait their turn. A game you're already
-    // reading is never held back.
+    // Only Want to Play games wait their turn. A game you're already
+    // playing is never held back.
     pool = pool.filter(
       (b) =>
         b.status !== PlayStatus.WANT_TO_PLAY ||
@@ -100,7 +100,7 @@ export function pickButtonTitle(
 ): string {
   const base = tab
     ? `Open a random game from ${STATUS_LABELS[tab]}`
-    : "Open a random game, from Want to Read when there is one";
+    : `Open a random game, from ${STATUS_LABELS.WANT_TO_PLAY} when there is one`;
   const rules = ["your filters"];
   if (prefs.pickOnlyHave) rules.push("only games you have");
   if (prefs.pickNextInSeries) rules.push("only the next game in each series");

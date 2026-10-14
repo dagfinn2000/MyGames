@@ -6,15 +6,7 @@ import { quoteSchema } from "@/lib/validation";
 import { requireUserId } from "@/lib/actions/helpers";
 import type { ActionState } from "@/lib/actions/helpers";
 
-/** Same rule as the reading card: a page past the end is a typo, and the
- *  quote would sort after every other. */
-function pastTheEnd(page: number | null | undefined, pageCount: number | null): string | null {
-  return page && pageCount != null && page > pageCount
-    ? `Page ${page} is past the end of the game (${pageCount} pages)`
-    : null;
-}
-
-/** Add a quote/highlight to a game (the form carries the gameId). */
+/** Add a quote to a game (the form carries the gameId). */
 export async function addQuote(
   _prev: ActionState,
   formData: FormData,
@@ -25,7 +17,7 @@ export async function addQuote(
   if (typeof gameId !== "string" || !gameId) return { error: "Game not found" };
   const game = await prisma.game.findFirst({
     where: { id: gameId, userId },
-    select: { id: true, pageCount: true },
+    select: { id: true },
   });
   if (!game) return { error: "Game not found" };
 
@@ -34,14 +26,12 @@ export async function addQuote(
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
   const data = parsed.data;
-  const pageError = pastTheEnd(data.page, game.pageCount);
-  if (pageError) return { error: pageError };
 
   await prisma.quote.create({
     data: {
       gameId,
       text: data.text,
-      page: data.page || null, // 0 = no page reference
+      speaker: data.speaker ?? null,
       note: data.note ?? null,
     },
   });
@@ -61,7 +51,7 @@ export async function updateQuote(
 
   const existing = await prisma.quote.findFirst({
     where: { id: quoteId, game: { userId } },
-    select: { gameId: true, game: { select: { pageCount: true } } },
+    select: { gameId: true },
   });
   if (!existing) return { error: "Quote not found" };
 
@@ -70,14 +60,13 @@ export async function updateQuote(
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
   const data = parsed.data;
-  const pageError = pastTheEnd(data.page, existing.game.pageCount);
-  if (pageError) return { error: pageError };
 
   await prisma.quote.update({
     where: { id: quoteId },
     data: {
       text: data.text,
-      page: data.page || null,
+      // An emptied box clears who says it, as it does the note.
+      speaker: data.speaker ?? null,
       note: data.note ?? null,
     },
   });

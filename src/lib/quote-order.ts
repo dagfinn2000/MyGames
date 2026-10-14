@@ -1,4 +1,4 @@
-import { authorSortKey, titleSortKey, type SortOptions } from "@/lib/library-sort";
+import { developerSortKey, titleSortKey, type SortOptions } from "@/lib/library-sort";
 import { QUOTE_ORDERS, type Preferences, type QuoteOrder } from "@/lib/preferences";
 
 /**
@@ -11,9 +11,8 @@ import { QUOTE_ORDERS, type Preferences, type QuoteOrder } from "@/lib/preferenc
 export interface OrderableQuote {
   id: string;
   gameId: string;
-  page: number | null;
   createdAt: Date;
-  game: { title: string; authors: string[] };
+  game: { title: string; developers: string[]; platform: string | null };
 }
 
 /** The quotes page's state, as it appears in the URL. */
@@ -48,7 +47,7 @@ function param(v: string | string[] | undefined): string {
 }
 
 /** Reads the page state out of searchParams. Order and grouping fall back
- *  to the reader's saved choice, so the plain nav link opens the order they
+ *  to the player's saved choice, so the plain nav link opens the order they
  *  picked last. */
 export function parseQuotesParams(
   sp: Record<string, string | string[] | undefined>,
@@ -134,21 +133,13 @@ export function seededShuffle<T>(items: readonly T[], seed: number, keyOf: (item
     .map((x) => x.item);
 }
 
-/** A game's quotes in page order, the way its game page lists them: page
- *  ascending with unpaged ones last, then oldest first. */
-export function comparePageOrder(
-  a: Pick<OrderableQuote, "id" | "page" | "createdAt">,
-  b: Pick<OrderableQuote, "id" | "page" | "createdAt">,
+/** Newest first, the way a game's page lists its quotes. A game has no
+ *  page numbers to put its lines in order, and the latest line saved is
+ *  usually the one you came to look at. */
+export function compareNewestFirst(
+  a: Pick<OrderableQuote, "id" | "createdAt">,
+  b: Pick<OrderableQuote, "id" | "createdAt">,
 ): number {
-  if (a.page !== b.page) {
-    if (a.page === null) return 1;
-    if (b.page === null) return -1;
-    return a.page - b.page;
-  }
-  return a.createdAt.getTime() - b.createdAt.getTime() || compareIds(a.id, b.id);
-}
-
-function newestFirst(a: OrderableQuote, b: OrderableQuote): number {
   return b.createdAt.getTime() - a.createdAt.getTime() || compareIds(b.id, a.id);
 }
 
@@ -157,10 +148,11 @@ function oldestFirst(a: OrderableQuote, b: OrderableQuote): number {
 }
 
 /**
- * Quotes bucketed by game, each game's quotes in page order. The games
+ * Quotes bucketed by game, each game's quotes newest first. The games
  * follow the chosen order: newest puts the game with the newest quote
  * first, oldest the one with the oldest quote, "game" goes by title with
- * the reader's sorting rules, and shuffle by the seed.
+ * the player's sorting rules (then developer and platform, for two games
+ * of one name), and shuffle by the seed.
  */
 export function groupQuotes<T extends OrderableQuote>(
   quotes: readonly T[],
@@ -175,7 +167,7 @@ export function groupQuotes<T extends OrderableQuote>(
   }
   const groups = [...byGame].map(([gameId, list]) => ({
     gameId,
-    quotes: list.sort(comparePageOrder),
+    quotes: list.sort(compareNewestFirst),
   }));
 
   if (order === "shuffle") return seededShuffle(groups, opts.seed, (g) => g.gameId);
@@ -189,7 +181,8 @@ export function groupQuotes<T extends OrderableQuote>(
           g.gameId,
           {
             title: titleSortKey(game.title, opts.sort),
-            author: game.authors[0] ? authorSortKey(game.authors[0], opts.sort) : "",
+            developer: game.developers[0] ? developerSortKey(game.developers[0]) : "",
+            platform: game.platform ?? "",
           },
         ];
       }),
@@ -199,7 +192,8 @@ export function groupQuotes<T extends OrderableQuote>(
       const kb = keys.get(b.gameId)!;
       return (
         compare(ka.title, kb.title) ||
-        compare(ka.author, kb.author) ||
+        compare(ka.developer, kb.developer) ||
+        compare(ka.platform, kb.platform) ||
         compareIds(a.gameId, b.gameId)
       );
     });
@@ -237,7 +231,7 @@ export function orderQuotes<T extends OrderableQuote>(
     case "shuffle":
       return seededShuffle(quotes, opts.seed, (q) => q.id);
     default:
-      return [...quotes].sort(newestFirst);
+      return [...quotes].sort(compareNewestFirst);
   }
 }
 

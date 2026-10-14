@@ -28,9 +28,9 @@ function isZip(bytes: Uint8Array): boolean {
 
 /**
  * POST /api/import — restores a MyGames backup into the signed-in user's
- * library: either a zip export (library.json + bundled cover images) or a
- * legacy plain-JSON export, detected by content. Merge semantics with
- * duplicate skipping; see lib/import.ts.
+ * library: either the zip as downloaded (library.json + bundled cover
+ * images) or its library.json on its own, told apart by content. Merge
+ * semantics with duplicate skipping; see lib/import.ts.
  */
 export async function POST(req: Request) {
   const session = await auth();

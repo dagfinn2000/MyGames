@@ -15,6 +15,7 @@ import {
   formatDayKey,
   formatNumber,
 } from "@/lib/display";
+import { HEATMAP_STEPS } from "@/lib/heatmap";
 import {
   ACCENTS,
   BACKGROUNDS,
@@ -23,6 +24,7 @@ import {
   HIDEABLE_NAV,
   HIDEABLE_STATS,
   NUMBER_FORMATS,
+  QUICK_LOG_STEPS,
   STATS_PERIODS,
   SEARCH_FIELDS,
   type Accent,
@@ -33,6 +35,7 @@ import {
   type Preferences,
   type SearchField,
 } from "@/lib/preferences";
+import { formatPlaytime, stepsFor } from "@/lib/progress-units";
 import { PERIOD_LABELS } from "@/lib/stats-period";
 import { cn } from "@/lib/utils";
 import { GamePageCardList, FindLinksEditor } from "@/components/game-page-preferences";
@@ -48,22 +51,20 @@ import {
 } from "@/components/ui/select";
 
 const CATALOGUE_LABELS: Record<Catalogue, string> = {
-  openlibrary: "Open Library",
-  google: "Google Games",
-  nb: "National Library of Norway",
+  igdb: "IGDB",
+  wikipedia: "Wikipedia",
+  steam: "Steam",
 };
 
 const SEARCH_FIELD_LABELS: Record<SearchField, string> = {
   tags: "Tags",
-  isbn: "ISBN",
   review: "My review",
 };
 
 const NAV_LABELS: Record<HideableNav, string> = {
-  reading: "Now reading",
-  check: "Check (“Do I own this?”)",
+  playing: "Now playing",
   quotes: "Quotes",
-  room: "Reading room",
+  room: "Game room",
 };
 
 const ACCENT_LABELS: Record<Accent, string> = {
@@ -138,7 +139,7 @@ const BACKGROUND_LABELS: Record<Background, string> = {
   lines: "Ruled lines",
   grid: "Graph paper",
   linen: "Linen",
-  games: "Little games",
+  games: "Controllers",
   waves: "Waves",
   glow: "Glow",
   contours: "Contours",
@@ -208,13 +209,29 @@ function BackgroundPicker({
 }
 
 const STATS_LABELS: Record<HideableStat, string> = {
-  goal: "Reading goal",
-  heatmap: "Reading days calendar",
-  perYear: "Games read per year",
+  goal: "Play goal",
+  heatmap: "Play days calendar",
+  perYear: "Games and hours per year",
   tags: "Genres & tags",
+  platforms: "Platforms",
   formats: "Formats",
   quote: "From your quotes",
 };
+
+/** "+30 min and +1 h": the two quick-log buttons a choice gives, worded as
+ *  the buttons themselves are. */
+const QUICK_LOG_OPTIONS = QUICK_LOG_STEPS.map((value) => ({
+  value,
+  label: stepsFor(value)
+    .map((step) => step.label)
+    .join(" and "),
+}));
+
+/** "Standard (30 min, 1 h, 2 h)": each named calendar scale with the time a
+ *  day each darker shade starts at. */
+function heatmapOption(value: keyof typeof HEATMAP_STEPS, name: string) {
+  return { value, label: `${name} (${HEATMAP_STEPS[value].map(formatPlaytime).join(", ")})` };
+}
 
 /** A labelled dropdown row. */
 function Choice<T extends string>({
@@ -307,7 +324,7 @@ export function PreferencesForm({
   initial,
   serverTimeZone,
   timeZones,
-  googleAvailable,
+  igdbAvailable,
   savedViews,
 }: {
   /** As stored: `timeZone` is "" while the server's zone is in use. */
@@ -315,9 +332,10 @@ export function PreferencesForm({
   serverTimeZone: string;
   /** Every zone this server knows, for the time zone list. */
   timeZones: string[];
-  /** Whether this server has a Google Games key. Without one the catalogue
-   *  isn't searched whatever the setting says, so it isn't offered. */
-  googleAvailable: boolean;
+  /** Whether this server has IGDB keys (IGDB_CLIENT_ID and
+   *  IGDB_CLIENT_SECRET). Without them IGDB isn't searched whatever the
+   *  setting says, so it isn't offered. */
+  igdbAvailable: boolean;
   savedViews: { id: string; name: string }[];
 }) {
   const router = useRouter();
@@ -348,7 +366,7 @@ export function PreferencesForm({
   }
 
   // Catalogues: the enabled ones in priority order, then the rest.
-  const offered = CATALOGUES.filter((c) => c !== "google" || googleAvailable);
+  const offered = CATALOGUES.filter((c) => c !== "igdb" || igdbAvailable);
   const enabled = prefs.catalogues.filter((c) => offered.includes(c));
   const catalogueRows = [...enabled, ...offered.filter((c) => !enabled.includes(c))];
 
@@ -358,15 +376,15 @@ export function PreferencesForm({
     const j = i + by;
     if (i < 0 || j < 0 || j >= list.length) return;
     [list[i], list[j]] = [list[j], list[i]];
-    // Keep an unavailable Google Games in the list (last), so it comes back
-    // on if this server gets a key later.
+    // Keep an unavailable IGDB in the list (last), so it comes back on if
+    // this server gets its keys later.
     update({ catalogues: [...list, ...prefs.catalogues.filter((x) => !offered.includes(x))] });
   }
 
   const zone = prefs.timeZone || serverTimeZone;
   const zoneOptions = timeZones.includes(zone) ? timeZones : [zone, ...timeZones];
 
-  // Saved views in the reader's order, which moving one changes at once.
+  // Saved views in the player's order, which moving one changes at once.
   const views = orderByIds(savedViews, prefs.savedViewOrder);
   const shownStatusTabs = Object.values(PlayStatus).filter(
     (s) => !prefs.hiddenStatusTabs.includes(s),
@@ -407,8 +425,8 @@ export function PreferencesForm({
           onChange={(v) => update({ newGameOwnership: v })}
         />
         <Choice
-          label="Games I add as Read were finished"
-          hint="Bulk edit's Set status: Read follows this too."
+          label="Games I add as Completed were finished"
+          hint="Bulk edit's Set status: Completed follows this too."
           value={prefs.addedAsCompletedFinished}
           options={[
             { value: "today", label: "Today" },
@@ -427,7 +445,7 @@ export function PreferencesForm({
           onChange={(v) => update({ afterAdd: v })}
         />
         <Choice
-          label="Copy subjects from the catalogue as tags"
+          label="Copy genres from the catalogue as tags"
           value={prefs.importTagsMode}
           options={[
             { value: "off", label: "Off" },
@@ -444,6 +462,8 @@ export function PreferencesForm({
       <Section title="Game search">
         <p className="text-xs text-muted-foreground">
           Which catalogues to search when adding a game, and which comes first.
+          {!igdbAvailable &&
+            " IGDB shows up here once the server has IGDB_CLIENT_ID and IGDB_CLIENT_SECRET set."}
         </p>
         <ul className="grid gap-1.5">
           {catalogueRows.map((c) => {
@@ -494,44 +514,20 @@ export function PreferencesForm({
         </ul>
       </Section>
 
-      <Section title="Reading">
+      <Section title="Playing">
         <Choice
           label="Step buttons"
-          hint="The buttons next to the page box, in the game's own unit: pages, percent or minutes."
+          hint="The two buttons next to the time box on a game you're playing."
           value={prefs.quickLogSteps}
-          options={[
-            { value: "10-25", label: "+10 and +25" },
-            { value: "5-10", label: "+5 and +10" },
-            { value: "5pct", label: "+5% of the game" },
-          ]}
+          options={QUICK_LOG_OPTIONS}
           onChange={(v) => update({ quickLogSteps: v })}
         />
         <Choice
-          label="Ebooks: track by"
-          value={prefs.ebookUnit}
-          options={[
-            { value: "page", label: "Page" },
-            { value: "percent", label: "Percent" },
-          ]}
-          onChange={(v) => update({ ebookUnit: v })}
-        />
-        <Choice
-          label="Audiobooks: track by"
-          hint="Time needs the game's length and a page count, both on its Edit page."
-          value={prefs.audiobookUnit}
-          options={[
-            { value: "page", label: "Page" },
-            { value: "percent", label: "Percent" },
-            { value: "time", label: "Time listened" },
-          ]}
-          onChange={(v) => update({ audiobookUnit: v })}
-        />
-        <Choice
           label="Pace from"
-          hint="Used for pages a day and the finish forecast while you read."
+          hint="Used for your time a day, and for when you'll reach a game's usual time to beat."
           value={prefs.paceFrom}
           options={[
-            { value: "read", label: "The whole read" },
+            { value: "playthrough", label: "The whole playthrough" },
             { value: "7d", label: "The last 7 days" },
             { value: "14d", label: "The last 14 days" },
           ]}
@@ -566,7 +562,7 @@ export function PreferencesForm({
         />
         <Choice
           label="Time zone"
-          hint="Decides which day your reading counts on."
+          hint="Decides which day your play time counts on."
           value={zone}
           options={zoneOptions.map((z) => ({ value: z, label: z.replace(/_/g, " ") }))}
           onChange={(v) => update({ timeZone: v })}
@@ -578,15 +574,6 @@ export function PreferencesForm({
           label="Ignore “The”, “A” and “An” when sorting titles"
           checked={prefs.ignoreArticles}
           onChange={(c) => update({ ignoreArticles: c })}
-        />
-        <Choice
-          label="Authors"
-          value={prefs.authorOrder}
-          options={[
-            { value: "surname", label: "By surname (Le Guin under L)" },
-            { value: "as-written", label: "As written (Ursula under U)" },
-          ]}
-          onChange={(v) => update({ authorOrder: v })}
         />
         <Choice
           label="Alphabet"
@@ -630,7 +617,7 @@ export function PreferencesForm({
             Search also looks in
           </p>
           <p className="text-xs text-muted-foreground">
-            Title, author and series are always searched.
+            Title, developer, platform and series are always searched.
           </p>
           {SEARCH_FIELDS.map((field) => (
             <Toggle
@@ -662,9 +649,9 @@ export function PreferencesForm({
           onChange={(c) => update({ pickNextInSeries: c })}
         />
         <p className="text-xs text-muted-foreground">
-          Borrowed games count as games you have. Wishlist, given-away and
-          lent-out games don&apos;t. A Want to Read game in a series is skipped
-          while an earlier one is still unplayed.
+          Borrowed games count as games you have. Wishlist games, lent-out
+          games and ones you no longer have don&apos;t. A Want to Play game in
+          a series is skipped while an earlier one is still unplayed.
         </p>
       </Section>
 
@@ -773,7 +760,7 @@ export function PreferencesForm({
           value={prefs.longTextFont}
           options={[
             { value: "sans", label: "Same as everything else" },
-            { value: "serif", label: "Game-style serif" },
+            { value: "serif", label: "Serif" },
           ]}
           onChange={(v) => update({ longTextFont: v })}
         />
@@ -783,7 +770,7 @@ export function PreferencesForm({
           value={prefs.headingFont}
           options={[
             { value: "sans", label: "Same as everything else" },
-            { value: "serif", label: "Game-style serif" },
+            { value: "serif", label: "Serif" },
             { value: "rounded", label: "Rounded" },
           ]}
           onChange={(v) => update({ headingFont: v })}
@@ -799,7 +786,7 @@ export function PreferencesForm({
             { value: "library", label: "Library" },
             { value: "stats", label: "Stats" },
             { value: "add", label: "Add game" },
-            { value: "reading", label: "Now reading" },
+            { value: "playing", label: "Now playing" },
           ]}
           onChange={(v) => update({ startPage: v })}
         />
@@ -818,7 +805,7 @@ export function PreferencesForm({
         )}
         <div className="grid gap-1.5">
           <p className="text-sm font-medium">Show in the top bar</p>
-          {/* The reading room has its own section, below. */}
+          {/* The game room has its own section, below. */}
           {HIDEABLE_NAV.filter((item) => item !== "room").map((item) => (
             <Toggle
               key={item}
@@ -835,10 +822,10 @@ export function PreferencesForm({
         </div>
       </Section>
 
-      <Section title="Reading room" id="game-room">
+      <Section title="Game room" id="game-room">
         <div className="grid gap-1">
           <Toggle
-            label="The reading room"
+            label="The game room"
             checked={!prefs.hiddenNav.includes("room")}
             onChange={(on) => update({ hiddenNav: toggleIn(prefs.hiddenNav, "room", !on) })}
           />
@@ -895,12 +882,12 @@ export function PreferencesForm({
         </div>
         <Choice
           label="Calendar shading"
-          hint="Pages a day for each shade of the reading calendar."
+          hint="Time played a day for each shade of the play calendar."
           value={prefs.heatmapScale}
           options={[
-            { value: "standard", label: "Standard (20, 50, 100 pages)" },
-            { value: "gentle", label: "Gentle (10, 25, 50 pages)" },
-            { value: "heavy", label: "Heavy (50, 100, 200 pages)" },
+            heatmapOption("standard", "Standard"),
+            heatmapOption("gentle", "Gentle"),
+            heatmapOption("heavy", "Heavy"),
             { value: "auto", label: "Based on my usual day" },
           ]}
           onChange={(v) => update({ heatmapScale: v })}
@@ -913,11 +900,11 @@ export function PreferencesForm({
           onChange={(v) => update({ statsPeriod: v })}
         />
         <Choice
-          label="Genres and Formats count"
+          label="Genres, Platforms and Formats count"
           value={prefs.statsBreakdown}
           options={[
             { value: "library", label: "Every game in the library" },
-            { value: "period", label: "Games I read in the period" },
+            { value: "period", label: "Games I completed in the period" },
           ]}
           onChange={(v) => update({ statsBreakdown: v })}
         />
@@ -933,38 +920,28 @@ export function PreferencesForm({
               What counts
             </p>
             <p className="text-xs text-muted-foreground">
-              Used by the stats cards, your reading goal and the year in review.
+              Used by the stats cards, your play goal and the year in review.
             </p>
           </div>
           <Choice
-            label="Pages read means"
-            hint="Games you finish without logging still add their page count."
-            value={prefs.statsPagesRead}
+            label="Hours played count"
+            hint="Games you complete without logging still add their whole time played."
+            value={prefs.statsHoursPlayed}
             options={[
-              { value: "finished", label: "Whole games when I finish" },
-              { value: "logged", label: "Pages I logged" },
+              { value: "logged", label: "The time I log, on the day I play" },
+              { value: "finished", label: "A game's whole time, when I complete it" },
             ]}
-            onChange={(v) => update({ statsPagesRead: v })}
+            onChange={(v) => update({ statsHoursPlayed: v })}
           />
           <Choice
-            label="Games I stop reading"
+            label="Games I drop"
             value={prefs.statsStoppedGames}
             options={[
               { value: "none", label: "Don't count" },
-              { value: "pages", label: "Count the pages I read" },
+              { value: "hours", label: "Count the hours I played" },
               { value: "game", label: "Count as a game" },
             ]}
             onChange={(v) => update({ statsStoppedGames: v })}
-          />
-          <Choice
-            label="Audiobooks"
-            value={prefs.statsAudiobooks}
-            options={[
-              { value: "full", label: "Count fully" },
-              { value: "games", label: "Games, not pages" },
-              { value: "out", label: "Leave out" },
-            ]}
-            onChange={(v) => update({ statsAudiobooks: v })}
           />
         </div>
       </Section>
@@ -979,7 +956,7 @@ function SavedViewsList({
   views,
   onReorder,
 }: {
-  /** In the reader's order. */
+  /** In the player's order. */
   views: { id: string; name: string }[];
   /** Saves a new order, through the form's own save and status line. */
   onReorder: (ids: string[]) => void;

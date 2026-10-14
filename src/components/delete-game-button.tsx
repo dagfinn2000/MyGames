@@ -37,7 +37,7 @@ export function DeleteGameButton({
           <DialogTitle>Delete “{title}”?</DialogTitle>
           <DialogDescription>
             This permanently removes the game along with your rating, review,
-            and reading history. There is no undo.
+            and play history. There is no undo.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

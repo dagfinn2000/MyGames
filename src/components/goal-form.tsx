@@ -59,9 +59,9 @@ export function GoalForm({
             name="target"
             type="number"
             min={0}
-            max={1000000}
+            max={10000}
             defaultValue={goal?.target}
-            placeholder="24"
+            placeholder="12"
             className="w-28"
           />
         </div>
@@ -73,7 +73,7 @@ export function GoalForm({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="GAMES">Games</SelectItem>
-              <SelectItem value="PAGES">Pages</SelectItem>
+              <SelectItem value="HOURS">Hours</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -84,7 +84,7 @@ export function GoalForm({
             defaultChecked={goal?.countReplays ?? true}
             className="size-4 accent-primary"
           />
-          Count re-reads
+          Count replays
         </label>
         <Button type="submit" variant="outline" size="sm" disabled={pending}>
           {pending ? "Saving…" : goal ? "Update goal" : "Set goal"}

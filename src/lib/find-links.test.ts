@@ -1,75 +1,90 @@
 import { describe, expect, it } from "vitest";
 import { fillFindLink, findLinksFor } from "@/lib/find-links";
 
-const wood = { isbn: "9780099448822", title: "Norwegian Wood", authors: ["Haruki Murakami"] };
+const knight = { title: "Hollow Knight", developers: ["Team Cherry"], platform: "Nintendo Switch" };
 
 describe("fillFindLink", () => {
-  it("fills in the ISBN", () => {
-    expect(fillFindLink("https://lib.example/search?q={isbn}", wood)).toBe(
-      "https://lib.example/search?q=9780099448822",
+  it("fills in the title", () => {
+    expect(fillFindLink("https://howlongtobeat.com/?q={title}", knight)).toBe(
+      "https://howlongtobeat.com/?q=Hollow%20Knight",
     );
   });
 
   it("encodes the title so it can't break the query", () => {
-    const game = { ...wood, title: "Q&A? #1 / Part 2" };
-    expect(fillFindLink("https://lib.example/s?q={title}&x=1", game)).toBe(
-      "https://lib.example/s?q=Q%26A%3F%20%231%20%2F%20Part%202&x=1",
+    const game = { ...knight, title: "Q&A? #1 / Part 2" };
+    expect(fillFindLink("https://shop.example/s?q={title}&x=1", game)).toBe(
+      "https://shop.example/s?q=Q%26A%3F%20%231%20%2F%20Part%202&x=1",
     );
   });
 
   it("inserts a $& in a title as written", () => {
-    const game = { ...wood, title: "$& and $1" };
-    expect(fillFindLink("https://lib.example/?q={title}", game)).toBe(
-      `https://lib.example/?q=${encodeURIComponent("$& and $1")}`,
+    const game = { ...knight, title: "$& and $1" };
+    expect(fillFindLink("https://shop.example/?q={title}", game)).toBe(
+      `https://shop.example/?q=${encodeURIComponent("$& and $1")}`,
     );
   });
 
-  it("uses the first author", () => {
-    const game = { ...wood, authors: ["Neil Gaiman", "Terry Pratchett"] };
-    expect(fillFindLink("https://shop.example/a/{author}", game)).toBe(
-      "https://shop.example/a/Neil%20Gaiman",
+  it("uses the first developer", () => {
+    const game = { ...knight, developers: ["Valve", "Hidden Path Entertainment"] };
+    expect(fillFindLink("https://shop.example/dev/{developer}", game)).toBe(
+      "https://shop.example/dev/Valve",
+    );
+  });
+
+  it("fills in the platform", () => {
+    expect(fillFindLink("https://www.pricecharting.com/search-products?q={title}+{platform}", knight)).toBe(
+      "https://www.pricecharting.com/search-products?q=Hollow%20Knight+Nintendo%20Switch",
     );
   });
 
   it("fills every placeholder in one pattern", () => {
-    expect(fillFindLink("https://x.example/{isbn}?t={title}&a={author}&i={isbn}", wood)).toBe(
-      "https://x.example/9780099448822?t=Norwegian%20Wood&a=Haruki%20Murakami&i=9780099448822",
+    expect(
+      fillFindLink("https://x.example/{platform}?t={title}&d={developer}&p={platform}", knight),
+    ).toBe(
+      "https://x.example/Nintendo%20Switch?t=Hollow%20Knight&d=Team%20Cherry&p=Nintendo%20Switch",
     );
   });
 
   it("is null when a placeholder has nothing to fill it with", () => {
-    expect(fillFindLink("https://lib.example/?q={isbn}", { ...wood, isbn: null })).toBeNull();
-    expect(fillFindLink("https://lib.example/?q={isbn}", { ...wood, isbn: "" })).toBeNull();
-    expect(fillFindLink("https://lib.example/?q={author}", { ...wood, authors: [] })).toBeNull();
+    expect(fillFindLink("https://shop.example/?p={platform}", { ...knight, platform: null })).toBeNull();
+    expect(fillFindLink("https://shop.example/?p={platform}", { ...knight, platform: " " })).toBeNull();
+    expect(fillFindLink("https://shop.example/?d={developer}", { ...knight, developers: [] })).toBeNull();
   });
 
   it("keeps a pattern without placeholders as it is", () => {
-    expect(fillFindLink("https://lib.example/", { ...wood, isbn: null })).toBe(
-      "https://lib.example/",
+    expect(fillFindLink("https://shop.example/", { ...knight, platform: null })).toBe(
+      "https://shop.example/",
+    );
+  });
+
+  it("leaves a placeholder it doesn't know as written", () => {
+    // Only {title}, {developer} and {platform} are filled in.
+    expect(fillFindLink("https://shop.example/?q={isbn}", knight)).toBe(
+      "https://shop.example/?q={isbn}",
     );
   });
 
   it("refuses anything that isn't https", () => {
-    expect(fillFindLink("http://lib.example/?q={isbn}", wood)).toBeNull();
-    expect(fillFindLink("javascript:alert({title})", wood)).toBeNull();
-    expect(fillFindLink("not a link {title}", wood)).toBeNull();
+    expect(fillFindLink("http://shop.example/?q={title}", knight)).toBeNull();
+    expect(fillFindLink("javascript:alert({title})", knight)).toBeNull();
+    expect(fillFindLink("not a link {title}", knight)).toBeNull();
   });
 });
 
 describe("findLinksFor", () => {
   it("keeps the order and drops links this game can't fill", () => {
     const links = [
-      { name: "Library", url: "https://lib.example/?q={isbn}" },
-      { name: "Shop", url: "https://shop.example/?a={author}" },
-      { name: "Search", url: "https://search.example/?q={title}" },
+      { name: "Prices", url: "https://prices.example/?p={platform}" },
+      { name: "Studio", url: "https://shop.example/?d={developer}" },
+      { name: "HowLongToBeat", url: "https://howlongtobeat.com/?q={title}" },
     ];
-    expect(findLinksFor(links, { ...wood, isbn: null })).toEqual([
-      { name: "Shop", href: "https://shop.example/?a=Haruki%20Murakami" },
-      { name: "Search", href: "https://search.example/?q=Norwegian%20Wood" },
+    expect(findLinksFor(links, { ...knight, platform: null })).toEqual([
+      { name: "Studio", href: "https://shop.example/?d=Team%20Cherry" },
+      { name: "HowLongToBeat", href: "https://howlongtobeat.com/?q=Hollow%20Knight" },
     ]);
   });
 
   it("is empty with no links saved", () => {
-    expect(findLinksFor([], wood)).toEqual([]);
+    expect(findLinksFor([], knight)).toEqual([]);
   });
 });

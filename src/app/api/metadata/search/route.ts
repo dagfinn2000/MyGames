@@ -8,7 +8,8 @@ import { CataloguesUnreachableError, searchGames } from "@/lib/metadata";
  * Backs the search-as-you-type import flow. Requires a session so the
  * instance can't be used as an anonymous metadata proxy, and spends from the
  * caller's outbound-lookup budget (see lib/api-guard.ts) — one search here
- * is three requests to third-party catalogues.
+ * goes to three catalogues, and to Wikidata and IGDB's times to beat
+ * besides.
  */
 export async function GET(req: Request) {
   const guard = await guardMetadataRequest();
@@ -22,7 +23,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    // The reader's catalogues, in their order (Preferences).
+    // The player's catalogues, in their order (Preferences).
     const results = await searchGames(q, (await getPreferences()).catalogues);
     return NextResponse.json({ results });
   } catch (e) {

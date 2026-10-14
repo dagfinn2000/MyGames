@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookX } from "lucide-react";
+import { Ghost } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -12,7 +12,7 @@ export default function NotFound() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="flex flex-col items-center gap-4 text-center">
-        <BookX className="size-12 text-muted-foreground/40" />
+        <Ghost className="size-12 text-muted-foreground/40" />
         <div className="grid gap-1">
           <h1 className="text-2xl font-semibold tracking-tight">Not found</h1>
           <p className="max-w-prose text-sm text-muted-foreground">

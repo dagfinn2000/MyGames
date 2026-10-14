@@ -39,7 +39,7 @@ describe("calendarDay", () => {
     expect(calendarDay(typed, "Pacific/Auckland")).toBe("2026-05-12");
   });
 
-  it("reads any other moment in the reader's zone", () => {
+  it("reads any other moment in the player's zone", () => {
     const evening = new Date("2026-05-12T23:30:00.000Z");
     expect(calendarDay(evening, "America/Los_Angeles")).toBe("2026-05-12");
     expect(calendarDay(evening, "Europe/Oslo")).toBe("2026-05-13");

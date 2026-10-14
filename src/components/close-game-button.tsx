@@ -25,7 +25,7 @@ function isEditable(el: Element | null): boolean {
 
 /**
  * The X on a game's page, shown when the game was opened from the library
- * or the reading room (lib/library-return.ts). It goes back to the library with the same
+ * or the game room (lib/library-return.ts). It goes back with the same
  * filters and scroll position, and the cover flies back into its card
  * (lib/cover-flight.ts). Escape does the same, unless a menu or dialog is
  * open or the cursor is in a text field.
@@ -65,7 +65,7 @@ export function CloseGameButton({ gameId }: { gameId: string }) {
   }, [shown]);
 
   if (!back) return null;
-  const place = back.href === "/room" ? "the reading room" : "the library";
+  const place = back.href === "/room" ? "the game room" : "the library";
   return (
     <Button
       variant="outline"

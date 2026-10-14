@@ -8,7 +8,8 @@ import { pastPlaythroughSchema } from "@/lib/validation";
 import { requireUserId } from "@/lib/actions/helpers";
 import type { ActionState } from "@/lib/actions/helpers";
 
-/** Keep Game.timesCompleted = archived passes + the current one when finished.
+/** Keep Game.timesCompleted = archived playthroughs + the current one when
+ *  completed.
  *  Runs on the caller's transaction client so the recount sees (and commits
  *  with) the write that made it necessary. */
 async function syncTimesCompleted(
@@ -36,27 +37,34 @@ function revalidateGame(gameId: string) {
 }
 
 /**
- * Start a re-read: archive the current finished pass (dates + what you rated
- * it that time) into the Read table, then flip the game back to Currently
- * Reading starting today. The overall rating on the game stays yours to keep
- * or change.
+ * Play it again: archive the current completed playthrough (dates, the time
+ * it took, and what you rated it that time) into the Playthrough table,
+ * then flip the game back to Playing, starting today with no time played.
+ * The overall rating on the game stays yours to keep or change.
  */
 export async function playAgain(gameId: string): Promise<void> {
   const userId = await requireUserId();
 
   const game = await prisma.game.findFirst({
     where: { id: gameId, userId },
-    select: { status: true, dateStarted: true, dateFinished: true, rating: true },
+    select: {
+      status: true,
+      dateStarted: true,
+      dateFinished: true,
+      rating: true,
+      playedMinutes: true,
+    },
   });
   if (!game || game.status !== PlayStatus.COMPLETED) return;
 
   const now = new Date();
   // One atomic unit — failing between these writes would strand the game
-  // half-archived. The progress entry is the new pass's page-0 anchor at the
-  // exact re-read moment: the date form field only keeps day precision, so
-  // without it a re-read started on a day with already-logged entries would
-  // blend into the previous pass. timesCompleted is unchanged throughout: the
-  // pass moved from "current" to "archived".
+  // half-archived. The progress entry is the new playthrough's 0-minute
+  // anchor at the exact moment of playing again: the date form field only
+  // keeps day precision, so without it a playthrough started on a day with
+  // already-logged entries would blend into the previous one.
+  // timesCompleted is unchanged throughout: the playthrough moved from
+  // "current" to "archived".
   await prisma.$transaction([
     prisma.playthrough.create({
       data: {
@@ -64,6 +72,7 @@ export async function playAgain(gameId: string): Promise<void> {
         dateStarted: game.dateStarted,
         dateFinished: game.dateFinished,
         rating: game.rating,
+        playedMinutes: game.playedMinutes,
       },
     }),
     prisma.game.update({
@@ -72,18 +81,19 @@ export async function playAgain(gameId: string): Promise<void> {
         status: PlayStatus.PLAYING,
         dateStarted: now,
         dateFinished: null,
-        currentPage: null,
+        playedMinutes: null,
       },
     }),
     prisma.progressEntry.create({
-      data: { gameId, page: 0, date: now },
+      data: { gameId, minutes: 0, date: now },
     }),
   ]);
 
   revalidateGame(gameId);
 }
 
-/** Record a read from before the app (the form carries the gameId). */
+/** Record a playthrough from before the app (the form carries the
+ *  gameId). */
 export async function addPastPlaythrough(
   _prev: ActionState,
   formData: FormData,
@@ -111,6 +121,7 @@ export async function addPastPlaythrough(
         dateStarted: data.dateStarted ?? null,
         dateFinished: data.dateFinished ?? null,
         rating: data.rating || null, // 0 = unrated
+        playedMinutes: data.playedMinutes ?? null,
         note: data.note ?? null,
       },
     });
@@ -121,7 +132,7 @@ export async function addPastPlaythrough(
   return { success: true };
 }
 
-/** Edit a past read (ownership checked through the game). */
+/** Edit a past playthrough (ownership checked through the game). */
 export async function updatePastPlaythrough(
   playthroughId: string,
   _prev: ActionState,
@@ -133,7 +144,7 @@ export async function updatePastPlaythrough(
     where: { id: playthroughId, game: { userId } },
     select: { gameId: true },
   });
-  if (!existing) return { error: "Read not found" };
+  if (!existing) return { error: "Playthrough not found" };
 
   const parsed = pastPlaythroughSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
@@ -147,8 +158,9 @@ export async function updatePastPlaythrough(
       dateStarted: data.dateStarted ?? null,
       dateFinished: data.dateFinished ?? null,
       rating: data.rating || null,
-      // Only when the form sent one (an empty one clears it): a note is
-      // free text, so a request without the field mustn't wipe it.
+      // Only when the form sent them (an empty one clears it): a request
+      // without the field mustn't wipe a note or a time typed long ago.
+      ...(data.playedMinutes !== undefined && { playedMinutes: data.playedMinutes }),
       ...(data.note !== undefined && { note: data.note }),
     },
   });
@@ -157,7 +169,7 @@ export async function updatePastPlaythrough(
   return { success: true };
 }
 
-/** Delete a past read (ownership checked through the game). */
+/** Delete a past playthrough (ownership checked through the game). */
 export async function deletePastPlaythrough(playthroughId: string): Promise<void> {
   const userId = await requireUserId();
 

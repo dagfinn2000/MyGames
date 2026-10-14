@@ -25,7 +25,6 @@ import {
   GLOBE,
   LOGS,
   MANTEL_CLOCK,
-  OPEN_GAME,
   ORNAMENT_ART,
   Glow,
   PENDULUM,
@@ -36,11 +35,12 @@ import {
   STEAM,
   Sprite,
   Stand,
+  TABLE_CONTROLLER,
   TEACUP,
   tapestryArt,
   armchairArt,
   benchArt,
-  bookcaseArt,
+  shelvingArt,
   clockArt,
   deskArt,
   fireplaceArt,
@@ -54,7 +54,7 @@ import {
   type HouseGeometry,
   type Rect,
 } from "@/components/room-art";
-import { HELD_GAME, SEAT_OFFSET, seatedTop } from "@/components/avatar-art";
+import { HELD_CONTROLLER, SEAT_OFFSET, seatedTop } from "@/components/avatar-art";
 import { SeatedAvatar, SleepingPet, Walker, useAvatar, type Avatar } from "@/components/room-avatar";
 import { ExtraView } from "@/components/room-extras";
 import { RoomPieceView } from "@/components/room-rooms";
@@ -63,6 +63,7 @@ import type { CatCoat, DogCoat, Pet } from "@/lib/pets";
 import { chimneyFoot, chimneyRise, roofCrown, roofHeight, shellArt, type Moving, type Shell } from "@/components/room-shells";
 import { isClosingGame } from "@/lib/cover-flight";
 import { OWNERSHIP_LABELS, STATUS_LABELS } from "@/lib/display";
+import { formatPlaytime, progressFigure } from "@/lib/progress-units";
 import {
   BEAM,
   CASE_CROWN,
@@ -118,7 +119,7 @@ function scaleFor(width: number): number {
 const yardFor = (scale: number) => (scale === 3 ? 24 : 14);
 
 // Drawn once: the art never changes, only where it goes.
-const BOOKCASE = bookcaseArt();
+const SHELVING = shelvingArt();
 const FIREPLACE = fireplaceArt();
 const HANGINGS: Record<Exclude<RoomHanging, "none">, Art> = {
   painting: paintingArt("hills"),
@@ -260,7 +261,7 @@ interface Layout {
   maxInner: number;
   floors: Piece[][];
   cat: boolean;
-  /** Each bookcase's shelves, as indexes into the games. */
+  /** Each shelving unit's shelves, as indexes into the games. */
   cases: number[][][];
   /** The first and last game index in each floor, for the arrow keys'
    *  focus to redraw only the floors it touches. [-1, -1] for none. */
@@ -335,7 +336,7 @@ const within = (current: number, [first, last]: readonly [number, number]) =>
 
 // ── Words ────────────────────────────────────────────────────────────────
 
-/** Why a game is an outline on the shelf rather than a spine. */
+/** Why a game is an outline on the shelf rather than a case. */
 function awayReason(game: RoomGame): string | null {
   if (game.lentTo) return `Lent to ${game.lentTo}`;
   if (game.ownership === "WISHLIST") return "On your wishlist";
@@ -343,10 +344,15 @@ function awayReason(game: RoomGame): string | null {
   return null;
 }
 
+/** "Playing, 12 h 30 min of about 40 h · 31%", "Dropped, stopped at
+ *  12 h", "Completed in 42 h", with why it's away after that. */
 function statusLine(game: RoomGame): string {
   const parts: string[] = [STATUS_LABELS[game.status]];
-  if (game.status === PlayStatus.PLAYING && game.currentPage && game.pageCount) {
-    parts[0] += `, page ${game.currentPage} of ${game.pageCount}`;
+  const played = game.playedMinutes;
+  if (played) {
+    if (game.status === PlayStatus.PLAYING) parts[0] += `, ${progressFigure(played, game.lengthMinutes)}`;
+    else if (game.status === PlayStatus.DROPPED) parts[0] += `, stopped at ${formatPlaytime(played)}`;
+    else if (game.status === PlayStatus.COMPLETED) parts[0] += ` in ${formatPlaytime(played)}`;
   }
   const away = awayReason(game);
   if (away) parts.push(away);
@@ -354,14 +360,16 @@ function statusLine(game: RoomGame): string {
 }
 
 function spineLabel(game: RoomGame): string {
-  return `${game.title}${game.author ? `, by ${game.author}` : ""}. ${statusLine(game)}`;
+  return `${game.title}${game.platform ? `, on ${game.platform}` : ""}. ${statusLine(game)}`;
 }
 
 function colourOf(game: RoomGame, known: Record<string, string>): string {
   return (game.coverUrl && known[game.coverUrl]) || drawnSpineColour(game.title);
 }
 
-interface OpenGame {
+/** The game being played, which the avatar plays in the armchair, or
+ *  whose controller lies on the side table. */
+interface NowPlaying {
   index: number;
   game: RoomGame;
   colour: string;
@@ -404,28 +412,30 @@ const FLOOR_NAMES = ["ground floor", "first floor", "second floor", "third floor
 const floorName = (fromGround: number) => FLOOR_NAMES[fromGround] ?? `floor ${fromGround}`;
 
 /**
- * The library as a cozy pixel-art house: every game a spine on a shelf, in
- * the order a bookshelf files them, and a house that gains bookcases,
- * furniture and floors as the library grows (lib/room.ts lays it out,
- * room-art.tsx draws the furniture and room-shells.ts the house, in the
- * style chosen in Decorate).
+ * The library as a cozy pixel-art house: every game a case standing spine
+ * out on a shelf, in the order the page files them, and a house that gains
+ * shelving units, furniture and floors as the library grows (lib/room.ts
+ * lays it out, room-art.tsx draws the furniture and room-shells.ts the
+ * house, in the style chosen in Decorate).
  *
  * Spines take their cover's main colour, or the drawn cover's colour for a
  * game without an image. Covers are read as their floor scrolls into view,
  * so a big library doesn't fetch every cover at once. Hovering or focusing
- * a spine shows its title; clicking opens the game, whose page then has an
- * X that flies it back onto its shelf. The shelves are one stop for Tab,
- * with the arrow keys moving from game to game.
+ * a spine shows its title, platform and how far it's played; clicking
+ * opens the game, whose page then has an X that flies it back onto its
+ * shelf. The shelves are one stop for Tab, with the arrow keys moving from
+ * game to game.
  *
  * While `arranging`, the furniture has handles to drag it about, or move
  * it with the arrow keys; `onArrange` gets where it now stands.
  *
- * The reader's `avatar` wanders the floor with the fireplace, its `pet`
- * at its heels, and sits in the armchair with the game they're reading,
- * if there is one, the pet asleep at its feet.
+ * The player's `avatar` wanders the floor with the fireplace, its `pet`
+ * at its heels, and sits in the armchair with a controller while a game
+ * is being played, the pet asleep at its feet. Without an avatar, the
+ * controller waits on the side table.
  *
- * It is drawn in the browser only: how many bookcases fit side by side
- * depends on the width it has.
+ * It is drawn in the browser only: how many shelving units fit side by
+ * side depends on the width it has.
  */
 export function GameRoom({
   games,
@@ -483,7 +493,7 @@ export function GameRoom({
   useEffect(() => {
     if (layout) onPlan?.(layout.plan);
   }, [layout, onPlan]);
-  const reading = games.findIndex((b) => b.status === PlayStatus.PLAYING && isOnShelf(b));
+  const playingIndex = games.findIndex((g) => g.status === PlayStatus.PLAYING && isOnShelf(g));
   const figure = useAvatar(avatar, pet);
 
   // Which floors have come near the screen: their covers get read.
@@ -504,7 +514,7 @@ export function GameRoom({
   const covers = useMemo(() => {
     if (!layout) return [];
     const urls = new Set<string>();
-    if (reading >= 0 && games[reading].coverUrl) urls.add(games[reading].coverUrl!);
+    if (playingIndex >= 0 && games[playingIndex].coverUrl) urls.add(games[playingIndex].coverUrl!);
     layout.floors.forEach((floor, f) => {
       if (!seen.has(f)) return;
       for (const piece of floor) {
@@ -515,12 +525,15 @@ export function GameRoom({
       }
     });
     return [...urls];
-  }, [layout, seen, games, reading]);
+  }, [layout, seen, games, playingIndex]);
   const known = useCoverColours(covers);
 
-  const openGame = useMemo<OpenGame | null>(
-    () => (reading >= 0 ? { index: reading, game: games[reading], colour: colourOf(games[reading], known) } : null),
-    [games, reading, known],
+  const nowPlaying = useMemo<NowPlaying | null>(
+    () =>
+      playingIndex >= 0
+        ? { index: playingIndex, game: games[playingIndex], colour: colourOf(games[playingIndex], known) }
+        : null,
+    [games, playingIndex, known],
   );
 
   // A note about the last move goes after a while.
@@ -554,7 +567,7 @@ export function GameRoom({
     return true;
   };
 
-  /** Shows the label over a spine (or the open game) being pointed at or
+  /** Shows the label over a spine (or the controller) being pointed at or
    *  focused. */
   const showTip = (el: Element | null) => {
     const target = el?.closest<HTMLElement>("[data-game]");
@@ -624,7 +637,7 @@ export function GameRoom({
         ref={scene}
         className="room-scene"
         role="group"
-        aria-label={arranging ? "Your reading room, moving furniture" : "Your bookshelves"}
+        aria-label={arranging ? "Your game room, moving furniture" : "Your game shelves"}
         aria-describedby={arranging ? "room-arrange-keys" : "room-keys"}
         data-library-view=""
         data-returning={returning ? "" : undefined}
@@ -691,7 +704,7 @@ export function GameRoom({
             current={within(current, layout.floorRange[f])}
             onCurrent={setCurrent}
             cat={layout.cat}
-            openGame={openGame}
+            nowPlaying={nowPlaying}
             hanging={decor.hanging}
             arranging={arranging}
             avatar={figure}
@@ -725,7 +738,7 @@ export function GameRoom({
         {tipGame && tip && (
           <div className="room-tip" style={{ left: tip.left, top: tip.top }} aria-hidden="true">
             <p className="font-heading font-medium">{tipGame.title}</p>
-            {tipGame.author && <p className="text-muted-foreground">{tipGame.author}</p>}
+            {tipGame.platform && <p className="text-muted-foreground">{tipGame.platform}</p>}
             <p className="text-muted-foreground">{statusLine(tipGame)}</p>
           </div>
         )}
@@ -913,7 +926,7 @@ const Floor = memo(function Floor({
   current,
   onCurrent,
   cat,
-  openGame,
+  nowPlaying,
   hanging,
   arranging,
   avatar,
@@ -930,7 +943,7 @@ const Floor = memo(function Floor({
   current: number;
   onCurrent: (index: number) => void;
   cat: boolean;
-  openGame: OpenGame | null;
+  nowPlaying: NowPlaying | null;
   hanging: RoomHanging;
   /** While the furniture is being moved, the games stay put. */
   arranging: boolean;
@@ -952,7 +965,7 @@ const Floor = memo(function Floor({
           const shelves = cases[n];
           const all = shelves.flat();
           return (
-            <Bookcase
+            <ShelvingUnit
               key={`case-${n}`}
               index={n}
               shelves={shelves}
@@ -975,22 +988,22 @@ const Floor = memo(function Floor({
             ceiling={BEAM}
             scale={s}
             cat={cat}
-            openGame={openGame}
+            nowPlaying={nowPlaying}
             hanging={hanging}
             avatar={avatar}
           />
         );
       })}
-      {/* Up and about while no game is being read; out of the way while
+      {/* Up and about while no game is being played; out of the way while
           the furniture moves. */}
-      {avatar && hearth && !openGame && !arranging && (
+      {avatar && hearth && !nowPlaying && !arranging && (
         <Walker avatar={avatar} width={width} home={hearth.x + 40} floorLine={floorLine} scale={s} />
       )}
     </div>
   );
 });
 
-const Bookcase = memo(function Bookcase({
+const ShelvingUnit = memo(function ShelvingUnit({
   index,
   shelves,
   games,
@@ -1008,13 +1021,13 @@ const Bookcase = memo(function Bookcase({
   y: number;
   scale: number;
   known: Record<string, string>;
-  /** The game that takes Tab focus, if it is in this bookcase; else -1. */
+  /** The game that takes Tab focus, if it is on this unit; else -1. */
   current: number;
   onCurrent: (index: number) => void;
 }) {
   return (
     <div className="room-abs" style={{ left: x * s, top: y * s }}>
-      <Sprite art={BOOKCASE} scale={s} className="block" />
+      <Sprite art={SHELVING} scale={s} className="block" />
       {shelves.map((shelf, j) => {
         const used = shelf.reduce((sum, i) => sum + spineFor(games[i]).width, 0);
         const dressing = dressShelf(index * SHELVES_PER_CASE + j, used);
@@ -1023,7 +1036,7 @@ const Bookcase = memo(function Bookcase({
           <ul
             key={j}
             className="room-shelf"
-            aria-label={`Bookcase ${index + 1}, shelf ${j + 1}`}
+            aria-label={`Shelving unit ${index + 1}, shelf ${j + 1}`}
             style={{ left: 3 * s, top: slotTop * s, width: 40 * s, height: SHELF_SLOT * s }}
           >
             {shelf.map((i, k) => {
@@ -1040,7 +1053,7 @@ const Bookcase = memo(function Bookcase({
                     data-flight-cover=""
                     data-pattern={spine.pattern}
                     data-away={isOnShelf(game) ? undefined : ""}
-                    data-reading={game.status === PlayStatus.PLAYING ? "" : undefined}
+                    data-playing={game.status === PlayStatus.PLAYING ? "" : undefined}
                     tabIndex={i === current ? 0 : -1}
                     aria-label={spineLabel(game)}
                     onFocus={() => onCurrent(i)}
@@ -1152,7 +1165,7 @@ function Furniture({
   ceiling,
   scale: s,
   cat,
-  openGame,
+  nowPlaying,
   hanging,
   avatar,
 }: {
@@ -1162,7 +1175,7 @@ function Furniture({
   ceiling: number;
   scale: number;
   cat: boolean;
-  openGame: OpenGame | null;
+  nowPlaying: NowPlaying | null;
   hanging: RoomHanging;
   avatar: Avatar | null;
 }) {
@@ -1183,7 +1196,7 @@ function Furniture({
     case "hearth": {
       const fireTop = floorLine - FIREPLACE.h;
       const chairTop = floorLine - ARMCHAIR.h;
-      const seated = avatar && openGame;
+      const seated = avatar && nowPlaying;
       const hung = hanging === "none" ? null : HANGINGS[hanging];
       return (
         <>
@@ -1216,13 +1229,13 @@ function Furniture({
               avatar={avatar}
               x={x + 50 + SEAT_OFFSET.x}
               y={chairTop + seatedTop(avatar.art.sit)}
-              spine={openGame.colour}
+              spine={nowPlaying.colour}
               scale={s}
             />
           )}
-          {/* Their pet sleeps at their feet while they read. */}
+          {/* Their pet sleeps at their feet while they play. */}
           {seated && avatar.pet && <SleepingPet pet={avatar.pet} right={x + 69} floorLine={floorLine} scale={s} />}
-          {/* The cat has the armchair, unless someone's reading in it; then
+          {/* The cat has the armchair, unless someone's playing in it; then
               it curls up on the rug at their feet. */}
           {cat &&
             stand(CAT, seated ? 70 : 57, {
@@ -1241,29 +1254,35 @@ function Furniture({
           />
           {seated && (
             <GameLink
-              gameId={openGame.game.id}
+              gameId={nowPlaying.game.id}
               prefetch={false}
-              className="room-abs room-held-game"
-              data-game={openGame.index}
-              aria-label={`Reading in the armchair: ${spineLabel(openGame.game)}`}
+              className="room-abs room-held-controller"
+              data-game={nowPlaying.index}
+              aria-label={`Playing in the armchair: ${spineLabel(nowPlaying.game)}`}
               style={{
-                left: (x + 50 + SEAT_OFFSET.x + HELD_GAME.x) * s,
-                top: (chairTop + seatedTop(avatar.art.sit) + HELD_GAME.y) * s,
-                width: HELD_GAME.w * s,
-                height: HELD_GAME.h * s,
+                left: (x + 50 + SEAT_OFFSET.x + HELD_CONTROLLER.x) * s,
+                top: (chairTop + seatedTop(avatar.art.sit) + HELD_CONTROLLER.y) * s,
+                width: HELD_CONTROLLER.w * s,
+                height: HELD_CONTROLLER.h * s,
               }}
             />
           )}
-          {openGame && !seated && (
+          {nowPlaying && !seated && (
             <GameLink
-              gameId={openGame.game.id}
+              gameId={nowPlaying.game.id}
               prefetch={false}
-              className="room-abs room-open-game"
-              data-game={openGame.index}
-              aria-label={`On the side table: ${spineLabel(openGame.game)}`}
-              style={{ left: (x + 80) * s, top: (floorLine - SIDE_TABLE.h - OPEN_GAME.h) * s, "--spine": openGame.colour } as React.CSSProperties}
+              className="room-abs room-table-controller"
+              data-game={nowPlaying.index}
+              aria-label={`Controller on the side table: ${spineLabel(nowPlaying.game)}`}
+              style={
+                {
+                  left: (x + 81) * s,
+                  top: (floorLine - SIDE_TABLE.h - TABLE_CONTROLLER.h) * s,
+                  "--spine": nowPlaying.colour,
+                } as React.CSSProperties
+              }
             >
-              <Sprite art={OPEN_GAME} scale={s} className="block" />
+              <Sprite art={TABLE_CONTROLLER} scale={s} className="block" />
             </GameLink>
           )}
           {stand(LAMP, 93)}
@@ -1309,7 +1328,7 @@ function Furniture({
     case "plant":
       return stand(PLANT, 0);
     case "ladder":
-      // Hooked over the crown of the bookcase on its left.
+      // Hooked over the crown of the shelving unit on its left.
       return stand(LADDER, -4);
     case "case":
       return null;
@@ -1360,7 +1379,7 @@ const PREVIEW_SPINES: Rect[] = (() => {
 })();
 
 /** A small picture of one floor of the house in a style: the fireplace,
- *  armchair and lamp, and a bookcase of games. */
+ *  armchair and lamp, and a shelving unit of games. */
 function previewArt(style: RoomStyle, hanging: RoomHanging): { w: number; h: number; rects: Rect[] } {
   const inner = 2 * PAD + PIECE_WIDTH.hearth + GAP + PIECE_WIDTH.case;
   const geo = houseGeometry(style, yardFor(3), inner + 2 * WALL, 1, PAD);
@@ -1384,7 +1403,7 @@ function previewArt(style: RoomStyle, hanging: RoomHanging): { w: number; h: num
   stand(TEACUP, 88, SIDE_TABLE.h);
   stand(LAMP, 93);
   const bx = fx + PIECE_WIDTH.hearth + GAP;
-  R.push(...shift(BOOKCASE.rects, bx, line - CASE_HEIGHT), ...shift(PREVIEW_SPINES, bx, line - CASE_HEIGHT));
+  R.push(...shift(SHELVING.rects, bx, line - CASE_HEIGHT), ...shift(PREVIEW_SPINES, bx, line - CASE_HEIGHT));
   return { w: geo.sceneW, h: sceneHeight(geo), rects: R };
 }
 

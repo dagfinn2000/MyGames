@@ -63,10 +63,8 @@ export const WEEK_STARTS = ["monday", "sunday"] as const;
  *  which decides where letters like Æ, Ø, Å, Ä and Ö go. */
 export const SORT_ALPHABETS = ["en", "nb", "da", "sv", "de"] as const;
 
-export const AUTHOR_ORDERS = ["surname", "as-written"] as const;
-
 /** Game catalogues, as named in lib/metadata/index.ts. */
-export const CATALOGUES = ["openlibrary", "google", "nb"] as const;
+export const CATALOGUES = ["igdb", "wikipedia", "steam"] as const;
 
 export const RATING_STYLES = ["half", "whole", "ten", "off"] as const;
 
@@ -75,7 +73,7 @@ export const TEXT_SIZES = ["normal", "large", "larger"] as const;
 export const LONG_TEXT_FONTS = ["sans", "serif"] as const;
 
 /** The face for page titles, game titles and card titles: the app's own
- *  sans (Geist), a game serif (Literata) or a rounded sans (Nunito). */
+ *  sans (Geist), a serif (Literata) or a rounded sans (Nunito). */
 export const HEADING_FONTS = ["sans", "serif", "rounded"] as const;
 
 /** Animations on or off. Off is also forced whenever the device asks for
@@ -152,14 +150,14 @@ export const BACKGROUNDS = [
  *  the app's animations play. */
 export const BACKGROUND_MOTIONS = ["moving", "still"] as const;
 
-/** Colour steps for the reading calendar (see lib/heatmap.ts). */
+/** Colour steps for the play calendar (see lib/heatmap.ts). */
 export const HEATMAP_SCALES = ["standard", "gentle", "heavy", "auto"] as const;
 
-export const START_PAGES = ["library", "stats", "add", "reading"] as const;
+export const START_PAGES = ["library", "stats", "add", "playing"] as const;
 
 /** Top-bar links that can be hidden, in top-bar order. The rest are always
  *  shown. */
-export const HIDEABLE_NAV = ["reading", "check", "quotes", "room"] as const;
+export const HIDEABLE_NAV = ["playing", "quotes", "room"] as const;
 
 /** Cards on the stats page that can be hidden. */
 export const HIDEABLE_STATS = [
@@ -167,42 +165,36 @@ export const HIDEABLE_STATS = [
   "heatmap",
   "perYear",
   "tags",
+  "platforms",
   "formats",
   "quote",
 ] as const;
 
-/** What "Copy subjects from the catalogue as tags" does: nothing, only the
- *  subjects that match a tag already in the library, or every subject. */
+/** What "Copy genres from the catalogue as tags" does: nothing, only the
+ *  genres that match a tag already in the library, or every genre. */
 export const IMPORT_TAGS_MODES = ["off", "known", "all"] as const;
 
-/** The finish date a game added as Read gets when none is picked. */
+/** The finish date a game added as Completed gets when none is picked. */
 export const ADDED_AS_COMPLETED_FINISHED = ["today", "undated"] as const;
 
 /** Where the add form goes after saving a game. */
 export const AFTER_ADD = ["open", "another", "library"] as const;
 
-/** The two quick-log buttons on a game being read: +10 and +25 pages, +5
- *  and +10 pages, or +5% of the game. */
-export const QUICK_LOG_STEPS = ["10-25", "5-10", "5pct"] as const;
+/** The two quick-log buttons on a game being played: +30 min and +1 h,
+ *  +1 h and +2 h, or +15 and +30 min. */
+export const QUICK_LOG_STEPS = ["30m-1h", "1h-2h", "15m-30m"] as const;
 
-/** How progress is entered and shown for an ebook. Positions are still
- *  stored as pages either way (see lib/progress-units.ts). */
-export const EBOOK_UNITS = ["page", "percent"] as const;
-
-/** Same for an audiobook, which can also go by time listened. */
-export const AUDIOBOOK_UNITS = ["page", "percent", "time"] as const;
-
-/** Where the "pages a day" pace comes from: the whole current read, or only
- *  the last 7 or 14 days. */
-export const PACE_FROM = ["read", "7d", "14d"] as const;
+/** Where the pace ("about 1 h 20 min a day") and the forecast come from:
+ *  the whole current playthrough, or only the last 7 or 14 days. */
+export const PACE_FROM = ["playthrough", "7d", "14d"] as const;
 
 /** Cards on a game's page, in their default order. */
-export const GAME_PAGE_CARDS = ["shelves", "reading", "history", "lending", "quotes"] as const;
+export const GAME_PAGE_CARDS = ["shelves", "playing", "history", "lending", "quotes"] as const;
 
 export const GAME_PAGE_CARD_LABELS: Record<(typeof GAME_PAGE_CARDS)[number], string> = {
   shelves: "Shelves",
-  reading: "My reading",
-  history: "Read history",
+  playing: "My playthrough",
+  history: "Play history",
   lending: "Lending",
   quotes: "Quotes",
 };
@@ -214,25 +206,24 @@ export const GAME_DESCRIPTIONS = ["full", "clamp"] as const;
  *  the game is on plus an Add button. */
 export const SHELVES_CARD_MODES = ["all", "mine"] as const;
 
-/** Extra places the library search looks besides title, author and series. */
-export const SEARCH_FIELDS = ["tags", "isbn", "review"] as const;
+/** Extra places the library search looks besides title, developer,
+ *  platform and series. */
+export const SEARCH_FIELDS = ["tags", "review"] as const;
 
-/** What "pages read" counts on the stats page: whole games when finished,
- *  or the pages logged on the day they were read. */
-export const STATS_PAGES_READ = ["finished", "logged"] as const;
+/** What "hours played" counts on the stats page: the time logged, on the
+ *  day it was played, or each completed game's whole time, on the day it
+ *  was completed. */
+export const STATS_HOURS_PLAYED = ["logged", "finished"] as const;
 
-/** How a game you stopped reading (DROPPED) counts: not at all, by the pages
- *  read before stopping, or as a whole game. */
-export const STATS_STOPPED_GAMES = ["none", "pages", "game"] as const;
-
-/** How audiobooks count: fully, as games but not pages, or not at all. */
-export const STATS_AUDIOBOOKS = ["full", "games", "out"] as const;
+/** How a game you stopped playing (DROPPED) counts: not at all, by the
+ *  hours played before stopping, or as a whole game. */
+export const STATS_STOPPED_GAMES = ["none", "hours", "game"] as const;
 
 /** The period the stats page opens on. */
 export const STATS_PERIODS = ["all", "year", "12m", "30d"] as const;
 
-/** What the Genres & tags and Formats cards count: the whole library, or
- *  only the games read in the chosen period. */
+/** What the Genres & tags, Platforms and Formats cards count: the whole
+ *  library, or only the games completed in the chosen period. */
 export const STATS_BREAKDOWNS = ["library", "period"] as const;
 
 /** The quotes page's order. */
@@ -242,14 +233,14 @@ export const QUOTE_ORDERS = ["newest", "oldest", "game", "shuffle"] as const;
 export const BACKUP_REMINDERS = ["off", "monthly"] as const;
 
 /** "Find it at" links on a game's page: a name and an https:// address in
- *  which {isbn}, {title} and {author} are filled in. */
+ *  which {title}, {developer} and {platform} are filled in. */
 export type FindLink = { name: string; url: string };
 export const MAX_FIND_LINKS = 6;
 export const FIND_LINK_NAME_MAX = 40;
 export const FIND_LINK_URL_MAX = 500;
-export const FIND_LINK_PLACEHOLDERS = ["isbn", "title", "author"] as const;
+export const FIND_LINK_PLACEHOLDERS = ["title", "developer", "platform"] as const;
 
-/** A tag rule from imported subjects: always rename `from` to `to`. */
+/** A tag rule for imported genres: always rename `from` to `to`. */
 export type TagRename = { from: string; to: string };
 /** Rules kept per kind; the oldest go first. They ride along with every
  *  page's preferences, so the list stays short. */
@@ -265,7 +256,6 @@ export type DateFormat = (typeof DATE_FORMATS)[number];
 export type NumberFormat = (typeof NUMBER_FORMATS)[number];
 export type WeekStart = (typeof WEEK_STARTS)[number];
 export type SortAlphabet = (typeof SORT_ALPHABETS)[number];
-export type AuthorOrder = (typeof AUTHOR_ORDERS)[number];
 export type Catalogue = (typeof CATALOGUES)[number];
 export type RatingStyle = (typeof RATING_STYLES)[number];
 export type TextSize = (typeof TEXT_SIZES)[number];
@@ -287,16 +277,13 @@ export type ImportTagsMode = (typeof IMPORT_TAGS_MODES)[number];
 export type AddedAsCompletedFinished = (typeof ADDED_AS_COMPLETED_FINISHED)[number];
 export type AfterAdd = (typeof AFTER_ADD)[number];
 export type QuickLogSteps = (typeof QUICK_LOG_STEPS)[number];
-export type EbookUnit = (typeof EBOOK_UNITS)[number];
-export type AudiobookUnit = (typeof AUDIOBOOK_UNITS)[number];
 export type PaceFrom = (typeof PACE_FROM)[number];
 export type GamePageCard = (typeof GAME_PAGE_CARDS)[number];
 export type GameDescriptionMode = (typeof GAME_DESCRIPTIONS)[number];
 export type ShelvesCardMode = (typeof SHELVES_CARD_MODES)[number];
 export type SearchField = (typeof SEARCH_FIELDS)[number];
-export type StatsPagesRead = (typeof STATS_PAGES_READ)[number];
+export type StatsHoursPlayed = (typeof STATS_HOURS_PLAYED)[number];
 export type StatsStoppedGames = (typeof STATS_STOPPED_GAMES)[number];
-export type StatsAudiobooks = (typeof STATS_AUDIOBOOKS)[number];
 export type StatsPeriod = (typeof STATS_PERIODS)[number];
 export type StatsBreakdown = (typeof STATS_BREAKDOWNS)[number];
 export type QuoteOrder = (typeof QUOTE_ORDERS)[number];
@@ -309,13 +296,13 @@ export type Preferences = {
   newGameFormat: GameFormat;
   newGameStatus: PlayStatus;
   newGameOwnership: GameOwnership;
-  /** Copy the subjects a catalogue returns into the tags field: none, only
+  /** Copy the genres a catalogue returns into the tags field: none, only
    *  ones already used as tags, or all. Replaces the old importTags boolean,
    *  which parsePreferences still reads. */
   importTagsMode: ImportTagsMode;
-  /** Imported subjects renamed on the way in ("science fiction" → "sci-fi"). */
+  /** Imported genres renamed on the way in ("role-playing (rpg)" → "rpg"). */
   tagRenames: TagRename[];
-  /** Imported subjects never copied as tags. */
+  /** Imported genres never copied as tags. */
   tagSkips: string[];
   addedAsCompletedFinished: AddedAsCompletedFinished;
   afterAdd: AfterAdd;
@@ -329,9 +316,8 @@ export type Preferences = {
   timeZone: string;
 
   // Sorting
-  /** Sort "The Hobbit" under H. */
+  /** Sort "The Last of Us" under L. */
   ignoreArticles: boolean;
-  authorOrder: AuthorOrder;
   sortAlphabet: SortAlphabet;
 
   /** Catalogues to search, in priority order. Ones left out are off. */
@@ -363,14 +349,12 @@ export type Preferences = {
   // Pick for me
   /** Pick for me skips wishlist and given-away games (borrowed ones count). */
   pickOnlyHave: boolean;
-  /** Pick for me skips a Want to Read game while an earlier game in its
+  /** Pick for me skips a Want to Play game while an earlier game in its
    *  series is unplayed. */
   pickNextInSeries: boolean;
 
-  // Reading
+  // Playing
   quickLogSteps: QuickLogSteps;
-  ebookUnit: EbookUnit;
-  audiobookUnit: AudiobookUnit;
   paceFrom: PaceFrom;
 
   // Game page
@@ -394,9 +378,8 @@ export type Preferences = {
   hiddenStatusTabs: PlayStatus[];
 
   // Stats
-  statsPagesRead: StatsPagesRead;
+  statsHoursPlayed: StatsHoursPlayed;
   statsStoppedGames: StatsStoppedGames;
-  statsAudiobooks: StatsAudiobooks;
   statsPeriod: StatsPeriod;
   statsBreakdown: StatsBreakdown;
 
@@ -405,7 +388,7 @@ export type Preferences = {
   quotesGroupByGame: boolean;
   backupReminder: BackupReminder;
 
-  // The reading room (Decorate on the Room page; lib/room-styles.ts)
+  // The game room (Decorate on the Room page; lib/room-styles.ts)
   roomStyle: RoomStyle;
   roomWalls: RoomWalls;
   roomWood: RoomWood;
@@ -430,7 +413,7 @@ export type Preferences = {
   roomRooms: RoomKind[];
   /** Furniture added from the catalogue (lib/room.ts). */
   roomExtras: Extra[];
-  // The reader's avatar in the room (lib/avatar.ts)
+  // The player's avatar in the room (lib/avatar.ts)
   /** Whether the avatar is in the room at all. */
   avatarShown: boolean;
   /** How it looks; saved whole. */
@@ -455,9 +438,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   weekStart: "monday",
   timeZone: "",
   ignoreArticles: false,
-  authorOrder: "surname",
   sortAlphabet: "en",
-  catalogues: ["openlibrary", "google", "nb"],
+  catalogues: ["igdb", "wikipedia", "steam"],
   ratingStyle: "half",
   textSize: "normal",
   longTextFont: "sans",
@@ -477,10 +459,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   defaultViewId: "",
   pickOnlyHave: false,
   pickNextInSeries: false,
-  quickLogSteps: "10-25",
-  ebookUnit: "page",
-  audiobookUnit: "page",
-  paceFrom: "read",
+  quickLogSteps: "30m-1h",
+  paceFrom: "playthrough",
   gamePageCards: [...GAME_PAGE_CARDS],
   hiddenGamePageCards: [],
   gameDescription: "full",
@@ -491,9 +471,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   hiddenShelves: [],
   savedViewOrder: [],
   hiddenStatusTabs: [],
-  statsPagesRead: "finished",
+  statsHoursPlayed: "logged",
   statsStoppedGames: "none",
-  statsAudiobooks: "full",
   statsPeriod: "all",
   statsBreakdown: "library",
   quotesOrder: "newest",
@@ -585,11 +564,11 @@ export function findLinkError(rawName: string, rawUrl: string): string | null {
     return `That link is too long (${FIND_LINK_URL_MAX} characters at most).`;
   }
   if (!/^https:\/\//i.test(url)) return "Links must start with https://.";
-  if (/[{}]/.test(url.replace(/\{(isbn|title|author)\}/g, ""))) {
-    return "Only {isbn}, {title} and {author} can be filled in.";
+  if (/[{}]/.test(url.replace(/\{(title|developer|platform)\}/g, ""))) {
+    return "Only {title}, {developer} and {platform} can be filled in.";
   }
   try {
-    const parsed = new URL(url.replace(/\{(isbn|title|author)\}/g, "x"));
+    const parsed = new URL(url.replace(/\{(title|developer|platform)\}/g, "x"));
     if (parsed.protocol !== "https:" || !parsed.hostname || parsed.username || parsed.password) {
       return "That isn't a web address.";
     }
@@ -735,7 +714,6 @@ export function parsePreferences(raw: unknown): Preferences {
         ? obj.timeZone
         : d.timeZone,
     ignoreArticles: bool(obj.ignoreArticles, d.ignoreArticles),
-    authorOrder: pick(AUTHOR_ORDERS, obj.authorOrder, d.authorOrder),
     sortAlphabet: pick(SORT_ALPHABETS, obj.sortAlphabet, d.sortAlphabet),
     // Searching nothing at all is never what anyone means, so an empty list
     // goes back to the default.
@@ -763,8 +741,6 @@ export function parsePreferences(raw: unknown): Preferences {
     pickOnlyHave: bool(obj.pickOnlyHave, d.pickOnlyHave),
     pickNextInSeries: bool(obj.pickNextInSeries, d.pickNextInSeries),
     quickLogSteps: pick(QUICK_LOG_STEPS, obj.quickLogSteps, d.quickLogSteps),
-    ebookUnit: pick(EBOOK_UNITS, obj.ebookUnit, d.ebookUnit),
-    audiobookUnit: pick(AUDIOBOOK_UNITS, obj.audiobookUnit, d.audiobookUnit),
     paceFrom: pick(PACE_FROM, obj.paceFrom, d.paceFrom),
     gamePageCards: parseGamePageCards(obj.gamePageCards),
     hiddenGamePageCards: pickList(GAME_PAGE_CARDS, obj.hiddenGamePageCards),
@@ -778,9 +754,8 @@ export function parsePreferences(raw: unknown): Preferences {
     // Hiding every status would leave the library with no tabs at all, so
     // that reads as hiding none.
     hiddenStatusTabs: hiddenStatusTabs.length < statuses.length ? hiddenStatusTabs : [],
-    statsPagesRead: pick(STATS_PAGES_READ, obj.statsPagesRead, d.statsPagesRead),
+    statsHoursPlayed: pick(STATS_HOURS_PLAYED, obj.statsHoursPlayed, d.statsHoursPlayed),
     statsStoppedGames: pick(STATS_STOPPED_GAMES, obj.statsStoppedGames, d.statsStoppedGames),
-    statsAudiobooks: pick(STATS_AUDIOBOOKS, obj.statsAudiobooks, d.statsAudiobooks),
     statsPeriod: pick(STATS_PERIODS, obj.statsPeriod, d.statsPeriod),
     statsBreakdown: pick(STATS_BREAKDOWNS, obj.statsBreakdown, d.statsBreakdown),
     quotesOrder: pick(QUOTE_ORDERS, obj.quotesOrder, d.quotesOrder),
@@ -813,11 +788,11 @@ export const START_PAGE_PATHS: Record<StartPage, string> = {
   library: "/games",
   stats: "/stats",
   add: "/games/new",
-  reading: "/playing",
+  playing: "/playing",
 };
 
-/** The zone this server runs in — what reading days used to be counted in,
- *  and still are until the reader's own zone is known. */
+/** The zone this server runs in — what play days are counted in until the
+ *  player's own zone is known. */
 export function serverTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 }

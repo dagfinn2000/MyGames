@@ -67,20 +67,20 @@ afterEach(async () => {
 });
 
 describe("pickRandomGame", () => {
-  it("stays on the status tab instead of opening a Want to Read game", async () => {
-    const read = await makeGame({ status: PlayStatus.COMPLETED });
+  it("stays on the status tab instead of opening a Want to Play game", async () => {
+    const done = await makeGame({ status: PlayStatus.COMPLETED });
     await makeGame({ status: PlayStatus.WANT_TO_PLAY });
 
-    expect(await picks({ shelf: "COMPLETED" })).toEqual(new Set([read.id]));
+    expect(await picks({ shelf: "COMPLETED" })).toEqual(new Set([done.id]));
   });
 
-  it("prefers Want to Read on the All tab, and falls back when there is none", async () => {
+  it("prefers Want to Play on the All tab, and falls back when there is none", async () => {
     const want = await makeGame({ status: PlayStatus.WANT_TO_PLAY });
-    const read = await makeGame({ status: PlayStatus.COMPLETED });
+    const done = await makeGame({ status: PlayStatus.COMPLETED });
     expect(await picks({})).toEqual(new Set([want.id]));
 
     await prisma.game.delete({ where: { id: want.id } });
-    expect(await picks({ shelf: "all" })).toEqual(new Set([read.id]));
+    expect(await picks({ shelf: "all" })).toEqual(new Set([done.id]));
   });
 
   it("only picks games you have when asked to", async () => {
@@ -113,11 +113,11 @@ describe("pickRandomGame", () => {
 
   it("only picks the next game in a series when asked to", async () => {
     await setPrefs({ pickNextInSeries: true });
-    await makeGame({ seriesName: "Mistborn", seriesNumber: 1, status: PlayStatus.COMPLETED });
-    const two = await makeGame({ seriesName: "Mistborn", seriesNumber: 2 });
-    await makeGame({ seriesName: "mistborn", seriesNumber: 3 });
+    await makeGame({ seriesName: "Halo", seriesNumber: 1, status: PlayStatus.COMPLETED });
+    const two = await makeGame({ seriesName: "Halo", seriesNumber: 2 });
+    await makeGame({ seriesName: "halo", seriesNumber: 3 });
 
-    // #1 is not on the Want to Read tab, but it still counts as read.
+    // #1 is not on the Want to Play tab, but it still counts as completed.
     expect(await picks({ shelf: "WANT_TO_PLAY" })).toEqual(new Set([two.id]));
   });
 
@@ -134,8 +134,8 @@ describe("pickRandomGame", () => {
     await setPrefs({ pickNextInSeries: true });
     await makeGame({ status: PlayStatus.WANT_TO_PLAY }, otherUserId);
     // Their unplayed #1 in a same-named series must not hold back my #2.
-    await makeGame({ seriesName: "Mistborn", seriesNumber: 1 }, otherUserId);
-    const mine = await makeGame({ seriesName: "Mistborn", seriesNumber: 2 });
+    await makeGame({ seriesName: "Halo", seriesNumber: 1 }, otherUserId);
+    const mine = await makeGame({ seriesName: "Halo", seriesNumber: 2 });
 
     expect(await picks({})).toEqual(new Set([mine.id]));
   });

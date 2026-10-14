@@ -86,12 +86,11 @@ const TABS = [
 type Tab = (typeof TABS)[number]["value"];
 
 /**
- * The reading room with its Decorate panel: the house style, the colours of
+ * The game room with its Decorate panel: the house style, the colours of
  * the walls, wood and fabrics and what hangs over the fireplace; the rooms
  * added over the library, furniture added from a catalogue, which is out,
- * and a mode for moving it about; and, on its Avatar tab, the reader's own
- * little self. Every change
- * shows at once and is saved on the account.
+ * and a mode for moving it about; and, on its Avatar tab, the player's own
+ * little self. Every change shows at once and is saved on the account.
  */
 export function RoomView({
   games,
@@ -119,7 +118,7 @@ export function RoomView({
   pet: Pet;
   /** For the switch that turns the whole room off. */
   hiddenNav: HideableNav[];
-  /** "198 games on 5 bookcases", beside the title. */
+  /** "198 games on 5 shelving units", beside the title. */
   summary: string | null;
 }) {
   const [decor, setDecor] = useState(savedDecor);
@@ -207,7 +206,7 @@ export function RoomView({
     <>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Reading room</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Game room</h1>
           {summary && <span className="text-sm text-muted-foreground">{summary}</span>}
         </div>
         <div className="flex gap-2">

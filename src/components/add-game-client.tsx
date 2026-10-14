@@ -1,91 +1,59 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, CircleCheck, TriangleAlert, X } from "lucide-react";
+import { ArrowLeft, CircleCheck, X } from "lucide-react";
 import { createGame } from "@/lib/actions/games";
 import type { TagImportSettings } from "@/lib/tag-rules";
-import type { LibraryCheckResult } from "@/app/api/library/check/route";
-import { duplicateNotice } from "@/lib/check-verdict";
 import { GameForm, type GameFormValues } from "@/components/game-form";
 import { ImportSearch } from "@/components/import-search";
-import { NEWEST_FIRST_HREF, useShelfScan } from "@/components/shelf-scan";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-/** A picked or handed-over game, waiting in the review form. */
+/** A picked game, waiting in the review form. */
 interface Prefill {
   values: GameFormValues;
-  /** Came from the barcode scanner: adding another opens the camera. */
-  scanned: boolean;
-  /** Only an ISBN no catalogue knows (shelf scan's "Add by hand"): there is
-   *  nothing to check the library for that the scan didn't already. */
-  byHand?: boolean;
+  /** Every platform the catalogue lists it on, for the platform field's
+   *  suggestions. */
+  platforms: string[];
 }
 
 /**
  * Add-game flow: either search-and-import (pick a result → review the
- * prefilled form → save) or straight manual entry. An `initialIsbn` (from
- * the "do I own this?" page) seeds the search and auto-picks a single match,
- * same as a barcode scan.
+ * prefilled form → save) or straight manual entry.
  *
  * "Add and add another" comes back here instead of opening the game: each
  * round starts afresh (the round number keys the search and the form), on
- * the tab it was added from, with the camera open again if the game was
- * scanned, and a line saying what was just added.
- *
- * A shelf scan's session lives here, not in the search: switching to
- * Manual entry or reviewing a picked game unmounts the search box, and
- * codes still in line then are looked up and added all the same, with the
- * running total shown above whichever is on screen.
+ * the tab it was added from, with a line saying what was just added.
  */
 export function AddGameClient({
   seriesNames = [],
-  initialIsbn,
+  libraryPlatforms = [],
   defaults = {},
   tagImport,
 }: {
   seriesNames?: string[];
-  initialIsbn?: string;
+  /** The platforms already in the library, most used first: suggested
+   *  after the catalogue's own. */
+  libraryPlatforms?: string[];
   /** Format, status and ownership a new game starts with (Preferences). */
   defaults?: Pick<GameFormValues, "format" | "status" | "ownership">;
-  /** How a catalogue's subjects become tags (Preferences, New games). */
+  /** How a catalogue's genres become tags (Preferences, New games). */
   tagImport?: TagImportSettings;
 }) {
-  const router = useRouter();
   const [tab, setTab] = useState("search");
   const [round, setRound] = useState(0);
   const [prefill, setPrefill] = useState<Prefill | null>(null);
   const [lastAdded, setLastAdded] = useState<{ id: string; title: string } | null>(null);
-  const [reopenScanner, setReopenScanner] = useState(false);
-  const shelf = useShelfScan();
-  const dupe = useDuplicateCheck(prefill && !prefill.byHand ? prefill.values : null);
 
-  // Stable, so the search never sees new callbacks (see ImportSearch).
-  // The camera reopens once, for the round right after a scanned game.
-  const handlePick = useCallback((values: GameFormValues, how: { scanned: boolean }) => {
-    setPrefill({ values, scanned: how.scanned });
-    setReopenScanner(false);
-  }, []);
-  // From the shelf scan, so adding another goes back to the camera.
-  const handleAddByHand = useCallback((isbn: string) => {
-    setPrefill({ values: { isbn }, scanned: true, byHand: true });
-    setReopenScanner(false);
+  const handlePick = useCallback((values: GameFormValues, platforms: string[]) => {
+    setPrefill({ values, platforms });
   }, []);
 
   function handleAdded(game: { id: string; title: string }) {
     setLastAdded(game);
-    setReopenScanner(prefill?.scanned ?? false);
     setPrefill(null);
     setRound((r) => r + 1);
-    // The handoff from the check page is used up: a reload shouldn't search
-    // for it again. Anything else in the address (an ownership, say) stays.
-    if (initialIsbn) {
-      const params = new URLSearchParams(window.location.search);
-      params.delete("isbn");
-      router.replace(params.size > 0 ? `/games/new?${params}` : "/games/new", { scroll: false });
-    }
   }
 
   return (
@@ -118,27 +86,6 @@ export function AddGameClient({
         </div>
       )}
 
-      {/* What a shelf scan added, once the camera is closed. The sr-only
-          line is always there, so the total is read out when it changes;
-          the visible one comes and goes. */}
-      <p role="status" className="sr-only">
-        {shelf.snapshot.pending === 0 && shelf.snapshot.added > 0
-          ? `Added ${shelf.snapshot.added} game${shelf.snapshot.added === 1 ? "" : "s"} from the shelf`
-          : ""}
-      </p>
-      <p className="text-sm text-muted-foreground empty:hidden">
-        {shelf.snapshot.pending > 0
-          ? `Still adding ${shelf.snapshot.pending} game${shelf.snapshot.pending === 1 ? "" : "s"}…`
-          : shelf.snapshot.added > 0 && (
-              <>
-                Added {shelf.snapshot.added} game{shelf.snapshot.added === 1 ? "" : "s"} from the shelf ·{" "}
-                <Link href={NEWEST_FIRST_HREF} className="underline underline-offset-2">
-                  See them in the library
-                </Link>
-              </>
-            )}
-      </p>
-
       {prefill ? (
         <>
           <div>
@@ -147,25 +94,8 @@ export function AddGameClient({
               Back to search
             </Button>
           </div>
-          {dupe?.match && dupe.game && (
-            <p className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/40">
-              <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-              <span>
-                {duplicateNotice(dupe.match, dupe.game.ownership).lead}
-                <Link
-                  href={`/games/${dupe.game.id}`}
-                  className="font-medium underline underline-offset-2"
-                >
-                  {dupe.game.title}
-                </Link>
-                {duplicateNotice(dupe.match, dupe.game.ownership).tail}
-              </span>
-            </p>
-          )}
           <p className="text-sm text-muted-foreground">
-            {prefill.byHand
-              ? "No catalogue knows this ISBN, so fill in the rest yourself."
-              : "Review the imported details, adjust anything you like, then save."}
+            Review the imported details, adjust anything you like, then save.
           </p>
           <GameForm
             key={round}
@@ -173,33 +103,18 @@ export function AddGameClient({
             initial={{ ...defaults, ...prefill.values }}
             showStatus
             seriesNames={seriesNames}
+            platformOptions={[...prefill.platforms, ...libraryPlatforms]}
             onAdded={handleAdded}
-            autoFocusTitle={prefill.byHand}
           />
         </>
       ) : (
-        <Tabs
-          value={tab}
-          onValueChange={(next) => {
-            setTab(next);
-            setReopenScanner(false);
-          }}
-        >
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="search">Search &amp; import</TabsTrigger>
             <TabsTrigger value="manual">Manual entry</TabsTrigger>
           </TabsList>
           <TabsContent value="search" className="pt-4">
-            <ImportSearch
-              key={round}
-              onPick={handlePick}
-              // Only the first round: after adding that game, the next
-              // search starts empty.
-              initialQuery={round === 0 ? initialIsbn : undefined}
-              tagImport={tagImport}
-              openScannerOnMount={reopenScanner}
-              shelfScan={{ scan: shelf, onAddByHand: handleAddByHand }}
-            />
+            <ImportSearch key={round} onPick={handlePick} tagImport={tagImport} />
           </TabsContent>
           <TabsContent value="manual" className="pt-4">
             <GameForm
@@ -208,6 +123,7 @@ export function AddGameClient({
               initial={defaults}
               showStatus
               seriesNames={seriesNames}
+              platformOptions={libraryPlatforms}
               onAdded={handleAdded}
               autoFocusTitle={round > 0}
             />
@@ -216,53 +132,4 @@ export function AddGameClient({
       )}
     </div>
   );
-}
-
-/** Identifies the game a check result belongs to, so a stale answer is never
- *  shown against a newly picked game. */
-function checkKey(prefill: GameFormValues | null): string {
-  if (!prefill) return "";
-  const author = prefill.authors?.split(",")[0]?.trim() ?? "";
-  return `${prefill.isbn ?? ""}|${prefill.title ?? ""}|${author}`;
-}
-
-/** Once a result is picked, quietly ask the library whether it's already
- *  there (exact ISBN, or same title + author as another edition). Best
- *  effort: a failed check just means no warning. */
-function useDuplicateCheck(
-  prefill: GameFormValues | null,
-): LibraryCheckResult | null {
-  // The answer is stored with the game it was fetched for. Clearing it when
-  // the pick changes is then a render-time comparison rather than a setState
-  // at the top of the effect — which was an extra render pass, and left a
-  // frame in which the previous game's "you already own this" warning showed
-  // against the newly picked one.
-  const [answer, setAnswer] = useState<{
-    key: string;
-    result: LibraryCheckResult;
-  } | null>(null);
-
-  const key = checkKey(prefill);
-
-  useEffect(() => {
-    if (!prefill?.isbn && !prefill?.title) return;
-    const params = new URLSearchParams();
-    if (prefill.isbn) params.set("isbn", prefill.isbn);
-    if (prefill.title) params.set("title", prefill.title);
-    const author = prefill.authors?.split(",")[0]?.trim();
-    if (author) params.set("author", author);
-
-    let cancelled = false;
-    fetch(`/api/library/check?${params}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: LibraryCheckResult | null) => {
-        if (!cancelled && data) setAnswer({ key: checkKey(prefill), result: data });
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [prefill]);
-
-  return answer?.key === key ? answer.result : null;
 }

@@ -1,12 +1,12 @@
 // MyGames data model.
 //
-// Design note: reading data (status, rating, review, dates) lives directly on
-// Game rather than in a separate "reading entry" model. Every game row already
+// Design note: play data (status, rating, review, dates) lives directly on
+// Game rather than in a separate "play entry" model. Every game row already
 // belongs to exactly one user in this single-purpose app, so a join table
 // would only add indirection.
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   // "native" covers local dev (Windows/macOS/Linux glibc); the musl target is
   // what the Alpine-based Docker image needs at runtime.
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
@@ -21,40 +21,38 @@ enum PlayStatus {
   WANT_TO_PLAY
   PLAYING
   COMPLETED
-  DROPPED // did not finish
+  DROPPED // stopped playing, not finished
 }
 
+/// How you have the game: a disc or cartridge, a download you bought, or
+/// through a subscription such as Game Pass or PlayStation Plus.
 enum GameFormat {
   PHYSICAL
-  EBOOK
-  AUDIOBOOK
+  DIGITAL
+  SUBSCRIPTION
 }
 
-/// Where a game physically stands in relation to you. This replaced a single
-/// `owned` boolean, which had to mean both "on my shelf" and — when false —
-/// "on the wishlist". That left nowhere to record the two states a real
-/// shelf produces: a game borrowed from someone else, and one you read and
-/// no longer have. Both used to be forced into the wishlist.
+/// Where your copy stands. A single `owned` boolean would have to mean both
+/// "in my collection" and, when false, "on the wishlist", leaving nowhere
+/// for a game borrowed from a friend or one you sold or traded in.
 enum GameOwnership {
   OWNED
   WISHLIST
   /// Someone else's copy, currently with you.
   BORROWED
-  /// Read it, but it's gone — sold, donated, or lost.
+  /// Had it, but it's gone: sold, traded in, given away or lost.
   GIVEN_AWAY
 }
 
 model User {
-  id           String        @id @default(cuid())
-  username     String        @unique
+  id           String      @id @default(cuid())
+  username     String      @unique
   passwordHash String // bcrypt
   /// Bumped whenever every existing session should stop working — currently
   /// a password change. Sessions are JWTs with no server-side row to delete,
   /// so the token carries the value it was minted with and `auth.ts` rejects
-  /// it once the two disagree. Tokens minted before this column existed have
-  /// no value at all and are treated as 0, so upgrading doesn't sign anyone
-  /// out; the first password change invalidates them like any other.
-  tokenVersion Int           @default(0)
+  /// it once the two disagree. Tokens without a value are treated as 0.
+  tokenVersion Int         @default(0)
   /// Chosen UI theme (id from lib/themes.ts), so the look follows the
   /// account across browsers. Null = never picked one on this account;
   /// the client falls back to localStorage, then the default.
@@ -73,14 +71,14 @@ model User {
   /// When this account last downloaded its backup zip (GET /api/export), so
   /// the Backup card can say how old the newest copy is. Null = never.
   lastBackupAt DateTime?
-  createdAt    DateTime      @default(now())
+  createdAt    DateTime    @default(now())
   games        Game[]
   shelves      Shelf[]
-  playGoals PlayGoal[]
+  playGoals    PlayGoal[]
   savedViews   SavedView[]
 }
 
-/// A library view saved under a name ("Unplayed fantasy"): the filters, sort
+/// A library view saved under a name ("Unplayed RPGs"): the filters, sort
 /// and grouping exactly as they appear in the /games address. Shown as chips
 /// above the library; Preferences can make one the view the library opens on.
 model SavedView {
@@ -98,22 +96,22 @@ model SavedView {
 
 enum GoalUnit {
   GAMES
-  PAGES
+  HOURS
 }
 
-/// A yearly reading goal ("24 games in 2026", or "8,000 pages"). Progress is
-/// derived from the games finished in that year (see lib/goals.ts); hitting
-/// the target earns a gold medal on the stats page.
+/// A yearly goal ("12 games in 2026", or "300 hours"). Progress is derived
+/// from the games completed and the time logged that year (see
+/// lib/goals.ts); hitting the target earns a gold medal on the stats page.
 model PlayGoal {
   id           String   @id @default(cuid())
   userId       String
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   year         Int
   target       Int
-  /// What `target` counts: finished games, or the pages of finished games.
+  /// What `target` counts: completed games, or hours played.
   unit         GoalUnit @default(GAMES)
-  /// Whether finishing a game again counts. False = only games finished for
-  /// the first time that year.
+  /// Whether completing a game again counts. False = only games completed
+  /// for the first time that year.
   countReplays Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -121,8 +119,8 @@ model PlayGoal {
   @@unique([userId, year])
 }
 
-/// A user-defined shelf ("Sanderson", "Fantasy") — freeform grouping
-/// independent of reading status. Games can sit on many shelves at once;
+/// A user-defined shelf ("Couch co-op", "Soulslikes") — freeform grouping
+/// independent of play status. Games can sit on many shelves at once;
 /// deleting a shelf only removes the grouping, never the games.
 model Shelf {
   id        String   @id @default(cuid())
@@ -140,55 +138,64 @@ model Game {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // --- bibliographic data ---
+  // --- catalogue data ---
   title         String
-  authors       String[]   @default([])
-  isbn          String?
+  /// The studios that made it, e.g. ["FromSoftware"].
+  developers    String[]      @default([])
+  publisher     String?
+  /// The platform you play it on ("Nintendo Switch", "PC"). Freeform, so
+  /// any system can be typed; the form suggests the catalogue's list.
+  platform      String?
   description   String?
   /// Either a local cached path ("/api/covers/<id>.jpg") or a remote URL.
   coverUrl      String?
-  pageCount     Int?
-  /// Running time of an audiobook, in minutes, so progress can be logged as
-  /// time listened. Positions are still stored as the matching page of
-  /// pageCount, so stats never need to know about it. Null = not known.
+  /// How long the game usually takes to beat, in minutes. Progress shows as
+  /// a share of it, and the pace forecast counts down to it. Null = not
+  /// known; time played is tracked all the same.
   lengthMinutes Int?
-  /// Kept as a string because metadata APIs return partial dates ("1999", "2003-07").
-  publishedDate String?
-  tags          String[]   @default([])
-  format        GameFormat @default(PHYSICAL)
+  /// Kept as a string because catalogues give partial dates ("1998", "2017-03").
+  releaseDate   String?
+  tags          String[]      @default([])
+  format        GameFormat    @default(PHYSICAL)
   ownership     GameOwnership @default(OWNED)
-  /// Freeform series name (e.g. "Mistborn Era 1"); groups games together.
+  /// Freeform series name (e.g. "The Legend of Zelda"); groups games together.
   seriesName    String?
-  /// Position in the series. Float so novellas can slot in at 1.5.
+  /// Position in the series. Float so a spin-off can slot in at 2.5.
   seriesNumber  Float?
   shelves       Shelf[]
-  /// Open Library work ID (e.g. "OL45883W") when imported via search.
-  openLibraryId String?
+  /// The catalogue entry the game was imported from, prefixed by catalogue:
+  /// "igdb:<slug>", "steam:<app id>" or "wikidata:<Q-id>" (for example
+  /// "igdb:portal-2", "steam:620", "wikidata:Q279744"). Lets "Look up details"
+  /// and the catalogue link find the same game again.
+  catalogueId   String?
 
-  // --- personal reading data ---
-  status       PlayStatus @default(WANT_TO_PLAY)
+  // --- personal play data ---
+  status         PlayStatus @default(WANT_TO_PLAY)
   /// 1–10 in half-star units: 7 = 3.5 stars. Null = unrated.
-  rating       Int?
-  review       String?
-  dateStarted  DateTime?
-  dateFinished DateTime?
-  timesCompleted    Int           @default(0)
-  /// Where you are in the game right now. Kept for PLAYING and DROPPED
-  /// ("stopped at p. 218"); cleared when the game is finished or reshelved.
-  currentPage  Int?
+  rating         Int?
+  review         String?
+  dateStarted    DateTime?
+  dateFinished   DateTime?
+  timesCompleted Int        @default(0)
+  /// Time played so far in this playthrough, in minutes. Kept while
+  /// PLAYING, when COMPLETED (the time the playthrough took: "Completed in
+  /// 42 h") and when DROPPED ("stopped at 12 h"); cleared only when the game
+  /// goes back to WANT_TO_PLAY.
+  playedMinutes  Int?
 
-  /// Denormalized lowercase "title + authors" so search can be a single
-  /// case-insensitive `contains` (Prisma can't substring-search String[]).
-  searchText String @default("")
-  /// The review, folded the same way (foldForSearch), for readers who search
+  /// Denormalized lowercase "title + developers + series + platform"
+  /// (buildSearchText) so search can be a single case-insensitive `contains`
+  /// (Prisma can't substring-search String[]).
+  searchText       String @default("")
+  /// The review, folded the same way (foldForSearch), for players who search
   /// reviews too; "" without one. Written wherever review is, never sent to
   /// the browser or into a backup.
   reviewSearchText String @default("")
 
-  quotes   Quote[]
+  quotes       Quote[]
   playthroughs Playthrough[]
-  progress ProgressEntry[]
-  loans    Loan[]
+  progress     ProgressEntry[]
+  loans        Loan[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -197,58 +204,58 @@ model Game {
   @@index([userId, createdAt])
   /// Year pages and per-year stats filter and sort on finish date.
   @@index([userId, dateFinished])
-  /// "Do I own this?" matches by ISBN in both 10- and 13-digit forms.
-  @@index([userId, isbn])
   /// Tag filter uses array containment, which a btree cannot serve.
   @@index([tags], type: Gin)
   /// Library search is a substring match (LIKE '%…%'); the series lookup is
-  /// ILIKE. Both need trigrams — see the 20260728020000 migration.
+  /// ILIKE. Both need trigrams (pg_trgm, created by the init migration).
   @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin, map: "Game_searchText_trgm_idx")
   @@index([seriesName(ops: raw("gin_trgm_ops"))], type: Gin, map: "Game_seriesName_trgm_idx")
 }
 
-/// A *past* completed pass through a game. The Game row itself always holds
-/// the latest read (status, dates, rating), so re-reading archives the
-/// previous pass here. `timesCompleted` on Game is kept in sync as
-/// `reads.count + (status == COMPLETED ? 1 : 0)` — see lib/actions/playthroughs.ts.
+/// A *past* completed playthrough of a game. The Game row itself always
+/// holds the latest one (status, dates, rating), so playing again archives
+/// the previous pass here. `timesCompleted` on Game is kept in sync as
+/// `playthroughs.count + (status == COMPLETED ? 1 : 0)` — see
+/// lib/actions/playthroughs.ts.
 model Playthrough {
   id     String @id @default(cuid())
   gameId String
   game   Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
-  /// Both dates optional: "I know I read this in 2019" is a valid entry,
-  /// and so is a fully undated "read it before" placeholder.
-  dateStarted  DateTime?
-  dateFinished DateTime?
+  /// Both dates optional: "I know I beat this in 2019" is a valid entry,
+  /// and so is a fully undated "played it before" placeholder.
+  dateStarted   DateTime?
+  dateFinished  DateTime?
   /// What you rated it *that* time, 1–10 half-star units. Null = unrated;
   /// the Game row's rating stays your current overall rating.
-  rating Int?
-  /// What you thought that time, or how you read it ("read it aloud to the
-  /// kids"). Optional, kept with the pass's dates and rating.
-  note   String?
+  rating        Int?
+  /// Time played on that playthrough, in minutes, when it was tracked.
+  playedMinutes Int?
+  /// What you thought that time, or how you played it ("100%, on hard").
+  /// Optional, kept with the pass's dates and rating.
+  note          String?
 
   createdAt DateTime @default(now())
 
   @@index([gameId, dateFinished])
 }
 
-/// A point-in-time reading position: "on this date I was at page N".
-/// Logged automatically whenever `currentPage` changes, so the reading log
+/// A point-in-time play position: "on this date I had played N minutes".
+/// Logged automatically whenever `playedMinutes` changes, so the play log
 /// costs no extra effort. Powers the progress sparkline, pace/forecast, and
-/// the reading-days heatmap. Pages-read-per-day is always the *delta between
+/// the play-days heatmap. Time played per day is always the *delta between
 /// consecutive entries* of a game — a lone first entry contributes nothing,
-/// which is what makes anchors work: the upgrade migration seeds mid-read
-/// games with their current position, and each new reading pass starts with
-/// a page-0 anchor at the pass start (see logProgress in lib/actions/games.ts
-/// and playAgain in lib/actions/playthroughs.ts; the latest page-0 entry is the
-/// pass boundary — see currentPassEntries in lib/progress.ts).
+/// which is what makes anchors work: each new playthrough starts with a
+/// 0-minute anchor at the pass start (see logProgress in lib/actions/games.ts
+/// and playAgain in lib/actions/playthroughs.ts; the latest 0-minute entry is
+/// the pass boundary — see currentPassEntries in lib/progress.ts).
 model ProgressEntry {
   id     String @id @default(cuid())
   gameId String
   game   Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
-  page Int
-  date DateTime @default(now())
+  minutes Int
+  date    DateTime @default(now())
 
   @@index([gameId, date])
 }
@@ -264,7 +271,7 @@ model Loan {
   gameId String
   game   Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
-  /// Freeform: a name, "the game club", whatever identifies where it went.
+  /// Freeform: a name, "my brother", whatever identifies where it went.
   borrower   String
   lentAt     DateTime  @default(now())
   /// Null while the game is still out.
@@ -278,17 +285,17 @@ model Loan {
   @@index([gameId, lentAt])
 }
 
-/// A favourite quote or highlight from a game, with an optional page
-/// reference and a personal note on why it stuck. Ownership is derived
-/// through the game (games are per-user).
+/// A favourite line from a game, with who said it and a personal note on
+/// why it stuck. Ownership is derived through the game (games are per-user).
 model Quote {
   id     String @id @default(cuid())
   gameId String
   game   Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
-  text String
-  page Int?
-  note String?
+  text    String
+  /// Who says it in the game ("Cave old man"). Optional.
+  speaker String?
+  note    String?
 
   createdAt DateTime @default(now())
 
@@ -297,12 +304,12 @@ model Quote {
   @@index([gameId, createdAt])
 }
 
-/// Caches raw Open Library / Google Games responses so repeated lookups of the
-/// same query don't hit the external APIs. Rows are upserted per (source,
-/// query) and considered stale after `expiresAt`.
+/// Caches raw catalogue responses (IGDB, Steam, Wikipedia) so repeated
+/// lookups of the same query don't hit the external APIs. Rows are upserted
+/// per (source, query) and considered stale after `expiresAt`.
 model MetadataCache {
   id        String   @id @default(cuid())
-  source    String // "ol-search" | "ol-work" | "gb-volume"
+  source    String // e.g. "igdb-search", "steam-app", "wiki-search"
   query     String // normalized (lowercased, trimmed) lookup key
   payload   Json
   createdAt DateTime @default(now())

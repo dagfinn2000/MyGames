@@ -1,5 +1,5 @@
 /**
- * The furniture the reader can add from Decorate's catalogue (lib/room.ts:
+ * The furniture the player can add from Decorate's catalogue (lib/room.ts:
  * EXTRAS): a sofa, a rocking chair, an aquarium, a dog asleep in its
  * basket, a suit of armour, a sea chest, a coat stand, a telescope, a
  * rocking horse, a curio cabinet and a spinning wheel. Drawn like the rest
@@ -484,7 +484,7 @@ const HORSE: Art = (() => {
 
 /** A glazed curio cabinet on short legs, 26 × 62: an ammonite and a
  *  butterfly, a ship in a bottle and a pocket watch, a crystal and a shell,
- *  old games and a magnifying glass. */
+ *  old books and a magnifying glass. */
 function curiosArt(): Art {
   const R: Rect[] = [];
   // Crown, carcass and the dark inside.
@@ -502,7 +502,7 @@ function curiosArt(): Art {
   // A crystal; a shell.
   R.push(...g(["..a..", ".aa~.", ".a~~.", "aa~~-", "a~~--", "~~---"], 5, 33));
   R.push(...g(["..i..", ".iyi.", "iyiyi", "yiyiy", ".YYY."], 14, 34));
-  // Games, a magnifying glass.
+  // Old books, a magnifying glass.
   R.push(...g(["33333333", "yyyyyyYy", "44444444", "11111111"], 4, 44));
   R.push(...g([".nnn.", "na.vn", "nvvvn", ".nnn.", "...W.", "....W"], 16, 42));
   // Glass doors: frames, a reflection, small brass knobs.
@@ -875,7 +875,7 @@ const STOVE_FIRE = [
 ];
 
 /** An old valve radio, 18 × 41: a cathedral cabinet with a fretwork
- *  grille, its dial lit at night, on a little table with two games on its
+ *  grille, its dial lit at night, on a little table with two books on its
  *  shelf. */
 function radioArt(): Art {
   const R: Rect[] = [];
@@ -905,7 +905,7 @@ function radioArt(): Art {
       0,
     ),
   );
-  // The table: a top, a drawer, a shelf with games, turned legs.
+  // The table: a top, a drawer, a shelf with books, turned legs.
   R.push([0, 18, 18, 1, "wood-hi"], [0, 19, 18, 1, "wood"], [0, 20, 18, 1, "wood-deep"]);
   R.push([1, 21, 16, 4, "wood-lo"], [2, 22, 14, 2, "wood"], [8, 22, 2, 1, "brass"]);
   R.push([1, 21, 2, 20, "wood"], [1, 21, 1, 20, "wood-hi"], [15, 21, 2, 20, "wood"], [16, 21, 1, 20, "wood-lo"]);

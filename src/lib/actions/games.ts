@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
-import { GameFormat, PlayStatus } from "@prisma/client";
+import { PlayStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { gameSchema, playSchema } from "@/lib/validation";
@@ -12,7 +12,7 @@ import { localizeCoverAfterResponse } from "@/lib/cover-localize";
 import { getPreferences } from "@/lib/current-user";
 import { requireUserId } from "@/lib/actions/helpers";
 import type { ActionState } from "@/lib/actions/helpers";
-import { calendarDay, dayKey, endOfZonedDay, zonedDayStart } from "@/lib/dates";
+import { calendarDay, dayKey, zonedDayStart } from "@/lib/dates";
 import { currentPassEntries } from "@/lib/progress";
 import { anchorMoment } from "@/lib/play-log";
 import { settlePlayState } from "@/lib/play-state";
@@ -21,7 +21,7 @@ import { AFTER_ADD } from "@/lib/preferences";
 
 const statusField = z.nativeEnum(PlayStatus).catch(PlayStatus.WANT_TO_PLAY);
 
-/** Create a game from the add form (manual or import-prefilled). */
+/** Create a game from the add form (typed in, or filled from a catalogue). */
 export async function createGame(
   _prev: ActionState,
   formData: FormData,
@@ -33,9 +33,10 @@ export async function createGame(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  // The shelf's own fields: Finished, Don't remember and Rating for Read;
-  // Started and Current page for Currently Reading. Same checks as the
-  // reading card (no dates in the future, none backwards).
+  // Each status's own fields: Finished, Don't remember and Rating for
+  // Completed; Started and time played for Playing; time played for
+  // Dropped. Same checks as the playing card (no dates in the future, none
+  // backwards, a time that reads as a time).
   const status = statusField.parse(formData.get("status"));
   const playParsed = playSchema.safeParse({ ...fields, status });
   if (!playParsed.success) {
@@ -46,19 +47,19 @@ export async function createGame(
   // Which submit button was pressed; a form without one follows Preferences.
   const afterAdd = z.enum(AFTER_ADD).catch(prefs.afterAdd).parse(formData.get("afterAdd"));
 
-  // Adding a game straight onto Read or Currently Reading gets the same
-  // dates and read count as moving it there from the reading card. Without a
-  // date, Read means today unless the reader said they don't remember (or
-  // chose undated finishes in Preferences).
+  // Adding a game straight onto Completed or Playing gets the same dates
+  // and completion count as moving it there from the playing card. Without
+  // a date, Completed means today unless the player said they don't
+  // remember (or chose undated finishes in Preferences).
   const now = new Date();
-  const reading = settlePlayState(
+  const play = settlePlayState(
     null,
     {
       status,
       dateStarted: status === PlayStatus.PLAYING ? (r.dateStarted ?? null) : null,
       dateFinished:
         status === PlayStatus.COMPLETED && !r.finishedUnknown ? (r.dateFinished ?? null) : null,
-      currentPage: r.currentPage ?? null,
+      playedMinutes: r.playedMinutes ?? null,
     },
     0,
     now,
@@ -66,51 +67,44 @@ export async function createGame(
   );
 
   const data = parsed.data;
-  // Same rule as the reading card: a page past the end is a typo.
-  if (reading.currentPage != null && data.pageCount != null && reading.currentPage > data.pageCount) {
-    return {
-      error: `Page ${reading.currentPage} is past the end of the game (${data.pageCount} pages)`,
-    };
-  }
-
-  const startKey = reading.dateStarted ? calendarDay(reading.dateStarted, prefs.timeZone) : null;
+  const startKey = play.dateStarted ? calendarDay(play.dateStarted, prefs.timeZone) : null;
   const game = await prisma.game.create({
     data: {
       userId,
       title: data.title,
-      authors: data.authors,
-      isbn: data.isbn ?? null,
+      developers: data.developers,
+      publisher: data.publisher ?? null,
+      platform: data.platform ?? null,
       description: data.description ?? null,
       coverUrl: data.coverUrl ?? null,
-      pageCount: data.pageCount ?? null,
-      // Only an audiobook has a running time; any other format saves none.
-      lengthMinutes: data.format === GameFormat.AUDIOBOOK ? (data.lengthMinutes ?? null) : null,
-      publishedDate: data.publishedDate ?? null,
+      lengthMinutes: data.lengthMinutes ?? null,
+      releaseDate: data.releaseDate ?? null,
       tags: data.tags,
       seriesName: data.seriesName ?? null,
       seriesNumber: data.seriesNumber ?? null,
       format: data.format,
       ownership: data.ownership,
-      openLibraryId: data.openLibraryId ?? null,
-      status: reading.status,
+      catalogueId: data.catalogueId ?? null,
+      status: play.status,
       rating: r.rating || null, // 0 = unrated
-      dateStarted: reading.dateStarted,
-      dateFinished: reading.dateFinished,
-      timesCompleted: reading.timesCompleted,
-      currentPage: reading.currentPage,
-      searchText: buildSearchText(data.title, data.authors, data.seriesName),
-      // A game added mid-read starts its log at the page given: one entry
-      // and no page-0 anchor before it, so no day is credited with the pages
-      // read before the game was added (see logProgress). Dated now, not
-      // at the Started date: typed today, that is midnight UTC, which east
-      // of UTC is still to come, and the day's next log would sort before
-      // it. The pass goes by Started's calendar day, so the entry is still
-      // part of the read; only a start on a later day (the date field
-      // allows a day's slack) moves it to the start of that day.
-      ...(reading.currentPage && {
+      dateStarted: play.dateStarted,
+      dateFinished: play.dateFinished,
+      timesCompleted: play.timesCompleted,
+      playedMinutes: play.playedMinutes,
+      searchText: buildSearchText(data.title, data.developers, data.seriesName, data.platform),
+      // A game added part-way through starts its log at the time given: one
+      // entry and no 0-minute anchor before it, so no day is credited with
+      // the hours played before the game was added (see logProgress). Dated
+      // now, not at the Started date: typed today, that is midnight UTC,
+      // which east of UTC is still to come, and the day's next log would
+      // sort before it. The pass goes by Started's calendar day, so the
+      // entry is still part of the playthrough; only a start on a later day
+      // (the date field allows a day's slack) moves it to the start of that
+      // day.
+      ...(play.playedMinutes && {
         progress: {
           create: {
-            page: reading.currentPage,
+            minutes: play.playedMinutes,
             date:
               startKey && dayKey(now, prefs.timeZone) < startKey
                 ? zonedDayStart(startKey, prefs.timeZone)
@@ -131,7 +125,8 @@ export async function createGame(
   redirect(afterAdd === "library" ? "/games" : `/games/${game.id}`);
 }
 
-/** Update a game's bibliographic fields from the edit form. */
+/** Update a game's own details (everything but play data) from the edit
+ *  form. */
 export async function updateGame(
   gameId: string,
   _prev: ActionState,
@@ -156,22 +151,23 @@ export async function updateGame(
     where: { id: gameId },
     data: {
       title: data.title,
-      authors: data.authors,
-      isbn: data.isbn ?? null,
+      developers: data.developers,
+      publisher: data.publisher ?? null,
+      platform: data.platform ?? null,
       description: data.description ?? null,
       coverUrl: newCover,
-      pageCount: data.pageCount ?? null,
-      lengthMinutes: data.format === GameFormat.AUDIOBOOK ? (data.lengthMinutes ?? null) : null,
-      publishedDate: data.publishedDate ?? null,
+      lengthMinutes: data.lengthMinutes ?? null,
+      releaseDate: data.releaseDate ?? null,
       tags: data.tags,
       seriesName: data.seriesName ?? null,
       seriesNumber: data.seriesNumber ?? null,
       format: data.format,
       ownership: data.ownership,
-      // Submitted by the form and validated by gameSchema, but previously
-      // dropped here — the only field of the schema the update ignored.
-      openLibraryId: data.openLibraryId ?? null,
-      searchText: buildSearchText(data.title, data.authors, data.seriesName),
+      // Every field of the schema is saved: the form sends the catalogue id
+      // back on every save, so "Look up details" and the catalogue link
+      // keep finding the same game.
+      catalogueId: data.catalogueId ?? null,
+      searchText: buildSearchText(data.title, data.developers, data.seriesName, data.platform),
     },
   });
 
@@ -188,7 +184,7 @@ export async function updateGame(
   redirect(`/games/${gameId}`);
 }
 
-/** Update personal reading data (status, rating, review, dates, re-reads). */
+/** Update personal play data (status, rating, review, dates, time played). */
 export async function updatePlay(
   gameId: string,
   _prev: ActionState,
@@ -200,8 +196,7 @@ export async function updatePlay(
     where: { id: gameId, userId },
     select: {
       status: true,
-      currentPage: true,
-      pageCount: true,
+      playedMinutes: true,
       dateStarted: true,
       _count: { select: { playthroughs: true } },
     },
@@ -216,33 +211,31 @@ export async function updatePlay(
   const prefs = await getPreferences();
 
   // Fills in "finished today" / "started today" when the dates were left
-  // empty, derives timesCompleted, and drops the page once the game is finished
-  // or reshelved. Shared with createGame and bulk edit.
-  const { dateStarted, dateFinished, timesCompleted, currentPage } = settlePlayState(
+  // empty, derives timesCompleted, and drops the time played once the game
+  // is back on Want to Play. Shared with createGame and bulk edit.
+  const { dateStarted, dateFinished, timesCompleted, playedMinutes } = settlePlayState(
     existing.status,
     {
       status: data.status,
       dateStarted: data.dateStarted ?? null,
       dateFinished: data.finishedUnknown ? null : (data.dateFinished ?? null),
-      // A game being read logs its pages through the quick row; the card
-      // has no page box then, and sends back the page it was rendered with,
-      // which a log since (in another tab, say) has left behind.
-      currentPage:
-        existing.status === PlayStatus.PLAYING ? existing.currentPage : (data.currentPage ?? null),
+      // A game being played logs its time through the quick row; the card
+      // has no time box then, and sends back the time it was rendered with,
+      // which a log since (in another tab, say) has left behind. A form
+      // with no time field at all leaves the time as it is too, so saving a
+      // rating can't wipe how long a completed game took.
+      playedMinutes:
+        existing.status === PlayStatus.PLAYING || data.playedMinutes === undefined
+          ? existing.playedMinutes
+          : data.playedMinutes,
     },
     existing._count.playthroughs,
     new Date(),
     { undatedFinish: data.finishedUnknown },
   );
 
-  // A page past the end is a typo, and the reading log would keep it: every
-  // page between the last entry and it would be credited to today.
-  if (currentPage != null && existing.pageCount != null && currentPage > existing.pageCount) {
-    return { error: `Page ${currentPage} is past the end of the game (${existing.pageCount} pages)` };
-  }
-
-  // The game update and its automatic play-log entries land together —
-  // a page-0 anchor without the page change it anchors (or vice versa)
+  // The game update and its automatic play-log entries land together — a
+  // 0-minute anchor without the time change it anchors (or vice versa)
   // would corrupt the pass bookkeeping.
   await prisma.$transaction(async (tx) => {
     await tx.game.update({
@@ -255,7 +248,7 @@ export async function updatePlay(
         dateStarted,
         dateFinished,
         timesCompleted,
-        currentPage,
+        playedMinutes,
       },
     });
 
@@ -263,7 +256,7 @@ export async function updatePlay(
       tx,
       gameId,
       existing,
-      { status: data.status, currentPage, dateStarted, dateFinished },
+      { status: data.status, playedMinutes, dateStarted },
       prefs.timeZone,
     );
   });
@@ -278,31 +271,32 @@ export async function updatePlay(
 }
 
 /**
- * The automatic reading log: every change to `currentPage` becomes a dated
- * ProgressEntry, and finishing a tracked game closes the log at the last
- * page. Consumers (sparkline, pace, heatmap) count pages as the delta
- * between *consecutive* entries, so the first entry of a reading pass is
- * preceded by a page-0 anchor at the pass start — "page 74" logged into a
- * fresh game credits 74 pages, while a lone entry with no predecessor (like
- * the anchors the upgrade migration seeds from mid-read games) credits none.
- * Re-read passes get their anchor from playAgain (see lib/actions/playthroughs.ts).
+ * The automatic play log: every change to `playedMinutes` becomes a dated
+ * ProgressEntry. Consumers (sparkline, pace, heatmap, hours played) count
+ * time as the delta between *consecutive* entries, so the first entry of a
+ * playthrough is preceded by a 0-minute anchor at the pass start — "2 h"
+ * logged into a fresh game credits 2 hours, while a lone entry with no
+ * predecessor (like a game added part-way through) credits none. Replays
+ * get their anchor from playAgain (see lib/actions/playthroughs.ts).
+ *
+ * Completing a game writes nothing extra: there is no last minute to close
+ * the log at. The time played when it was completed is whatever was
+ * logged, and it stays on the game ("Completed in 42 h").
  */
 async function logProgress(
   db: Prisma.TransactionClient,
   gameId: string,
   prev: {
     status: PlayStatus;
-    currentPage: number | null;
-    pageCount: number | null;
+    playedMinutes: number | null;
     dateStarted: Date | null;
   },
   next: {
     status: PlayStatus;
-    currentPage: number | null;
+    playedMinutes: number | null;
     dateStarted: Date | null;
-    dateFinished: Date | null;
   },
-  /** The reader's zone. */
+  /** The player's zone. */
   timeZone: string,
 ): Promise<void> {
   const now = new Date();
@@ -311,16 +305,16 @@ async function logProgress(
   // fetching it whole and slicing beats encoding the pass rule in SQL.
   const all = await db.progressEntry.findMany({
     where: { gameId },
-    orderBy: [{ date: "asc" }, { page: "asc" }],
-    select: { id: true, page: true, date: true },
+    orderBy: [{ date: "asc" }, { minutes: "asc" }],
+    select: { id: true, minutes: true, date: true },
   });
   const pass = currentPassEntries(all, next.dateStarted, timeZone);
   const last = pass[pass.length - 1] ?? null;
 
-  // Started moved earlier on a game being read: its anchor moves back too,
-  // or the days in between would still be refused as before the read
-  // started. Never onto or over the read before it.
-  const anchor = pass[0]?.page === 0 ? pass[0] : null;
+  // Started moved earlier on a game being played: its anchor moves back
+  // too, or the days in between would still be refused as before the
+  // playthrough started. Never onto or over the playthrough before it.
+  const anchor = pass[0]?.minutes === 0 ? pass[0] : null;
   if (
     anchor &&
     next.status === PlayStatus.PLAYING &&
@@ -337,37 +331,13 @@ async function logProgress(
     }
   }
 
-  if (next.currentPage != null && next.currentPage !== prev.currentPage) {
-    const entries: { gameId: string; page: number; date: Date }[] = [];
+  if (next.playedMinutes != null && next.playedMinutes !== prev.playedMinutes) {
+    const entries: { gameId: string; minutes: number; date: Date }[] = [];
     if (!last) {
-      entries.push({ gameId, page: 0, date: anchorMoment(next.dateStarted, now) });
+      entries.push({ gameId, minutes: 0, date: anchorMoment(next.dateStarted, now) });
     }
-    entries.push({ gameId, page: next.currentPage, date: now });
+    entries.push({ gameId, minutes: next.playedMinutes, date: now });
     await db.progressEntry.createMany({ data: entries });
-    return;
-  }
-
-  // Finishing a tracked game: close the log at the final page. An untracked
-  // pass (no entries) logs nothing — marking a game Read weeks after the
-  // fact shouldn't credit every page of it to one day. Nor does an undated
-  // finish: there is no day to credit the last pages to.
-  if (
-    next.status === PlayStatus.COMPLETED &&
-    next.dateFinished != null &&
-    prev.status !== PlayStatus.COMPLETED &&
-    prev.pageCount != null &&
-    last != null &&
-    last.page < prev.pageCount
-  ) {
-    // On the finish day in the reader's zone. A typed date is midnight UTC,
-    // which west of UTC is still the evening before and east of UTC can
-    // be later today; that takes the end of its day, or now if sooner.
-    const finished = next.dateFinished;
-    const day = calendarDay(finished, timeZone);
-    const end = endOfZonedDay(day, timeZone);
-    const date =
-      dayKey(finished, timeZone) === day && finished <= now ? finished : end < now ? end : now;
-    await db.progressEntry.create({ data: { gameId, page: prev.pageCount, date } });
   }
 }
 

@@ -5,14 +5,16 @@ import { Loader2, Search } from "lucide-react";
 import {
   catalogueGameValues,
   diffAgainstForm,
+  roundTimeToBeat,
   type CatalogueDiffRow,
   type CatalogueField,
   type CatalogueValues,
 } from "@/lib/catalogue-values";
-import { isbnVariants, looksLikeIsbn, normalizeIsbn } from "@/lib/isbn";
+import { catalogueLink } from "@/lib/metadata/links";
+import { releaseYear, titleKey } from "@/lib/metadata/match";
 import type { GameDetails, GameMetadata } from "@/lib/metadata/types";
+import { formatPlaytime } from "@/lib/progress-units";
 import type { TagImportSettings } from "@/lib/tag-rules";
-import { foldForSearch } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 const TOO_MANY = "Too many lookups this minute. Try again in a moment.";
@@ -39,45 +41,36 @@ async function search(q: string): Promise<GameMetadata[]> {
 }
 
 /**
- * What the catalogues say about the game in the form. With an ISBN, that
- * edition's search row (the first row if none has the same ISBN); with
- * only an Open Library id, just the details; with neither, a search by
- * title and first author whose first row counts only if its title is the
- * same. Then the details for whatever was found. Each request spends from
- * the reader's lookup budget, like the add page's search.
+ * What the catalogues say about the game in the form. With a catalogue
+ * entry, that entry's full record; without one, a search by title in
+ * which only a game with the very same title counts (the one released in
+ * the year the form gives, when there are several), then its record. Each
+ * request spends from the player's lookup budget, like the add page's
+ * search.
  */
 async function lookUpCatalogue(
   current: CatalogueValues,
   settings: TagImportSettings,
 ): Promise<CatalogueValues> {
-  const isbn = looksLikeIsbn(current.isbn) ? normalizeIsbn(current.isbn) : "";
-  const olid = current.openLibraryId.trim();
+  const id = current.catalogueId.trim();
   const title = current.title.trim();
-  const author = current.authors.split(",")[0]?.trim() ?? "";
 
   let row: GameMetadata | null = null;
-  if (isbn) {
-    const variants = isbnVariants(isbn);
-    const rows = await search(isbn);
-    row = rows.find((r) => r.isbn && variants.includes(normalizeIsbn(r.isbn))) ?? rows[0] ?? null;
-    if (!row && !olid) throw new LookupMessage("Couldn't find this ISBN in the catalogues.");
-  } else if (!olid) {
-    const q = [title, author].filter(Boolean).join(" ");
-    const first = q.length >= 3 ? (await search(q))[0] : undefined;
-    if (!first || foldForSearch(first.title.trim()) !== foldForSearch(title)) {
-      throw new LookupMessage("Couldn't find this exact game. Add its ISBN and try again.");
+  if (!id) {
+    const key = titleKey(title);
+    const same =
+      key.length >= 3 ? (await search(title)).filter((r) => titleKey(r.title) === key) : [];
+    const year = releaseYear(current.releaseDate);
+    row = same.find((r) => year !== null && releaseYear(r.releaseDate) === year) ?? same[0] ?? null;
+    if (!row) {
+      throw new LookupMessage("Couldn't find a game with exactly this title. Check the title and try again.");
     }
-    row = first;
   }
 
   const params = new URLSearchParams();
-  const detailsOlid = olid || row?.openLibraryId;
-  const detailsIsbn = isbn || row?.isbn;
-  if (detailsOlid) params.set("olid", detailsOlid);
-  if (detailsIsbn) params.set("isbn", detailsIsbn);
+  const detailsId = id || row?.catalogueId;
+  if (detailsId) params.set("id", detailsId);
   params.set("title", title || row?.title || "");
-  const detailsAuthor = author || row?.authors[0];
-  if (detailsAuthor) params.set("author", detailsAuthor);
   let details: GameDetails | null = null;
   try {
     details = (await getJson<{ details: GameDetails }>(`/api/metadata/details?${params}`)).details;
@@ -85,22 +78,34 @@ async function lookUpCatalogue(
     // The search row alone is still worth offering.
     if (!row) throw e;
   }
-
-  const values = catalogueGameValues(row, details, settings, isbn || undefined);
-  // An Open Library row found by title carries the ISBN of any edition of
-  // the work, which may not be this copy's.
-  if (!isbn && row?.source === "openlibrary") values.isbn = "";
-  return values;
+  return catalogueGameValues(row, details, settings);
 }
 
 function shorten(s: string, max = 200): string {
   return s.length > max ? `${s.slice(0, max).trimEnd()}…` : s;
 }
 
+/** A field's value as the player reads it: a time to beat in hours rather
+ *  than the minutes the form holds, a catalogue entry by its catalogue's
+ *  name. */
+function shown(field: CatalogueField, value: string, max?: number): string {
+  if (field === "lengthMinutes") {
+    const minutes = Number(value);
+    return Number.isFinite(minutes) && minutes > 0
+      ? `about ${formatPlaytime(roundTimeToBeat(minutes))}`
+      : value;
+  }
+  if (field === "catalogueId") {
+    const link = catalogueLink(value);
+    if (link) return `${link.label} (${value.slice(value.indexOf(":") + 1)})`;
+  }
+  return shorten(value, max);
+}
+
 /**
  * "Look up details" on the edit page: asks the catalogues about the game
  * and offers what they know as ticked or unticked rows. Empty fields come
- * ticked; anything that would replace what the reader typed comes
+ * ticked; anything that would replace what the player typed comes
  * unticked. Filling puts the values into the form, which still has to be
  * saved.
  */
@@ -201,12 +206,12 @@ export function LookupDetails({
                       />
                     ) : (
                       <span className="break-words">
-                        {r.field === "tags" ? `Add ${r.value}` : shorten(r.value)}
+                        {r.field === "tags" ? `Add ${r.value}` : shown(r.field, r.value)}
                       </span>
                     )}
                     {r.field !== "coverUrl" && (
                       <span className="break-words text-xs text-muted-foreground">
-                        Now: {r.current ? shorten(r.current, 80) : "empty"}
+                        Now: {r.current ? shown(r.field, r.current, 80) : "empty"}
                       </span>
                     )}
                   </span>

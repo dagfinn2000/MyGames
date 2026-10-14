@@ -10,22 +10,22 @@ const game = (seriesNumber: number | null, status: PlayStatus, timesCompleted = 
 });
 
 describe("nextInSeries", () => {
-  it("is the lowest-numbered game not read yet", () => {
+  it("is the lowest-numbered game not completed yet", () => {
     const games = [game(3, WANT_TO_PLAY), game(1, COMPLETED), game(2, WANT_TO_PLAY)];
     expect(nextInSeries(games)).toBe(games[2]);
   });
 
-  it("is the game being read when that comes first", () => {
+  it("is the game being played when that comes first", () => {
     const games = [game(1, COMPLETED), game(2, PLAYING), game(3, WANT_TO_PLAY)];
     expect(nextInSeries(games)).toBe(games[1]);
   });
 
-  it("skips a game put down or read before, and numbers read in another copy", () => {
+  it("skips a game dropped or completed before, and numbers completed in another copy", () => {
     const games = [
       game(1, WANT_TO_PLAY),
       game(1, COMPLETED),
       game(2, DROPPED),
-      game(3, PLAYING, 1), // a re-read
+      game(3, PLAYING, 1), // a replay
       game(4, WANT_TO_PLAY),
     ];
     expect(nextInSeries(games)).toBe(games[4]);
@@ -45,7 +45,7 @@ describe("isNextInSeries", () => {
     expect(isNextInSeries(series[2], series)).toBe(false);
   });
 
-  it("never holds back an unnumbered game or one already read", () => {
+  it("never holds back an unnumbered game or one already completed", () => {
     expect(isNextInSeries(game(null, WANT_TO_PLAY), series)).toBe(true);
     expect(isNextInSeries(game(5, COMPLETED), series)).toBe(true);
   });
@@ -58,6 +58,6 @@ describe("isNextInSeries", () => {
 
 describe("seriesKey", () => {
   it("ignores case and stray spaces", () => {
-    expect(seriesKey(" The Expanse ")).toBe(seriesKey("the expanse"));
+    expect(seriesKey(" Mass Effect ")).toBe(seriesKey("mass effect"));
   });
 });

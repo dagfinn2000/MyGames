@@ -1,6 +1,5 @@
 import type { Prisma } from "@prisma/client";
 import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
-import { isbnVariants, looksLikeIsbn, normalizeIsbn } from "@/lib/isbn";
 import type { SearchField } from "@/lib/preferences";
 import { searchTerms } from "@/lib/utils";
 
@@ -15,8 +14,9 @@ export interface LibraryFilters {
   shelf: string;
   shelfId: string;
   q: string;
-  /** One author, exactly as written on the game (the game page links here). */
-  author: string;
+  /** One developer, exactly as written on the game (the game page links
+   *  here). */
+  developer: string;
   /** Tags to include, comma-joined: games with any of them, or with all of
    *  them when tagMatch is "all". */
   tag: string;
@@ -25,10 +25,12 @@ export interface LibraryFilters {
   /** Tags to leave out, comma-joined. */
   notTag: string;
   format: string;
+  /** One platform, exactly as written on the games ("Nintendo Switch"). */
+  platform: string;
   owned: string;
   /** Lowest rating, 1–10, or "unrated". */
   minRating: string;
-  /** A year ("2024"): games finished then, re-reads included. */
+  /** A year ("2024"): games finished then, replays included. */
   finished: string;
   /** One of MISSING_FILTERS: games lacking that detail. */
   missing: string;
@@ -54,15 +56,18 @@ const OWNERSHIP_FILTERS: Partial<Record<string, GameOwnership>> = {
 };
 
 /** The details the "Missing" filter can look for. */
-export const MISSING_FILTERS = ["cover", "pages", "isbn", "tags"] as const;
+export const MISSING_FILTERS = ["cover", "length", "platform", "tags"] as const;
 export type MissingFilter = (typeof MISSING_FILTERS)[number];
 
 export const MISSING_LABELS: Record<MissingFilter, string> = {
   cover: "Cover",
-  pages: "Page count",
-  isbn: "ISBN",
+  length: "Time to beat",
+  platform: "Platform",
   tags: "Tags",
 };
+
+/** Longest platform the filter keeps: the game form's own limit. */
+const PLATFORM_MAX = 100;
 
 /** Most tags one filter list keeps; the rest of a longer list is dropped. */
 export const MAX_FILTER_TAGS = 50;
@@ -100,11 +105,12 @@ export function parseFilters(
     shelf: param(sp.shelf) || "all",
     shelfId: param(sp.shelfId),
     q: param(sp.q).trim(),
-    author: param(sp.author).trim().slice(0, 500),
+    developer: param(sp.developer).trim().slice(0, 500),
     tag: tag.join(","),
     tagMatch: tag.length > 0 && param(sp.tagMatch) === "all" ? "all" : "",
     notTag: notTag.join(","),
     format: param(sp.format),
+    platform: param(sp.platform).trim().slice(0, PLATFORM_MAX),
     owned: (OWNED_FILTERS as readonly string[]).includes(owned) ? owned : "all",
     minRating: minRating === "unrated" || /^([1-9]|10)$/.test(minRating) ? minRating : "",
     // From the year 1000 on: Date.UTC reads 0–99 as 1900–1999.
@@ -114,14 +120,14 @@ export function parseFilters(
   };
 }
 
-/** Hours either side of New Year in which only the reader's time zone can
+/** Hours either side of New Year in which only the player's time zone can
  *  say which year a finish belongs to (zones run from UTC−12 to UTC+14). */
 const ZONE_SLACK_MS = 15 * 60 * 60 * 1000;
 
 /**
  * Finish dates for a "Finished in" year: `sure` is certainly that year in
  * every time zone; dates in the two `edges` around New Year need the
- * reader's zone, so resolveGameWhere checks them one by one.
+ * player's zone, so resolveGameWhere checks them one by one.
  */
 export function finishedYearRanges(year: number): {
   sure: { gte: Date; lt: Date };
@@ -137,32 +143,21 @@ export function finishedYearRanges(year: number): {
 }
 
 /** What resolveGameWhere looks up ahead for the filters that need it. All
- *  optional: without it the library searches title, author and series as
- *  it always has. */
+ *  optional: without it the library searches title, developers, series and
+ *  platform as it always has. */
 export interface WhereContext {
   /** Where else search looks (Preferences.searchAlsoIn). */
   searchIn?: readonly SearchField[];
-  /** Per search word, in searchTerms order: the reader's tags containing it. */
+  /** Per search word, in searchTerms order: the player's tags containing it. */
   tagsByTerm?: string[][];
   /** Games finished in the `finished` year close to New Year, by the
-   *  reader's clock. */
+   *  player's clock. */
   finishedEdgeIds?: string[];
 }
 
-/**
- * The ISBN a search word stands for, when it looks like (part of) one: six
- * or more digits, or a hyphenated run such as "0-261". A shorter plain
- * number is far more often a year or a title ("1984").
- */
-export function isbnFragment(word: string): string | null {
-  if (!/^[\dxX-]+$/.test(word)) return null;
-  const digits = normalizeIsbn(word);
-  if (!/^\d+X?$/.test(digits) || digits.length > 13) return null;
-  return digits.length >= 6 || (word.includes("-") && digits.length >= 4) ? digits : null;
-}
-
-/** Where one search word may match: title, authors and series always, plus
- *  the fields the reader added. `i` is the word's place in searchTerms. */
+/** Where one search word may match: title, developers, series and platform
+ *  always (Game.searchText), plus the fields the player added. `i` is the
+ *  word's place in searchTerms. */
 export function searchTermWhere(
   term: string,
   i: number,
@@ -171,9 +166,6 @@ export function searchTermWhere(
   const or: Prisma.GameWhereInput[] = [{ searchText: { contains: term } }];
   const tags = ctx.tagsByTerm?.[i];
   if (tags?.length) or.push({ tags: { hasSome: tags } });
-  const isbn = ctx.searchIn?.includes("isbn") ? isbnFragment(term) : null;
-  // Insensitive: stored ISBNs can end in a lowercase x.
-  if (isbn) or.push({ isbn: { contains: isbn, mode: "insensitive" } });
   if (ctx.searchIn?.includes("review")) or.push({ reviewSearchText: { contains: term } });
   return or.length === 1 ? or[0] : { OR: or };
 }
@@ -207,35 +199,29 @@ export function buildGameWhere(
   const and: Prisma.GameWhereInput[] = [];
 
   if (terms.length > 0) {
-    // Every word has to appear somewhere: in title, authors or series, or
-    // in a field the reader added to search.
-    const words = terms.map((t, i) => searchTermWhere(t, i, ctx));
-    // A whole ISBN typed with spaces, or in its other 10/13-digit form,
-    // isn't any one word: match it as a whole as well.
-    const wholeIsbn =
-      ctx.searchIn?.includes("isbn") && looksLikeIsbn(filters.q)
-        ? isbnVariants(filters.q).map((v) => ({ isbn: { equals: v, mode: "insensitive" as const } }))
-        : [];
-    if (wholeIsbn.length > 0) and.push({ OR: [{ AND: words }, ...wholeIsbn] });
-    else and.push(...words);
+    // Every word has to appear somewhere: in title, developers, series or
+    // platform, or in a field the player added to search.
+    and.push(...terms.map((t, i) => searchTermWhere(t, i, ctx)));
   }
 
   if (exclude.length > 0) and.push({ NOT: { tags: { hasSome: exclude } } });
 
   if (filters.minRating === "unrated") {
-    // Want to Read games are unrated by nature; they'd bury the ones that
-    // were read and never rated.
+    // Want to Play games are unrated by nature; they'd bury the ones that
+    // were played and never rated.
     and.push({ rating: null }, { status: { not: PlayStatus.WANT_TO_PLAY } });
   }
 
   if (filters.missing === "cover") and.push({ OR: [{ coverUrl: null }, { coverUrl: "" }] });
-  if (filters.missing === "pages") and.push({ OR: [{ pageCount: null }, { pageCount: { lte: 0 } }] });
-  if (filters.missing === "isbn") and.push({ OR: [{ isbn: null }, { isbn: "" }] });
+  if (filters.missing === "length") {
+    and.push({ OR: [{ lengthMinutes: null }, { lengthMinutes: { lte: 0 } }] });
+  }
+  if (filters.missing === "platform") and.push({ OR: [{ platform: null }, { platform: "" }] });
   if (filters.missing === "tags") and.push({ tags: { isEmpty: true } });
 
   if (filters.finished) {
-    // The current pass counts once the game is Read; archived passes
-    // always do. The same finishes Stats counts per year.
+    // The current playthrough counts once the game is Completed; archived
+    // playthroughs always do. The same finishes Stats counts per year.
     const { sure } = finishedYearRanges(Number(filters.finished));
     const edgeIds = ctx.finishedEdgeIds ?? [];
     and.push({
@@ -251,6 +237,7 @@ export function buildGameWhere(
     userId,
     ...(shelf && { status: shelf }),
     ...(format && { format }),
+    ...(filters.platform && { platform: filters.platform }),
     ...(ownership && { ownership }),
     ...(filters.owned === "lent" && { loans: { some: { returnedAt: null } } }),
     ...(minRating >= 1 && { rating: { gte: minRating } }),
@@ -262,7 +249,7 @@ export function buildGameWhere(
             ? { hasEvery: include }
             : { hasSome: include },
     }),
-    ...(filters.author && { authors: { has: filters.author } }),
+    ...(filters.developer && { developers: { has: filters.developer } }),
     ...(filters.shelfId && { shelves: { some: { id: filters.shelfId } } }),
     ...(filters.series && {
       seriesName: { equals: filters.series, mode: "insensitive" as const },
@@ -279,26 +266,31 @@ export interface FilterChip {
   clear: Partial<LibraryFilters>;
 }
 
-/** How a missing detail reads inside a chip ("Missing: page count"). */
+/** How a missing detail reads inside a chip ("Missing: time to beat"). */
 const MISSING_CHIP_LABELS: Record<MissingFilter, string> = {
   cover: "cover",
-  pages: "page count",
-  isbn: "ISBN",
+  length: "time to beat",
+  platform: "platform",
   tags: "tags",
 };
 
 /**
  * The active filters that have no control of their own on the bar, as
- * chips: author, each tag in or out, finished year, rating, missing detail
- * and series. `ratingLabel` words a minimum rating in the reader's style.
+ * chips: developer, each tag in or out, finished year, rating, missing
+ * detail and series. `ratingLabel` words a minimum rating in the player's
+ * style.
  */
 export function activeFilterChips(
   filters: LibraryFilters,
   ratingLabel: (minRating: string) => string,
 ): FilterChip[] {
   const chips: FilterChip[] = [];
-  if (filters.author) {
-    chips.push({ id: "author", label: `Author: ${filters.author}`, clear: { author: "" } });
+  if (filters.developer) {
+    chips.push({
+      id: "developer",
+      label: `Developer: ${filters.developer}`,
+      clear: { developer: "" },
+    });
   }
   const include = tagList(filters.tag);
   for (const t of include) {
@@ -362,16 +354,16 @@ export function setTagState(
 
 const SEARCH_FIELD_WORDS: Record<SearchField, string> = {
   tags: "tags",
-  isbn: "ISBN",
   review: "review",
 };
 
-/** The search box's placeholder, naming what it searches. */
+/** The search box's placeholder, naming what it searches. Series and
+ *  platform match too, but the box is too narrow to list everything. */
 export function searchPlaceholder(fields: readonly SearchField[]): string {
   const words = [
     "title",
-    "author",
-    ...(["tags", "isbn", "review"] as const)
+    "developer",
+    ...(["tags", "review"] as const)
       .filter((f) => fields.includes(f))
       .map((f) => SEARCH_FIELD_WORDS[f]),
   ];

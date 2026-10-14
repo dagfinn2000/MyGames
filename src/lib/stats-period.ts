@@ -3,7 +3,7 @@ import { STATS_PERIODS, type StatsPeriod } from "@/lib/preferences";
 
 /**
  * The period buttons on the Stats page. A period is a window of day keys in
- * the reader's zone, both ends included; all time has no ends. The choice
+ * the player's zone, both ends included; all time has no ends. The choice
  * lives in the address (/stats?period=30d) so it can be bookmarked, and
  * Preferences says which one Stats opens on.
  */
@@ -15,7 +15,7 @@ export const PERIOD_LABELS: Record<StatsPeriod, string> = {
   "30d": "Last 30 days",
 };
 
-/** The same, mid-sentence: "Pages read · last 30 days". */
+/** The same, mid-sentence: "Hours played · last 30 days". */
 export const PERIOD_WORDS: Record<StatsPeriod, string> = {
   all: "all time",
   year: "this year",
@@ -31,7 +31,7 @@ export interface DayWindow {
 
 export const ALL_TIME: DayWindow = { from: null, to: null };
 
-/** The period in the address, or the reader's default when it's missing or
+/** The period in the address, or the player's default when it's missing or
  *  not one we know. A repeated parameter goes by its first value. */
 export function parsePeriod(
   raw: string | string[] | undefined,
@@ -51,7 +51,7 @@ export function yearWindow(year: number): DayWindow {
 /**
  * The days a period covers, ending today. This year is the whole calendar
  * year, so a finish date typed later in the year counts the same here as in
- * the goal and the year in review. Last 12 months is the reading calendar's
+ * the goal and the year in review. Last 12 months is the play calendar's
  * 365 days.
  */
 export function periodWindow(period: StatsPeriod, todayKey: string): DayWindow {

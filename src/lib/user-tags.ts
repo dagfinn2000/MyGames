@@ -12,7 +12,7 @@ export async function userTagNames(userId: string): Promise<string[]> {
   return rows.map((r) => r.tag);
 }
 
-/** How catalogue subjects become tags for this user (Preferences, New
+/** How catalogue genres become tags for this user (Preferences, New
  *  games). The library's tags are only read when the mode needs them. */
 export async function tagImportFor(
   userId: string,

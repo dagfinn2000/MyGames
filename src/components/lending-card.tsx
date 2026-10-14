@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import type { GameOwnership, Loan } from "@prisma/client";
+import type { GameFormat, GameOwnership, Loan } from "@prisma/client";
 import { HandHeart, Trash2, Undo2 } from "lucide-react";
 import { deleteLoan, lendGame, returnLoan } from "@/lib/actions/loans";
 import type { ActionState } from "@/lib/actions/helpers";
@@ -21,17 +21,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
  * The open loan (no `returnedAt`) is what makes a game "lent out", so it gets
  * the prominent treatment; returned loans collapse into a quiet list.
  *
- * Only a copy you own can be lent. A borrowed or given-away game says so
- * instead of offering "Lend out", and a wishlist game has no card at all
- * unless it has loans on record. Loans already made always show.
+ * Only a physical copy you own can be lent. A borrowed or given-away game
+ * says so instead of offering "Lend out", and a wishlist, digital or
+ * subscription game has no card at all unless it has loans on record.
+ * Loans already made always show.
  */
 export function LendingCard({
   gameId,
   ownership,
+  format,
   loans,
 }: {
   gameId: string;
   ownership: GameOwnership;
+  format: GameFormat;
   /** Newest first. */
   loans: Loan[];
 }) {
@@ -51,11 +54,11 @@ export function LendingCard({
   const open = loans.find((l) => l.returnedAt === null) ?? null;
   const past = loans.filter((l) => l.returnedAt !== null);
 
-  if (!showsLendingCard(ownership, loans.length)) return null;
-  const mode = lendingMode(ownership);
+  if (!showsLendingCard(ownership, format, loans.length)) return null;
+  const mode = lendingMode(ownership, format);
   const canLend = mode === "lendable";
-  // If the ownership changes while the form is open, the form hides and the
-  // card falls back to its note rather than going blank.
+  // If the ownership or format changes while the form is open, the form
+  // hides and the card falls back to its note rather than going blank.
   const formOpen = canLend && showForm && !open;
 
   return (

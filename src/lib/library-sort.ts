@@ -1,7 +1,7 @@
 /**
  * Sorting and grouping for the library page. Pure functions over a minimal
  * game shape, kept out of the page component so the shelf-filing rules —
- * surname sorting, series blocks — are unit-testable.
+ * leading articles, series blocks, release dates — are unit-testable.
  */
 
 import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
@@ -14,15 +14,16 @@ import { nextInSeries, seriesKey, type SeriesMember } from "@/lib/series";
  *  structurally. */
 export interface SortableGame {
   title: string;
-  authors: string[];
+  developers: string[];
   rating: number | null;
   seriesName: string | null;
   seriesNumber: number | null;
   dateFinished: Date | null;
   dateStarted: Date | null;
-  pageCount: number | null;
-  /** As the catalogue gave it: "1999", "2003-07", "c. 1950". */
-  publishedDate: string | null;
+  /** Typical time to beat, in minutes. */
+  lengthMinutes: number | null;
+  /** As the catalogue gave it or as typed: "1998", "2017-03", "2017-03-03". */
+  releaseDate: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,6 +33,8 @@ export interface GroupableGame extends SortableGame {
   status: PlayStatus;
   format: GameFormat;
   ownership: GameOwnership;
+  /** The platform it's played on, as typed ("Nintendo Switch"). */
+  platform: string | null;
   tags: string[];
   /** The shelves the game is on. Only needed to group by shelf. */
   shelves?: { id: string; name: string }[];
@@ -42,19 +45,17 @@ export interface GameGroup<T> {
   key: string;
   title: string;
   games: T[];
-  /** Replaces the plain count next to the title ("5 games · 3 read"). */
+  /** Replaces the plain count next to the title ("5 games · 3 completed"). */
   detail?: string;
   /** A warning after it ("#3 missing"). */
   note?: string;
 }
 
-/** The reader's sorting rules (Preferences). Everything optional: leaving
+/** The player's sorting rules (Preferences). Everything optional: leaving
  *  them out sorts the way MyGames always has. */
 export interface SortOptions {
-  /** File "The Hobbit" under H. */
+  /** File "The Witcher 3" under W. */
   ignoreArticles?: boolean;
-  /** "surname" files Le Guin under L; "as-written" sorts names as typed. */
-  authorOrder?: "surname" | "as-written";
   /** Locale whose alphabet decides letter order — "nb" puts Æ, Ø, Å after
    *  Z. Default: the runtime's own. */
   alphabet?: string;
@@ -62,7 +63,7 @@ export interface SortOptions {
   timeZone?: string;
   /** How rating sections are worded (group by rating). */
   ratingStyle?: RatingStyle;
-  /** Shelf ids in the reader's order (group by shelf); the rest by name. */
+  /** Shelf ids in the player's order (group by shelf); the rest by name. */
   shelfOrder?: readonly string[];
 }
 
@@ -77,8 +78,8 @@ const ARTICLES: Record<string, string[]> = {
   de: ["der", "die", "das", "ein", "eine"],
 };
 
-/** A title as the shelf files it: "The Hobbit" → "Hobbit". A lone article
- *  ("It", "A") is a whole title and stays. */
+/** A title as the shelf files it: "The Last of Us" → "Last of Us". A
+ *  one-word title stays whole, even when that word is an article. */
 export function titleSortKey(title: string, opts: SortOptions = {}): string {
   const trimmed = title.trim();
   if (!opts.ignoreArticles) return trimmed;
@@ -88,32 +89,13 @@ export function titleSortKey(title: string, opts: SortOptions = {}): string {
   return trimmed;
 }
 
-/** Surname particles that travel with the last name: "Le Guin" sorts under
- *  L, "van der Berg" under V. (Anglo-American shelving convention — Dutch
- *  libraries would file "van" under the bare surname instead.) */
-const SURNAME_PARTICLES = new Set([
-  "da", "de", "del", "della", "den", "der", "di", "du", "la", "le",
-  "mac", "mc", "st", "st.", "ten", "ter", "van", "von",
-]);
-
-/** Name suffixes that never lead a sort key. */
-const NAME_SUFFIXES = new Set(["jr", "jr.", "sr", "sr.", "ii", "iii", "iv"]);
-
 /**
- * "Ursula K. Le Guin" → "le guin ursula k." — authors sort the way a
- * bookshelf files them: by surname (particles included), then given names,
- * suffixes last. Single-word names (Homer) are their own key.
+ * A developer as the developer sort files it: as written, case aside.
+ * Studios are names like "Team Cherry" or "The Chinese Room", not people
+ * to file by surname, and their leading "The" is part of the name.
  */
-export function authorSortKey(name: string, opts: SortOptions = {}): string {
-  if (opts.authorOrder === "as-written") return name.trim().toLowerCase();
-  const words = name.trim().toLowerCase().split(/\s+/);
-  const suffixes: string[] = [];
-  while (words.length > 1 && NAME_SUFFIXES.has(words[words.length - 1])) {
-    suffixes.unshift(words.pop()!);
-  }
-  let start = words.length - 1;
-  while (start > 0 && SURNAME_PARTICLES.has(words[start - 1])) start--;
-  return [...words.slice(start), ...words.slice(0, start), ...suffixes].join(" ");
+export function developerSortKey(name: string): string {
+  return name.trim().toLowerCase();
 }
 
 /** String comparison for the chosen alphabet. Intl.Collator rather than
@@ -122,16 +104,30 @@ function comparer(opts: SortOptions): (a: string, b: string) => number {
   return new Intl.Collator(opts.alphabet).compare;
 }
 
-/** The year in a published date: the first run of four digits, so
- *  "2003-07" is 2003 and "c. 1999" is 1999. Null when there is none. */
-export function publishedYear(s: string | null | undefined): number | null {
+/** The year in a release date: the first run of four digits, so
+ *  "2017-03" is 2017 and "Q4 1998" is 1998. Null when there is none. */
+export function releaseYear(s: string | null | undefined): number | null {
   const m = /\d{4}/.exec(s ?? "");
   return m ? Number(m[0]) : null;
 }
 
-/** Shelf order within one author: series entries stay together (a series
- *  sorts as a block by its name, standalones slot in by title), ordered by
- *  series number inside the block — Mistborn #1 right before Mistborn #2. */
+/**
+ * A release date as a number that sorts: 20170303 for "2017-03-03",
+ * 20170300 for "2017-03" and 20170000 for a bare year, so a date known only
+ * to the year sorts before the dated releases of that year. Anything else
+ * with a year in it ("Q4 1998") counts as that year. Null without a year.
+ */
+export function releaseSortKey(s: string | null | undefined): number | null {
+  const iso = /^\s*(\d{4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?(?!\d)/.exec(s ?? "");
+  if (iso) return Number(iso[1]) * 10000 + Number(iso[2] ?? 0) * 100 + Number(iso[3] ?? 0);
+  const year = releaseYear(s);
+  return year === null ? null : year * 10000;
+}
+
+/** Shelf order within one developer: series entries stay together (a
+ *  series sorts as a block by its name, standalones slot in by title),
+ *  ordered by series number inside the block — Dark Souls right before
+ *  Dark Souls II. */
 function seriesShelfOrder(
   a: SortableGame,
   b: SortableGame,
@@ -149,24 +145,24 @@ function seriesShelfOrder(
 }
 
 /** Each sort's value for one game; null is "no value", which always sorts
- *  last. A rating, page count or date of 0 means not filled in. */
+ *  last. A rating, time to beat or date of 0 means not filled in. */
 const SORT_VALUES: Record<string, (b: SortableGame, opts: SortOptions) => string | number | null> = {
   createdAt: (b) => b.createdAt.getTime(),
   title: (b, opts) => titleSortKey(b.title, opts),
   rating: (b) => b.rating || null,
   dateFinished: (b) => b.dateFinished?.getTime() ?? null,
   dateStarted: (b) => b.dateStarted?.getTime() ?? null,
-  pageCount: (b) => b.pageCount || null,
-  published: (b) => publishedYear(b.publishedDate),
+  length: (b) => b.lengthMinutes || null,
+  released: (b) => releaseSortKey(b.releaseDate),
   updatedAt: (b) => b.updatedAt.getTime(),
 };
 
 /** In-memory sort — a personal library is small enough that sorting after
  *  the filtered fetch is simpler than fighting Prisma over array columns
- *  (author sort) and nulls-last semantics.
+ *  (developer sort) and nulls-last semantics.
  *
- *  Games without a value (unrated, unfinished, no page count) come last
- *  whichever way round, and ties go by author, then title, A to Z. */
+ *  Games without a value (unrated, unfinished, no time to beat) come last
+ *  whichever way round, and ties go by developer, then title, A to Z. */
 export function sortGames<T extends SortableGame>(
   games: T[],
   sort: string,
@@ -176,19 +172,20 @@ export function sortGames<T extends SortableGame>(
   const mul = dir === "asc" ? 1 : -1;
   const compare = comparer(opts);
   // Each key worked out once per game, not once per comparison.
-  const author = new Map(
-    games.map((b) => [b, b.authors[0] ? authorSortKey(b.authors[0], opts) : null]),
+  const developer = new Map(
+    games.map((b) => [b, b.developers[0] ? developerSortKey(b.developers[0]) : null]),
   );
   /** Nulls last, else `cmp` (already signed). */
   const nullsLast = <V>(a: V | null, b: V | null, cmp: (a: V, b: V) => number) =>
     a === null ? (b === null ? 0 : 1) : b === null ? -1 : cmp(a, b);
 
-  // Author sort: `dir` flips the author order only; within an author, games
-  // keep shelf order (series grouped, in series order) in both directions.
-  if (sort === "author") {
+  // Developer sort: `dir` flips the developer order only; within a
+  // developer, games keep shelf order (series grouped, in series order) in
+  // both directions.
+  if (sort === "developer") {
     return [...games].sort(
       (a, b) =>
-        nullsLast(author.get(a)!, author.get(b)!, (x, y) => mul * compare(x, y)) ||
+        nullsLast(developer.get(a)!, developer.get(b)!, (x, y) => mul * compare(x, y)) ||
         seriesShelfOrder(a, b, opts, compare),
     );
   }
@@ -202,12 +199,12 @@ export function sortGames<T extends SortableGame>(
   return [...games].sort(
     (a, b) =>
       nullsLast(value.get(a)!, value.get(b)!, byValue) ||
-      nullsLast(author.get(a)!, author.get(b)!, compare) ||
+      nullsLast(developer.get(a)!, developer.get(b)!, compare) ||
       compare(title.get(a)!, title.get(b)!),
   );
 }
 
-/** A stored rating (1–10) the way the reader sees it: "4½ stars", "9/10". */
+/** A stored rating (1–10) the way the player sees it: "4½ stars", "9/10". */
 export function ratingLabel(value: number, style: RatingStyle = "half"): string {
   if (style === "ten" || style === "off") return `${value}/10`;
   const whole = Math.floor(value / 2);
@@ -215,7 +212,7 @@ export function ratingLabel(value: number, style: RatingStyle = "half"): string 
   return `${stars} ${value <= 2 ? "star" : "stars"}`;
 }
 
-/** Status sections in reading order: what's on the go first. */
+/** Status sections in playing order: what's on the go first. */
 const STATUS_ORDER: PlayStatus[] = [
   PlayStatus.PLAYING,
   PlayStatus.WANT_TO_PLAY,
@@ -251,9 +248,9 @@ function fixedSections<T, V extends string>(
 
 /** Sections for the group-by views. Games keep the order they came in
  *  (the chosen sort) inside each section, except series, which are in
- *  series order. Sections without a value ("Not in a series", "No tags")
- *  come last. Tag and shelf sections can hold the same game more than once
- *  over: a game with three tags is under each. */
+ *  series order. Sections without a value ("Not in a series", "No
+ *  platform") come last. Tag and shelf sections can hold the same game more
+ *  than once over: a game with three tags is under each. */
 export function groupGames<T extends GroupableGame>(
   games: T[],
   group: string,
@@ -261,27 +258,46 @@ export function groupGames<T extends GroupableGame>(
 ): GameGroup<T>[] | null {
   const compare = comparer(opts);
 
-  if (group === "author") {
+  if (group === "developer") {
     const map = new Map<string, T[]>();
-    const noAuthor: T[] = [];
+    const noDeveloper: T[] = [];
     for (const b of games) {
-      const name = b.authors[0];
+      const name = b.developers[0];
       if (name) map.set(name, [...(map.get(name) ?? []), b]);
-      else noAuthor.push(b);
+      else noDeveloper.push(b);
     }
-    // Same surname-first order as the author sort, so the two views agree,
-    // games without an author last in both.
+    // Same order as the developer sort, so the two views agree, games
+    // without a developer last in both.
     const sections: GameGroup<T>[] = [...map.entries()]
-      .sort((a, b) => compare(authorSortKey(a[0], opts), authorSortKey(b[0], opts)))
-      .map(([title, groupGames]) => ({ key: `author:${title}`, title, games: groupGames }));
-    if (noAuthor.length > 0) {
-      sections.push({ key: "author:none", title: "Unknown author", games: noAuthor });
+      .sort((a, b) => compare(developerSortKey(a[0]), developerSortKey(b[0])))
+      .map(([title, groupGames]) => ({ key: `developer:${title}`, title, games: groupGames }));
+    if (noDeveloper.length > 0) {
+      sections.push({ key: "developer:none", title: "Unknown developer", games: noDeveloper });
+    }
+    return sections;
+  }
+
+  if (group === "platform") {
+    // As typed, so "PC" and "Nintendo Switch" are their own sections; the
+    // platform filter matches them the same way. Blank counts as none.
+    const map = new Map<string, T[]>();
+    const noPlatform: T[] = [];
+    for (const b of games) {
+      const name = b.platform?.trim();
+      if (name) map.set(name, [...(map.get(name) ?? []), b]);
+      else noPlatform.push(b);
+    }
+    const sections: GameGroup<T>[] = [...map.entries()]
+      .sort((a, b) => compare(a[0], b[0]))
+      .map(([title, groupGames]) => ({ key: `platform:${title}`, title, games: groupGames }));
+    if (noPlatform.length > 0) {
+      sections.push({ key: "platform:none", title: "No platform", games: noPlatform });
     }
     return sections;
   }
 
   if (group === "series") {
-    // Keyed like the series filter, so "Dune" and "dune " are one series.
+    // Keyed like the series filter, so "Halo" and "halo " are one series.
     // The section is titled the way its first game spells it.
     const map = new Map<string, { title: string; games: T[] }>();
     const noSeries: T[] = [];
@@ -313,8 +329,8 @@ export function groupGames<T extends GroupableGame>(
   }
 
   if (group === "yearFinished") {
-    // A Read game's current finish, by the calendar day Stats would count
-    // it on. Re-reads finished earlier stay with the latest pass.
+    // A Completed game's current finish, by the calendar day Stats would
+    // count it on. Earlier playthroughs stay with the latest one.
     const years = new Map<string, T[]>();
     const undated: T[] = [];
     const unfinished: T[] = [];
@@ -388,7 +404,7 @@ export function groupGames<T extends GroupableGame>(
         map.set(s.id, entry);
       }
     }
-    // The reader's own shelf order first (as on the shelf chips), then the
+    // The player's own shelf order first (as on the shelf chips), then the
     // rest by name.
     const order = opts.shelfOrder ?? [];
     const rank = (id: string) => {
@@ -449,15 +465,16 @@ export function sliceGroups<T>(
   return { groups: out, shownEntries, totalEntries };
 }
 
-/** How far through one series the reader is, over every copy in the
+/** How far through one series the player is, over every copy in the
  *  library (not just the ones on screen). */
 export interface SeriesProgress {
   total: number;
-  /** Read at least once. */
-  read: number;
-  /** Lowest number being read right now. */
-  reading: number | null;
-  /** What's next by the shared rule (series.ts), when nothing is being read. */
+  /** Completed at least once. */
+  completed: number;
+  /** Lowest number being played right now. */
+  playing: number | null;
+  /** What's next by the shared rule (series.ts), when nothing is being
+   *  played. */
   next: number | null;
   /** Whole numbers from 1 up to the highest one with no game. */
   missing: number[];
@@ -467,13 +484,15 @@ export interface SeriesProgress {
 const MAX_SERIES_NUMBER = 10_000;
 
 export function seriesProgress(games: SeriesMember[]): SeriesProgress {
-  const read = games.filter((b) => b.status === PlayStatus.COMPLETED || b.timesCompleted > 0).length;
-  const reading = games
+  const completed = games.filter(
+    (b) => b.status === PlayStatus.COMPLETED || b.timesCompleted > 0,
+  ).length;
+  const playing = games
     .filter((b) => b.status === PlayStatus.PLAYING && b.seriesNumber !== null)
     .reduce<number | null>((low, b) => (low === null || b.seriesNumber! < low ? b.seriesNumber! : low), null);
-  const next = reading === null ? (nextInSeries(games)?.seriesNumber ?? null) : null;
+  const next = playing === null ? (nextInSeries(games)?.seriesNumber ?? null) : null;
 
-  // Only whole numbers fill a gap: #1.5 is a novella between #1 and #2,
+  // Only whole numbers fill a gap: #1.5 is a spin-off between #1 and #2,
   // not either of them. A #0 prequel never makes #1 look missing.
   const numbers = games.map((b) => b.seriesNumber).filter((n): n is number => n !== null);
   const have = new Set(numbers.filter((n) => Number.isInteger(n)));
@@ -481,21 +500,21 @@ export function seriesProgress(games: SeriesMember[]): SeriesProgress {
   const missing: number[] = [];
   for (let n = 1; n < highest; n++) if (!have.has(n)) missing.push(n);
 
-  return { total: games.length, read, reading, next, missing };
+  return { total: games.length, completed, playing, next, missing };
 }
 
 /**
- * A series heading's detail and note: "5 games · 3 read · next #4" (or
+ * A series heading's detail and note: "5 games · 3 completed · next #4" (or
  * "2 of 5 games" when the filters on screen show only some), and
  * "#3 missing" when a number is skipped.
  */
 export function seriesHeading(p: SeriesProgress, shown: number): { detail: string; note?: string } {
   const games = `${p.total} game${p.total === 1 ? "" : "s"}`;
   const bits = [shown < p.total ? `${shown} of ${games}` : games];
-  if (p.total > 0 && p.read === p.total) bits.push("all read");
+  if (p.total > 0 && p.completed === p.total) bits.push("all completed");
   else {
-    bits.push(`${p.read} read`);
-    if (p.reading !== null) bits.push(`reading #${p.reading}`);
+    bits.push(`${p.completed} completed`);
+    if (p.playing !== null) bits.push(`playing #${p.playing}`);
     else if (p.next !== null) bits.push(`next #${p.next}`);
   }
   if (p.missing.length === 0) return { detail: bits.join(" · ") };

@@ -1,7 +1,7 @@
 import { PlayStatus } from "@prisma/client";
 
 /**
- * The reader's own order for shelf chips and saved views, kept in
+ * The player's own order for shelf chips and saved views, kept in
  * Preferences as lists of ids (shelfOrder, savedViewOrder). The lists may
  * name shelves or views deleted since, and may leave out ones made since;
  * these helpers take both in their stride.

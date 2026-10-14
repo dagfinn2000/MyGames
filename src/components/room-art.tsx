@@ -1,11 +1,11 @@
 /**
- * The pixel art for the reading room (components/game-room.tsx): the
- * house, the bookcases and the furniture, drawn in code as rows of
- * coloured rectangles, one unit per dot.
+ * The pixel art for the game room (components/game-room.tsx): the house,
+ * the shelving units and the furniture, drawn in code as rows of coloured
+ * rectangles, one unit per dot.
  *
  * Small, shapely things (the cat, a plant, the flames) are drawn as text
  * grids, one character per dot, and turned into rectangles by `grid`.
- * Big, regular things (the house, a bookcase) are built from rectangles
+ * Big, regular things (the house, a shelving unit) are built from rectangles
  * directly. Each rectangle names a paint, not a colour: paints are classes
  * (`rp-wood`, …) whose colours live in game-room.css, so the whole room
  * changes between day (light themes) and night (dark themes) in CSS alone.
@@ -208,11 +208,12 @@ export function Pendant({ x, ceiling, scale: s }: { x: number; ceiling: number; 
   );
 }
 
-// ── Bookcase ──────────────────────────────────────────────────────────────
+// ── Shelving unit ────────────────────────────────────────────────────────
 // 46 × 125: a moulded crown, five shelves on a dark back panel, a plinth.
-// Spines are links laid over it by the room, standing on the boards.
+// The games' spines are links laid over it by the room, standing on the
+// boards.
 
-export function bookcaseArt(): Art {
+export function shelvingArt(): Art {
   const R: Rect[] = [];
   R.push([3, 5, 40, 115, "case-back"]);
   for (let x = 13; x < 43; x += 10) R.push([x, 5, 1, 115, "case-seam"]);
@@ -551,8 +552,10 @@ export const SIDE_TABLE = art([
 ]);
 export const TEACUP = art(["yyyy.", "yyyyY", "Yyyy.", "YYYYY"]);
 export const STEAM = [grid(["z.", ".z", "z."]), grid([".z", "z.", ".z"])];
-/** The game being read, open on the table, in its spine colour. */
-export const OPEN_GAME = art([".yyy.yyy.", "yyyyYyyyy", "211111112"]);
+/** The controller of the game being played, put down on the side table
+ *  while nobody's in the armchair, 7 × 3: in the game's spine colour, a
+ *  light d-pad and button, and the grips underneath. */
+export const TABLE_CONTROLLER = art([".11111.", "1y111y1", "22...22"]);
 
 /** Floor lamp, 12 × 60. */
 export function floorLampArt(): Art {
@@ -710,7 +713,7 @@ export const PENDULUM = [
 /** A writing desk with a green banker's lamp, 34 × 36. */
 export function deskArt(): Art {
   const R: Rect[] = [];
-  // Lamp, ink and games on top.
+  // Lamp, ink and a pile of books on top.
   R.push(...grid(["..EEEEE..", ".EEEEEEE.", "EEEEEEEEE", "....n....", "....n....", "...nBn...", "..nBBBn.."], 2, 3));
   R.push(...grid(["33333333", "44444444", "yyyyyyYy", "KKKKKKKK"], 13, 6));
   R.push(...grid(["....y", "...y.", "..y..", ".KK..", "KKKK."], 25, 5));
@@ -805,7 +808,7 @@ export const PENDANT = art([
   "...........",
 ]);
 
-/** A wheeled library ladder leaning on a bookcase: `h` tall, foot `lean`
+/** A wheeled library ladder leaning on a shelving unit: `h` tall, foot `lean`
  *  dots further right than the top. */
 export function ladderArt(h: number, lean: number): Art {
   const R: Rect[] = [];

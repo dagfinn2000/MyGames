@@ -1,5 +1,5 @@
 /**
- * The furniture of the rooms the reader can add to the house (lib/room.ts:
+ * The furniture of the rooms the player can add to the house (lib/room.ts:
  * ROOMS): a kitchen, a bedroom, a music room, a conservatory, a games room,
  * a studio, a bathroom, a dining room, a nursery, a woodshop and a sauna.
  * Drawn like the rest of the room (room-art.tsx), each piece stands on the
@@ -590,7 +590,7 @@ const FERNS: Art = (() => {
   return { w: 18, h: 50, rects: R };
 })();
 
-// ── Games room ───────────────────────────────────────────────────────────
+// ── Billiard room ────────────────────────────────────────────────────────
 
 /** A dartboard over a chalked scoreboard, hung on the wall, 14 wide. */
 function dartsArt(): Art {

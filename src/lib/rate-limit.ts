@@ -50,15 +50,6 @@ export class RateLimiter {
     return b.count >= this.max;
   }
 
-  /** Hits in the key's open window and how long until it resets; zeros
-   *  when no window is open. */
-  usage(key: string): { count: number; resetInMs: number } {
-    const b = this.buckets.get(key);
-    const now = Date.now();
-    if (!b || now >= b.resetAt) return { count: 0, resetInMs: 0 };
-    return { count: b.count, resetInMs: b.resetAt - now };
-  }
-
   /** Forget a key — call on successful auth so honest mistakes don't accrue. */
   clear(key: string): void {
     this.buckets.delete(key);
@@ -138,19 +129,19 @@ export const registerLimiter = (globalForRateLimit.registerLimiter ??=
  * Outbound metadata lookups: 90 per signed-in user per minute.
  *
  * Unlike the auth limiters this counts *every* call, not just failures — the
- * budget being protected is Open Library's and nb.no's, not ours. Each search
- * fans out to three catalogues, so 90/min is roughly 30 searches a minute:
- * far more than a human types, and a hard stop on a stuck retry loop or a
- * script pointed at the endpoint.
+ * budget being protected is the catalogues' (IGDB's, Wikipedia's, Steam's),
+ * not ours. Each search fans out to three catalogues, so 90/min is roughly
+ * 30 searches a minute: far more than a human types, and a hard stop on a
+ * stuck retry loop or a script pointed at the endpoint.
  */
-export const METADATA_LOOKUPS_PER_MINUTE = 90;
+const METADATA_LOOKUPS_PER_MINUTE = 90;
 export const metadataLimiter = (globalForRateLimit.metadataLimiter ??=
   new RateLimiter(METADATA_LOOKUPS_PER_MINUTE, 60_000));
 
 /**
  * Cover uploads: 60 per signed-in user per hour. Counts every upload, like
  * the metadata budget. One a minute is more than anyone photographing their
- * shelf needs, and it caps how fast one account can fill the disk (each
+ * game boxes needs, and it caps how fast one account can fill the disk (each
  * upload may be up to 10 MB).
  */
 export const uploadLimiter = (globalForRateLimit.uploadLimiter ??=

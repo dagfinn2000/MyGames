@@ -135,9 +135,10 @@ export function GamePageCardList({ prefs, update }: { prefs: Preferences; update
       </ul>
       <p className="text-xs text-muted-foreground">
         A hidden card still shows on a game when it has something in it: your
-        review or a read in progress, past reads, an open loan or saved quotes.
-        Hiding Read history also hides Read it again, and hiding My reading
-        hides the status menu (Select in the library can still change it).
+        review or a game in progress, past playthroughs, an open loan or saved
+        quotes. Hiding Play history also hides Play it again, and hiding My
+        playthrough hides the status menu (Select in the library can still
+        change it).
       </p>
     </div>
   );
@@ -145,13 +146,13 @@ export function GamePageCardList({ prefs, update }: { prefs: Preferences; update
 
 /** What the live example under the Link field fills in. */
 const SAMPLE_GAME = {
-  isbn: "9780099448822",
-  title: "Norwegian Wood",
-  authors: ["Haruki Murakami"],
+  title: "Hollow Knight",
+  developers: ["Team Cherry"],
+  platform: "Nintendo Switch",
 };
 
 /**
- * The reader's "Find it at" links: a list to reorder, edit and remove, and
+ * The player's "Find it at" links: a list to reorder, edit and remove, and
  * a form that adds one or saves the one being edited. findLinkError checks
  * the form here and the same rules clean what the server stores, so a bad
  * link can't be saved either way.
@@ -245,9 +246,9 @@ export function FindLinksEditor({ prefs, update }: { prefs: Preferences; update:
           Find it at links
         </p>
         <p id={hintId} className="text-xs text-muted-foreground">
-          Links to your library or a shop, shown on each game. Put {"{isbn}"}, {"{title}"} or{" "}
-          {"{author}"} where the game&apos;s details go. Links that use {"{isbn}"} are hidden on
-          games without one.
+          Links to a shop, a price tracker or a wiki, shown on each game. Put {"{title}"},{" "}
+          {"{developer}"} or {"{platform}"} where the game&apos;s details go. Links that use{" "}
+          {"{developer}"} or {"{platform}"} are hidden on games without one.
         </p>
       </div>
 
@@ -326,7 +327,7 @@ export function FindLinksEditor({ prefs, update }: { prefs: Preferences; update:
                   setError(null);
                 }}
                 maxLength={FIND_LINK_NAME_MAX}
-                placeholder="My library"
+                placeholder="HowLongToBeat"
                 autoComplete="off"
                 aria-describedby={error?.field === "name" ? errorId : undefined}
                 aria-invalid={error?.field === "name" || undefined}
@@ -345,7 +346,7 @@ export function FindLinksEditor({ prefs, update }: { prefs: Preferences; update:
                   setError(null);
                 }}
                 maxLength={FIND_LINK_URL_MAX}
-                placeholder="https://my-library.example/search?q={isbn}"
+                placeholder="https://howlongtobeat.com/?q={title}"
                 autoComplete="off"
                 aria-describedby={error?.field === "url" ? errorId : hintId}
                 aria-invalid={error?.field === "url" || undefined}

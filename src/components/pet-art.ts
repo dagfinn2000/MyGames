@@ -1,8 +1,8 @@
 /**
- * The pet who follows the avatar about the reading room (lib/pets.ts), as
+ * The pet who follows the avatar about the game room (lib/pets.ts), as
  * pixel art: trotting along (two frames that swap as it goes, like the
  * avatar's legs) and curled up asleep at the armchair while a game is
- * read. Each is drawn as a text grid of fills facing right; the outline
+ * played. Each is drawn as a text grid of fills facing right; the outline
  * goes round it by itself.
  *
  * The cat and the dog are painted in the house's cat and dog paints, so

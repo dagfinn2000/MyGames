@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 
-/** Splits a stored length ("970") into hour and minute box values. */
+/** Splits a stored time to beat ("2400") into hour and minute box values. */
 function split(initial: string | undefined): [string, string] {
   const total = Number(initial);
   if (!initial || !Number.isInteger(total) || total <= 0) return ["", ""];
@@ -12,19 +11,13 @@ function split(initial: string | undefined): [string, string] {
 }
 
 /**
- * Audiobook length as hours and minutes, sent as one hidden `lengthMinutes`
- * value. The boxes are controlled so a form reset after a failed save can't
- * leave them showing something other than what gets sent. While the game
- * isn't an audiobook the fieldset is hidden and disabled (nothing is sent),
- * but the typed values stay for switching back before saving.
+ * How long the game usually takes to beat, as hours and minutes, sent as
+ * one hidden `lengthMinutes` value. Both boxes empty is "not known". The
+ * boxes are controlled so a form reset after a failed save can't leave them
+ * showing something other than what gets sent. To put a new value in from
+ * outside (the catalogue's "Look up details"), remount it with a new key.
  */
-export function AudiobookLengthField({
-  initialMinutes,
-  hidden,
-}: {
-  initialMinutes?: string;
-  hidden: boolean;
-}) {
+export function TimeToBeatField({ initialMinutes }: { initialMinutes?: string }) {
   const [initialHours, initialMins] = split(initialMinutes);
   const [hours, setHours] = useState(initialHours);
   const [minutes, setMinutes] = useState(initialMins);
@@ -34,8 +27,8 @@ export function AudiobookLengthField({
   const total = Math.round(h * 60 + m);
 
   return (
-    <fieldset disabled={hidden} className={cn(hidden && "hidden")}>
-      <legend className="mb-2 text-sm font-medium">Length</legend>
+    <fieldset>
+      <legend className="mb-2 text-sm font-medium">Time to beat</legend>
       <div className="flex items-center gap-2">
         <Input
           type="number"

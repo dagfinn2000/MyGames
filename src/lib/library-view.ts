@@ -15,18 +15,19 @@
 export const LIBRARY_SORTS = [
   "createdAt",
   "title",
-  "author",
+  "developer",
   "rating",
   "dateFinished",
   "dateStarted",
-  "pageCount",
-  "published",
+  "length",
+  "released",
   "updatedAt",
 ] as const;
 
 export const LIBRARY_GROUPS = [
   "none",
-  "author",
+  "developer",
+  "platform",
   "series",
   "yearFinished",
   "status",
@@ -50,12 +51,12 @@ export type LibraryDir = (typeof LIBRARY_DIRS)[number];
 export const NATURAL_DIRS: Record<LibrarySortKey, LibraryDir> = {
   createdAt: "desc",
   title: "asc",
-  author: "asc",
+  developer: "asc",
   rating: "desc",
   dateFinished: "desc",
   dateStarted: "desc",
-  pageCount: "desc",
-  published: "desc",
+  length: "desc",
+  released: "desc",
   updatedAt: "desc",
 };
 
@@ -87,18 +88,20 @@ export type LibraryView = {
   cardSize: (typeof CARD_SIZES)[number];
   layout: (typeof LIBRARY_LAYOUTS)[number];
   cardStyle: (typeof CARD_STYLES)[number];
-  /** Covers drawn as little games (spine, page edges, shadow), here and on
+  /** Covers drawn as little boxes with depth and a shadow, here and on
    *  every other page; see globals.css. */
   cover3d: boolean;
   showRating: boolean;
   showStatus: boolean;
   showSeries: boolean;
+  /** The platform you play it on, under the developers. */
+  showPlatform: boolean;
   /** A Wishlist, Borrowed or Given away badge (nothing for owned games). */
   showOwnership: boolean;
   /** List layout only. */
   rowDate: (typeof ROW_DATES)[number];
-  /** List layout only. */
-  showPageCount: boolean;
+  /** List layout only: the time to beat ("about 40 h"). */
+  showLength: boolean;
 };
 
 /** The drawing half of a view — what the View menu changes. */
@@ -111,9 +114,10 @@ export type LibraryDisplay = Pick<
   | "showRating"
   | "showStatus"
   | "showSeries"
+  | "showPlatform"
   | "showOwnership"
   | "rowDate"
-  | "showPageCount"
+  | "showLength"
 >;
 
 export const DEFAULT_LIBRARY_VIEW: LibraryView = {
@@ -127,9 +131,10 @@ export const DEFAULT_LIBRARY_VIEW: LibraryView = {
   showRating: true,
   showStatus: true,
   showSeries: true,
+  showPlatform: true,
   showOwnership: false,
   rowDate: "none",
-  showPageCount: false,
+  showLength: false,
 };
 
 /** Stored JSON (or anything else) → a safe view, unknown fields defaulted. */
@@ -157,17 +162,19 @@ export function parseLibraryView(raw: unknown): LibraryView {
     showRating: bool(obj.showRating, d.showRating),
     showStatus: bool(obj.showStatus, d.showStatus),
     showSeries: bool(obj.showSeries, d.showSeries),
+    showPlatform: bool(obj.showPlatform, d.showPlatform),
     showOwnership: bool(obj.showOwnership, d.showOwnership),
     rowDate: pick(ROW_DATES, obj.rowDate, d.rowDate),
-    showPageCount: bool(obj.showPageCount, d.showPageCount),
+    showLength: bool(obj.showLength, d.showLength),
   };
 }
 
 /** The known fields of `patch`, each made valid — what a save may write. */
 export function cleanLibraryViewPatch(patch: unknown): Partial<LibraryView> {
   if (!patch || typeof patch !== "object") return {};
-  const keys = Object.keys(patch).filter(
-    (k) => k in DEFAULT_LIBRARY_VIEW,
+  // Own keys only, like naturalDir: `in` would let "constructor" through.
+  const keys = Object.keys(patch).filter((k) =>
+    Object.hasOwn(DEFAULT_LIBRARY_VIEW, k),
   ) as (keyof LibraryView)[];
   const parsed = parseLibraryView({ ...DEFAULT_LIBRARY_VIEW, ...patch });
   const out: Partial<LibraryView> = {};

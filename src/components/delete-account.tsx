@@ -38,7 +38,7 @@ export function DeleteAccount({ gameCount }: { gameCount: number }) {
         <TriangleAlert className="mt-0.5 size-4 shrink-0" />
         <span>
           This permanently deletes your account and all {gameCount} game
-          {gameCount === 1 ? "" : "s"} — reading history, quotes, shelves,
+          {gameCount === 1 ? "" : "s"} — play history, quotes, shelves,
           goals, covers, everything. There is no undo. Consider downloading a
           backup first.
         </span>

@@ -3,6 +3,15 @@ import { formatDate, formatNumber, type FormatPrefs } from "@/lib/display";
 import type { BackupReminder } from "@/lib/preferences";
 
 /**
+ * What a backup's `library.json` says it is. Written by GET /api/export and
+ * checked by the restore (lib/import.ts). Raise the version only for a
+ * change an older MyGames would misread: a new field needs no new version,
+ * since the restore ignores fields it doesn't know.
+ */
+export const BACKUP_FORMAT = "mygames-export";
+export const BACKUP_VERSION = 1;
+
+/**
  * When the last backup was downloaded, and the optional monthly reminder.
  * The date is User.lastBackupAt, set by the export route once a zip has
  * gone out in full. Accounts that downloaded backups before that column
@@ -27,7 +36,7 @@ export function isBackupDue(last: Date | null, now: Date): boolean {
   return now.getTime() - last.getTime() >= BACKUP_DUE_DAYS * DAY_MS;
 }
 
-/** Calendar days from the last download to today in the reader's zone.
+/** Calendar days from the last download to today in the player's zone.
  *  The download's day is read the same way the date beside it is shown
  *  (calendarDay), so "today" and the date always agree. Never negative. */
 export function backupAgeDays(last: Date, now: Date, timeZone?: string): number {

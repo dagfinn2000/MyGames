@@ -18,7 +18,7 @@ import { ROOM_CEILINGS, ROOM_FLOORS, ROOM_PAPERS, ROOM_STYLES, type RoomStyle } 
 
 const STOREY = 144;
 
-/** A house the way the reading room lays one out (game-room.tsx). */
+/** A house the way the game room lays one out (game-room.tsx). */
 function house(style: RoomStyle, houseW: number, floorCount: number, yard = 24): HouseGeometry {
   const roofH = roofHeight(style, houseW);
   const chimneyX = yard + 5 + 21;
@@ -132,7 +132,7 @@ describe("shellArt", () => {
     }
   });
 
-  it("hangs things along the ceiling no lower than the bookcases' tops", () => {
+  it("hangs things along the ceiling no lower than the shelving units' tops", () => {
     const g = house("cottage", 345, 2);
     const plain = new Set(shellArt(g, "cottage").storeys.flatMap((s) => s.rects).map(String));
     for (const ceiling of ROOM_CEILINGS) {

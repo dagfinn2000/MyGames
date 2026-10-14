@@ -32,8 +32,13 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-mygames}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-mygames}
       AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env}
       AUTH_TRUST_HOST: "true"
-      GOOGLE_BOOKS_API_KEY: ${GOOGLE_BOOKS_API_KEY:-}
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
+      # Optional: IGDB in game search (a free Twitch developer app, see
+      # .env.example). Wikipedia and Steam need no keys.
+      IGDB_CLIENT_ID: ${IGDB_CLIENT_ID:-}
+      IGDB_CLIENT_SECRET: ${IGDB_CLIENT_SECRET:-}
       COVERS_DIR: /app/data/covers
+      COVER_FETCH_ALLOW_PRIVATE: ${COVER_FETCH_ALLOW_PRIVATE:-false}
       DISABLE_REGISTRATION: ${DISABLE_REGISTRATION:-false}
     volumes:
       - covers:/app/data/covers

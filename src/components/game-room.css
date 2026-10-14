@@ -1,4 +1,4 @@
-/* The reading room (components/game-room.tsx).
+/* The game room (components/game-room.tsx).
 
    Paints: every rectangle of the pixel art (room-art.tsx) carries a class
    `rp-<paint>`, coloured here from a palette of --room-* colours. The
@@ -8,7 +8,7 @@
    whichever theme it is in.
 
    Sizes: --u is one dot of the art in screen pixels (2 or 3), set on the
-   scene. Spines are drawn in CSS in multiples of it.
+   scene. The games' spines are drawn in CSS in multiples of it.
 
    Motion: the fire flickers, smoke rises, the clock ticks, the cat's tail
    twitches, banners ripple, gears turn, beacons blink, fireflies drift at
@@ -651,11 +651,13 @@
 .rp-red-hi { fill: var(--room-red-hi); }
 .rp-red { fill: var(--room-red); }
 .rp-red-lo { fill: var(--room-red-lo); }
+/* The game being played: the controller in the avatar's hands or on the
+   side table, in the game's spine colour (--spine, set by the room). */
 .rp-game { fill: var(--spine); }
 .rp-game-lo { fill: color-mix(in oklab, var(--spine), #000 35%); }
 
 /* The avatar (avatar-art.ts): its element sets --av-skin, --av-hair,
-   --av-top, --av-bottom and --av-accent from the reader's choices; the
+   --av-top, --av-bottom and --av-accent from the player's choices; the
    shades come from them. The rest are fixed: shoes, gold, glass. */
 .rp-av-line { fill: #231815; }
 .rp-av-eye { fill: var(--av-eye, #251a17); }
@@ -1104,12 +1106,13 @@
 }
 
 /* ── Spines ───────────────────────────────────────────────────────────────
-   A strip of the game's colour with a lighter left edge and a darker right
-   one, so games standing together read as separate, and one of five
-   patterns: gilt bands, a paper label, a dark head band, a wide band, or a
-   small emblem. A game that isn't on the shelf (wishlist, lent out, given
-   away) keeps its place as an outline. A game being read has a ribbon
-   bookmark showing at the top. */
+   Each game is a case standing spine out: a strip of the game's colour
+   with a lighter left edge and a darker right one, so cases standing
+   together read as separate, and one of five patterns a case's spine
+   might wear: a band at the top and the foot, a title label, a dark
+   header band, a wide band, or a small logo. A game that isn't on the
+   shelf (wishlist, lent out, given away) keeps its place as an outline.
+   A game being played has a red ribbon showing at the top. */
 .room-shelf {
   position: absolute;
   display: flex;
@@ -1118,7 +1121,7 @@
 .room-spine {
   --hi: color-mix(in oklab, var(--spine), #fff 24%);
   --lo: color-mix(in oklab, var(--spine), #000 38%);
-  --gilt: color-mix(in oklab, var(--spine), #f2d27e 60%);
+  --band: color-mix(in oklab, var(--spine), #fff 62%);
   --dark: color-mix(in oklab, var(--spine), #000 30%);
   position: relative;
   flex: none;
@@ -1144,33 +1147,34 @@
   inset: 0 var(--u);
   pointer-events: none;
 }
-/* Gilt bands near the head and the tail. */
+/* Light bands near the top and the foot. */
 .room-spine[data-pattern="0"]::before {
   background:
-    linear-gradient(var(--gilt), var(--gilt)) 0 calc(var(--u) * 2) / 100% var(--u) no-repeat,
-    linear-gradient(var(--gilt), var(--gilt)) 0 calc(100% - var(--u) * 3) / 100% var(--u) no-repeat;
+    linear-gradient(var(--band), var(--band)) 0 calc(var(--u) * 2) / 100% var(--u) no-repeat,
+    linear-gradient(var(--band), var(--band)) 0 calc(100% - var(--u) * 3) / 100% var(--u) no-repeat;
 }
-/* A paper label. */
+/* A title label. */
 .room-spine[data-pattern="1"]::before {
   background: linear-gradient(var(--room-paper), var(--room-paper)) 0 calc(var(--u) * 3) / 100%
     calc(var(--u) * 3) no-repeat;
   opacity: 0.85;
 }
-/* A dark head band and a thin tail band. */
+/* A dark header band, where the platform's name goes, and a thin foot
+   band. */
 .room-spine[data-pattern="2"]::before {
   background:
     linear-gradient(var(--dark), var(--dark)) 0 0 / 100% calc(var(--u) * 3) no-repeat,
-    linear-gradient(var(--gilt), var(--gilt)) 0 calc(100% - var(--u) * 2) / 100% var(--u) no-repeat;
+    linear-gradient(var(--band), var(--band)) 0 calc(100% - var(--u) * 2) / 100% var(--u) no-repeat;
 }
-/* One wide gilt band. */
+/* One wide dark band with a light stripe. */
 .room-spine[data-pattern="3"]::before {
   background:
     linear-gradient(var(--dark), var(--dark)) 0 calc(var(--u) * 4) / 100% calc(var(--u) * 3) no-repeat,
-    linear-gradient(var(--gilt), var(--gilt)) 0 calc(var(--u) * 5) / 100% var(--u) no-repeat;
+    linear-gradient(var(--band), var(--band)) 0 calc(var(--u) * 5) / 100% var(--u) no-repeat;
 }
-/* A small emblem. */
+/* A small logo. */
 .room-spine[data-pattern="4"]::before {
-  background: linear-gradient(var(--gilt), var(--gilt)) 50% calc(var(--u) * 4) / var(--u) var(--u)
+  background: linear-gradient(var(--band), var(--band)) 50% calc(var(--u) * 4) / var(--u) var(--u)
     no-repeat;
 }
 .room-spine[data-away] {
@@ -1186,7 +1190,7 @@
 .room-spine[data-away]::before {
   display: none;
 }
-.room-spine[data-reading]::after {
+.room-spine[data-playing]::after {
   content: "";
   position: absolute;
   top: calc(var(--u) * -2);
@@ -1219,15 +1223,15 @@
   }
 }
 
-/* The game being read, open on the side table. */
-.room-open-game {
+/* The controller of the game being played, on the side table. */
+.room-table-controller {
   outline: none;
 }
-.room-open-game:hover,
-.room-open-game:focus-visible {
+.room-table-controller:hover,
+.room-table-controller:focus-visible {
   translate: 0 calc(var(--u) * -1);
 }
-.room-open-game:focus-visible {
+.room-table-controller:focus-visible {
   box-shadow: 0 0 0 var(--u) var(--room-focus);
   outline: var(--u) solid var(--room-ink);
   outline-offset: var(--u);
@@ -1640,16 +1644,17 @@
 :where(.dark) .room-scene .room-avatar {
   filter: brightness(0.9) saturate(0.95);
 }
-/* The game in its hands is a link, like the one on the side table. */
-.room-held-game {
+/* The controller in its hands is a link to the game, like the one on the
+   side table. */
+.room-held-controller {
   outline: none;
 }
-.room-held-game:focus-visible {
+.room-held-controller:focus-visible {
   box-shadow: 0 0 0 var(--u) var(--room-focus);
   outline: var(--u) solid var(--room-ink);
   outline-offset: var(--u);
 }
-[data-arranging] .room-held-game {
+[data-arranging] .room-held-controller {
   pointer-events: none;
 }
 
@@ -1694,7 +1699,7 @@
    A handle over each piece while arranging, a line where a dragged one
    would go, and a note when it can't. The games stay put meanwhile. */
 [data-arranging] .room-spine,
-[data-arranging] .room-open-game {
+[data-arranging] .room-table-controller {
   pointer-events: none;
 }
 .room-handle {

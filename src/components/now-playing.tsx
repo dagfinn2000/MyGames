@@ -5,7 +5,7 @@ import Link from "next/link";
 import { undoMoveFromPlaying } from "@/lib/actions/progress";
 import { nowPlayingPaceText } from "@/lib/pace";
 import { currentPassEntries } from "@/lib/progress";
-import { progressFigure, unitFor } from "@/lib/progress-units";
+import { progressFigure, progressPercent } from "@/lib/progress-units";
 import type { UndoMove } from "@/lib/play-log";
 import { usePreferences } from "@/components/preferences-provider";
 import { GameCover } from "@/components/game-card";
@@ -16,9 +16,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 export interface NowPlayingGame extends QuickLogGame, LogGame {
-  authors: string[];
+  developers: string[];
+  platform: string | null;
   coverUrl: string | null;
-  progress: { id: string; page: number; date: Date }[];
+  lengthMinutes: number | null;
+  progress: { id: string; minutes: number; date: Date }[];
 }
 
 interface Moved {
@@ -28,13 +30,13 @@ interface Moved {
 }
 
 /**
- * The rows of the Now reading page, one per game being read, with the
+ * The rows of the Now playing page, one per game being played, with the
  * quick-log row, Finished and Stopped.
  *
- * Rows keep the order the page first had for this visit: logging a page
+ * Rows keep the order the page first had for this visit: logging time
  * makes a game the most recent, but moving it to the top under the
- * reader's finger (and losing their focus) would be worse. A game moved to
- * Read or Did Not Finish leaves the page's list, so its row stays here in
+ * player's finger (and losing their focus) would be worse. A game moved to
+ * Completed or Dropped leaves the page's list, so its row stays here in
  * place as a line with Undo until the visit ends.
  */
 export function NowPlaying({
@@ -42,16 +44,16 @@ export function NowPlaying({
   empty,
 }: {
   games: NowPlayingGame[];
-  /** Shown when nothing is being read (and nothing was just moved). */
+  /** Shown when nothing is being played (and nothing was just moved). */
   empty: React.ReactNode;
 }) {
-  const [order] = useState(() => games.map((b) => b.id));
+  const [order] = useState(() => games.map((g) => g.id));
   const [moved, setMoved] = useState<Map<string, Moved>>(() => new Map());
   const [focusId, setFocusId] = useState<string | null>(null);
 
-  const byId = new Map(games.map((b) => [b.id, b]));
+  const byId = new Map(games.map((g) => [g.id, g]));
   // Games started since the page loaded (another tab, say) go first.
-  const ids = [...games.map((b) => b.id).filter((id) => !order.includes(id)), ...order].filter(
+  const ids = [...games.map((g) => g.id).filter((id) => !order.includes(id)), ...order].filter(
     (id) => byId.has(id) || moved.has(id),
   );
   if (ids.length === 0) return <>{empty}</>;
@@ -99,13 +101,16 @@ function NowPlayingRow({
   onMoved: (result: MovedResult) => void;
 }) {
   const prefs = usePreferences();
-  const info = unitFor(game, prefs);
   const pass = currentPassEntries(game.progress, game.dateStarted, prefs.timeZone);
-  const pace = nowPlayingPaceText({ pass, info, from: prefs.paceFrom, now: new Date(), prefs });
-  const pct =
-    game.currentPage != null && game.pageCount
-      ? Math.min((game.currentPage / game.pageCount) * 100, 100)
-      : null;
+  const pace = nowPlayingPaceText({
+    pass,
+    lengthMinutes: game.lengthMinutes,
+    from: prefs.paceFrom,
+    now: new Date(),
+    prefs,
+  });
+  const pct = game.playedMinutes != null ? progressPercent(game.playedMinutes, game.lengthMinutes) : null;
+  const byline = [game.developers.join(", "), game.platform].filter(Boolean).join(" · ");
 
   return (
     <Card size="sm">
@@ -120,9 +125,7 @@ function NowPlayingRow({
                 {game.title}
               </Link>
             </h2>
-            {game.authors.length > 0 && (
-              <p className="truncate text-sm text-muted-foreground">{game.authors.join(", ")}</p>
-            )}
+            {byline && <p className="truncate text-sm text-muted-foreground">{byline}</p>}
           </div>
           {pct !== null && (
             <div className="h-2 rounded-full bg-muted">
@@ -130,7 +133,11 @@ function NowPlayingRow({
             </div>
           )}
           <div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 text-xs text-muted-foreground tabular-nums sm:text-sm">
-            <span>{game.currentPage != null ? progressFigure(game.currentPage, info) : "Not started"}</span>
+            <span>
+              {game.playedMinutes != null
+                ? progressFigure(game.playedMinutes, game.lengthMinutes)
+                : "No time logged yet"}
+            </span>
             <span>{pace}</span>
           </div>
           <QuickLog game={game} showMoveButtons onMoved={onMoved} autoFocus={autoFocus} />
@@ -151,7 +158,7 @@ function NowPlayingRow({
   );
 }
 
-/** A game just moved to Read or Did Not Finish: what happened, and Undo. */
+/** A game just moved to Completed or Dropped: what happened, and Undo. */
 function MovedRow({ moved, onUndone }: { moved: Moved; onUndone: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();

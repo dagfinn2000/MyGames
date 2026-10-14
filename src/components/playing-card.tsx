@@ -8,11 +8,11 @@ import { celebrate } from "@/lib/confetti";
 import { STATUS_LABELS, toDateInputValue } from "@/lib/display";
 import { usePreferences } from "@/components/preferences-provider";
 import { currentPassEntries } from "@/lib/progress";
-import { progressFigure, unitFor } from "@/lib/progress-units";
+import { completedFigure, progressFigure, progressPercent } from "@/lib/progress-units";
 import { submitKeepingInput } from "@/lib/submit-form";
 import { ProgressChart, ProgressLog } from "@/components/progress-log";
 import { FinishedDateField } from "@/components/finished-date-field";
-import { CurrentPageField } from "@/components/progress-input";
+import { PlayedTimeField } from "@/components/progress-input";
 import { QuickLog } from "@/components/quick-log";
 import { StarRatingInput } from "@/components/star-rating-input";
 import { Button } from "@/components/ui/button";
@@ -34,17 +34,19 @@ import {
 } from "@/components/ui/select";
 
 /**
- * The "my reading of this game" panel on the detail page. On top, progress:
- * the bar in the game's unit, the quick-log row while the game is being
- * read, and the sparkline and pace drawn from the automatic reading log.
- * Then the form for status, star rating, dates and the personal review,
- * which saves through the updatePlay server action, and the log itself.
+ * "My playthrough", the game's own panel on the detail page. On top,
+ * progress: the time played (as a share of the usual time to beat when
+ * that's known), the quick-log row while the game is being played, and the
+ * sparkline and pace drawn from the automatic play log. Then the form for
+ * status, star rating, dates and the personal review, which saves through
+ * the updatePlay server action, and the log itself.
  *
- * While the game is Currently Reading, progress is logged only through the
- * quick row (its own form, outside this one), and saving the reading form
- * keeps the game's page as the server has it (updatePlay), so saving a
- * review never moves progress. Any other status keeps a progress box in the
- * form.
+ * While the game is Playing, time is logged only through the quick row
+ * (its own form, outside this one), and the play form sends no time at
+ * all, so the server keeps the time it has (updatePlay) and saving a
+ * review never moves progress. Any other status keeps a time box in the
+ * form: how long a completed playthrough took, or where a dropped one
+ * stopped.
  */
 export function PlayingCard({
   game,
@@ -58,8 +60,8 @@ export function PlayingCard({
   const [state, formAction, pending] = useActionState(action, {});
   const prefs = usePreferences();
   const saveButton = useRef<HTMLButtonElement>(null);
-  const info = unitFor(game, prefs);
-  const reading = game.status === PlayStatus.PLAYING;
+  const playing = game.status === PlayStatus.PLAYING;
+  const completed = game.status === PlayStatus.COMPLETED;
 
   // Finishing a game gets a burst of confetti from the save button. Each
   // save returns a new state object, so this runs once per save.
@@ -67,55 +69,65 @@ export function PlayingCard({
     if (state.finished) celebrate(saveButton.current);
   }, [state]);
 
-  // Remount the form whenever the server-side reading data changes. A save
+  // Remount the form whenever the server-side play data changes. A save
   // leaves the fields as they were sent (submitKeepingInput), so a failed
   // one keeps the review being typed; but the server may have saved
-  // something else (Read fills in today's finish date), and a fresh mount
-  // re-reads every default from the just-saved game. It also keeps the
-  // Radix Select honest: its hidden native select reverts to its
-  // *mount-time* value whenever the form is reset, behind React's back. When
-  // nothing changed the key is stable and the form stays put. A quick log changes the page of a game being read without
-  // touching the form, so then the page is left out: logging must not
-  // remount the form and throw away a review being typed.
+  // something else (Completed fills in today's finish date), and a fresh
+  // mount re-reads every default from the just-saved game. It also keeps
+  // the Radix Select honest: its hidden native select reverts to its
+  // *mount-time* value whenever the form is reset, behind React's back.
+  // When nothing changed the key is stable and the form stays put. A quick
+  // log changes the time played of a game being played without touching
+  // the form, so then the time is left out: logging must not remount the
+  // form and throw away a review being typed.
   const formKey = [
     game.status,
     game.rating ?? 0,
     game.dateStarted?.getTime() ?? 0,
     game.dateFinished?.getTime() ?? 0,
-    reading ? "reading" : (game.currentPage ?? 0),
+    playing ? "playing" : (game.playedMinutes ?? 0),
     game.review ?? "",
   ].join("|");
 
-  // The sparkline shows the current pass; entries from earlier passes still
-  // feed the stats heatmap and stay in the log below.
+  // The sparkline shows the current playthrough; entries from earlier ones
+  // still feed the stats heatmap and stay in the log below.
   const passEntries = currentPassEntries(progress, game.dateStarted, prefs.timeZone);
-  const showBar = game.currentPage != null && !!game.pageCount;
+  const played = game.playedMinutes;
+  // A bar only against a known time to beat (full once past it), and not
+  // for a completed playthrough, which took what it took.
+  const pct = played != null && !completed ? progressPercent(played, game.lengthMinutes) : null;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>My reading</CardTitle>
+        <CardTitle>My playthrough</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
-        {(showBar || reading || passEntries.length >= 2) && (
+        {(played != null || playing || passEntries.length >= 2) && (
           <div className="grid gap-3">
-            {showBar && (
+            {played != null && (
               <div className="grid max-w-sm gap-1">
-                <div className="h-2 rounded-full bg-muted">
-                  <div
-                    className="bar-grow h-full rounded-full bg-primary/80"
-                    style={{
-                      width: `${Math.min((game.currentPage! / game.pageCount!) * 100, 100)}%`,
-                    }}
-                  />
-                </div>
+                {pct !== null && (
+                  <div className="h-2 rounded-full bg-muted">
+                    <div
+                      className="bar-grow h-full rounded-full bg-primary/80"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground tabular-nums">
-                  {progressFigure(game.currentPage!, info)}
+                  {completed
+                    ? completedFigure(played, game.lengthMinutes)
+                    : progressFigure(played, game.lengthMinutes)}
                 </p>
               </div>
             )}
-            {reading && <QuickLog game={game} />}
-            <ProgressChart entries={passEntries} status={game.status} info={info} />
+            {playing && <QuickLog game={game} />}
+            <ProgressChart
+              entries={passEntries}
+              status={game.status}
+              lengthMinutes={game.lengthMinutes}
+            />
           </div>
         )}
 
@@ -162,13 +174,13 @@ export function PlayingCard({
               defaultDate={toDateInputValue(game.dateFinished, prefs.timeZone)}
               defaultUnknown={game.status === PlayStatus.COMPLETED && !game.dateFinished}
             />
-            {reading ? (
-              // Ignored while the game is still being read (the server keeps
-              // its own page); it matters only if another tab has moved the
-              // game off Currently Reading since.
-              <input type="hidden" name="currentPage" value={game.currentPage ?? ""} />
-            ) : (
-              <CurrentPageField gameId={game.id} info={info} initialPage={game.currentPage} />
+            {/* Left out while Playing: a form with no time keeps the
+                time the server has, whatever another tab logged since. */}
+            {!playing && (
+              <PlayedTimeField
+                initialMinutes={game.playedMinutes}
+                lengthMinutes={game.lengthMinutes}
+              />
             )}
           </div>
 
@@ -187,7 +199,7 @@ export function PlayingCard({
           {state.error && <p className="text-sm text-destructive">{state.error}</p>}
           <div className="flex items-center gap-3">
             <Button ref={saveButton} type="submit" disabled={pending}>
-              {pending ? "Saving…" : "Save reading data"}
+              {pending ? "Saving…" : "Save"}
             </Button>
             {state.success && (
               <span className="text-sm text-muted-foreground">Saved ✓</span>

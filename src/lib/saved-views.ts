@@ -31,11 +31,12 @@ export function canonicalViewQuery(sp: Params): string {
   if (f.shelf && f.shelf !== "all") params.set("shelf", f.shelf);
   if (f.shelfId) params.set("shelfId", f.shelfId);
   if (f.q) params.set("q", f.q);
-  if (f.author) params.set("author", f.author);
+  if (f.developer) params.set("developer", f.developer);
   if (f.tag) params.set("tag", sorted(f.tag));
   if (f.tag && f.tagMatch === "all") params.set("tagMatch", "all");
   if (f.notTag) params.set("notTag", sorted(f.notTag));
   if (f.format && f.format !== "all") params.set("format", f.format);
+  if (f.platform) params.set("platform", f.platform);
   if (f.owned && f.owned !== "all") params.set("owned", f.owned);
   if (f.minRating && f.minRating !== "all") params.set("minRating", f.minRating);
   if (f.finished) params.set("finished", f.finished);

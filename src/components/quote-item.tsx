@@ -13,16 +13,23 @@ import { Card, CardContent } from "@/components/ui/card";
 export interface QuoteItemQuote {
   id: string;
   text: string;
-  page: number | null;
+  speaker: string | null;
   note: string | null;
   createdAt: Date;
-  game: { id: string; title: string; authors: string[]; coverUrl: string | null };
+  game: {
+    id: string;
+    title: string;
+    developers: string[];
+    platform: string | null;
+    coverUrl: string | null;
+  };
 }
 
 /**
  * One quote on the quotes page, with the same pencil and trash as the game
- * page. Under a game heading (`showGame` off) the game line gives way to the
- * page and the date it was added.
+ * page: the line, who says it, your note, then the game it's from. Under a
+ * game heading (`showGame` off) the game line gives way to the date it was
+ * added.
  */
 export function QuoteItem({ quote, showGame }: { quote: QuoteItemQuote; showGame: boolean }) {
   const prefs = usePreferences();
@@ -42,6 +49,11 @@ export function QuoteItem({ quote, showGame }: { quote: QuoteItemQuote; showGame
   }, [editing]);
 
   const added = `added ${formatDate(quote.createdAt, prefs)}`;
+  // "Team Cherry · PC · added 3 Oct 2026": the platform tells apart two
+  // copies of one game.
+  const gameLine = [quote.game.developers.join(", "), quote.game.platform, added]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <Card>
@@ -55,6 +67,9 @@ export function QuoteItem({ quote, showGame }: { quote: QuoteItemQuote; showGame
             <blockquote className="long-text whitespace-pre-line break-words border-l-2 border-primary/50 pl-3 text-sm leading-relaxed">
               {quote.text}
             </blockquote>
+            {quote.speaker && (
+              <p className="break-words pl-3 text-sm text-muted-foreground">— {quote.speaker}</p>
+            )}
             {quote.note && (
               <p className="long-text break-words text-sm italic text-muted-foreground">
                 {quote.note}
@@ -72,15 +87,13 @@ export function QuoteItem({ quote, showGame }: { quote: QuoteItemQuote; showGame
                       {quote.game.title}
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {quote.game.authors.join(", ")}
-                      {quote.page != null && ` · p. ${quote.page}`}
-                      {` · ${added}`}
+                      {gameLine}
                     </span>
                   </span>
                 </Link>
               ) : (
                 <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground tabular-nums">
-                  {quote.page != null ? `p. ${quote.page} · ${added}` : added}
+                  {added}
                 </p>
               )}
               <span className="flex shrink-0 items-center gap-1">

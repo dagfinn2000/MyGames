@@ -12,14 +12,13 @@ import { cacheCoverImage, deleteCachedCover } from "@/lib/covers";
  * URL until the cached copy lands; every game page after that gets the
  * local file.
  *
- * One delayed retry: Open Library covers redirect to archive.org, which
- * extracts them from zip archives on demand — a cold request can take 10s+
- * or fail outright while the very next one is instant. Now that no user is
- * waiting, retrying is free and rescues most of those covers.
+ * One delayed retry: an image host can time out or fail on a cold request
+ * (a CDN fetching the file from its origin, a rate limit) while the very
+ * next one is instant. Now that no one is waiting, retrying is free and
+ * rescues most of those covers.
  *
- * Shared by the game form actions and the shelf scan. It lives here rather
- * than in a "use server" file, where every export becomes an action anyone
- * can call.
+ * Used by the game form actions. It lives here rather than in a "use
+ * server" file, where every export becomes an action anyone can call.
  */
 export function localizeCoverAfterResponse(gameId: string, coverUrl: string | null) {
   if (!coverUrl || !/^https?:\/\//.test(coverUrl)) return;

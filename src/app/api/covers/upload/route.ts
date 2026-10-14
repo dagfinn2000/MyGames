@@ -11,7 +11,7 @@ const MAX_BYTES = 10 * 1024 * 1024;
 
 /**
  * POST /api/covers/upload — saves a user-provided cover image (e.g. a photo
- * of the game you own) into the cover cache and returns its serving URL.
+ * of your copy's box) into the cover cache and returns its serving URL.
  * The file lands in the same COVERS_DIR volume as downloaded covers, so
  * existing deploys need no new configuration.
  */

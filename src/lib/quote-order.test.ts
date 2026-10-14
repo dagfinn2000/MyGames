@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   QUOTES_MAX,
   QUOTES_PAGE_SIZE,
-  comparePageOrder,
+  compareNewestFirst,
   groupQuotes,
   newSeed,
   orderQuotes,
@@ -17,17 +17,26 @@ const PREFS = { quotesOrder: "newest", quotesGroupByGame: false } as const;
 const OPTS = { seed: 42, sort: {} };
 
 let n = 0;
+/** A quote; each one made is a day newer than the one before. */
 function quote(
-  over: Partial<OrderableQuote> & { gameId?: string; title?: string; authors?: string[] } = {},
+  over: Partial<OrderableQuote> & {
+    gameId?: string;
+    title?: string;
+    developers?: string[];
+    platform?: string | null;
+  } = {},
 ): OrderableQuote {
   n++;
-  const { title, authors, ...rest } = over;
+  const { title, developers, platform, ...rest } = over;
   return {
     id: `q${String(n).padStart(3, "0")}`,
-    gameId: "b1",
-    page: null,
+    gameId: "g1",
     createdAt: new Date(Date.UTC(2026, 0, n)),
-    game: { title: title ?? "Game", authors: authors ?? ["Some Author"] },
+    game: {
+      title: title ?? "Game",
+      developers: developers ?? ["Some Studio"],
+      platform: platform === undefined ? "PC" : platform,
+    },
     ...rest,
   };
 }
@@ -83,20 +92,20 @@ describe("newSeed", () => {
   });
 });
 
-describe("comparePageOrder", () => {
-  it("puts paged quotes first, by page", () => {
-    const a = quote({ page: 50 });
-    const b = quote({ page: null });
-    const c = quote({ page: 3 });
-    expect([a, b, c].sort(comparePageOrder)).toEqual([c, a, b]);
+describe("compareNewestFirst", () => {
+  it("puts the quote added last first", () => {
+    const a = quote({ createdAt: new Date("2026-03-01T10:00:00Z") });
+    const b = quote({ createdAt: new Date("2026-05-01T10:00:00Z") });
+    const c = quote({ createdAt: new Date("2026-01-01T10:00:00Z") });
+    expect([a, b, c].sort(compareNewestFirst)).toEqual([b, a, c]);
   });
 
-  it("breaks ties by date added, then id", () => {
+  it("breaks ties by id, so the order never wobbles", () => {
     const t = new Date("2026-05-01T10:00:00Z");
-    const early = quote({ page: 10, createdAt: new Date("2026-04-01T10:00:00Z") });
-    const x = quote({ id: "x", page: 10, createdAt: t });
-    const w = quote({ id: "w", page: 10, createdAt: t });
-    expect([x, early, w].sort(comparePageOrder)).toEqual([early, w, x]);
+    const early = quote({ createdAt: new Date("2026-04-01T10:00:00Z") });
+    const x = quote({ id: "x", createdAt: t });
+    const w = quote({ id: "w", createdAt: t });
+    expect([w, early, x].sort(compareNewestFirst)).toEqual([x, w, early]);
   });
 });
 
@@ -110,28 +119,39 @@ describe("orderQuotes", () => {
     expect(orderQuotes([c, b, a], "oldest", OPTS)).toEqual([a, b, c]);
   });
 
-  it("by game files titles with the reader's rules, page order within", () => {
-    const hobbit2 = quote({ gameId: "h", title: "The Hobbit", page: 200 });
-    const hobbit1 = quote({ gameId: "h", title: "The Hobbit", page: 12 });
-    const ostrich = quote({ gameId: "o", title: "Østersjøen" });
-    const zebra = quote({ gameId: "z", title: "Zebra" });
-    const ice = quote({ gameId: "i", title: "Ice" });
-    const all = [zebra, hobbit2, ostrich, ice, hobbit1];
+  it("by game files titles with the player's rules, newest first within", () => {
+    const witcherFirst = quote({ gameId: "w", title: "The Witcher 3: Wild Hunt" });
+    const witcherLater = quote({ gameId: "w", title: "The Witcher 3: Wild Hunt" });
+    const ostersjoen = quote({ gameId: "o", title: "Østersjøen" });
+    const zork = quote({ gameId: "z", title: "Zork" });
+    const ico = quote({ gameId: "i", title: "Ico" });
+    const all = [zork, witcherFirst, ostersjoen, ico, witcherLater];
 
-    // Plain English sorting: "The Hobbit" under T, Ø with O.
+    // Plain English sorting: "The Witcher 3" under T, Ø with O.
     expect(orderQuotes(all, "game", OPTS).map((q) => q.gameId)).toEqual([
-      "i", "o", "h", "h", "z",
+      "i", "o", "w", "w", "z",
     ]);
-    // Articles ignored and the Norwegian alphabet: H, then Ø after Z.
+    // Articles ignored and the Norwegian alphabet: W, then Ø after Z.
     expect(
       orderQuotes(all, "game", { seed: 1, sort: { ignoreArticles: true, alphabet: "nb" } }),
-    ).toEqual([hobbit1, hobbit2, ice, zebra, ostrich]);
+    ).toEqual([ico, witcherLater, witcherFirst, zork, ostersjoen]);
   });
 
-  it("by game sorts same-titled games by author", () => {
-    const b = quote({ gameId: "b", title: "Poems", authors: ["Emily Dickinson"] });
-    const a = quote({ gameId: "a", title: "Poems", authors: ["Robert Frost"] });
-    expect(orderQuotes([a, b], "game", OPTS)).toEqual([b, a]);
+  it("by game sorts same-titled games by developer, then platform", () => {
+    const humanHead = quote({ gameId: "h", title: "Prey", developers: ["Human Head Studios"] });
+    const arkane = quote({ gameId: "a", title: "Prey", developers: ["Arkane Studios"] });
+    expect(orderQuotes([humanHead, arkane], "game", OPTS)).toEqual([arkane, humanHead]);
+
+    // The same game on two systems is two games in the library.
+    const pc = quote({ gameId: "p", title: "Hollow Knight", developers: ["Team Cherry"], platform: "PC" });
+    const noPlatform = quote({ gameId: "x", title: "Hollow Knight", developers: ["Team Cherry"], platform: null });
+    const switchCopy = quote({
+      gameId: "s",
+      title: "Hollow Knight",
+      developers: ["Team Cherry"],
+      platform: "Nintendo Switch",
+    });
+    expect(orderQuotes([pc, switchCopy, noPlatform], "game", OPTS)).toEqual([noPlatform, switchCopy, pc]);
   });
 
   it("shuffle does not depend on the input order", () => {
@@ -144,17 +164,19 @@ describe("orderQuotes", () => {
 });
 
 describe("groupQuotes", () => {
-  const a1 = quote({ gameId: "a", title: "Alpha", page: 30, createdAt: new Date("2026-03-01T00:00:00Z") });
-  const a2 = quote({ gameId: "a", title: "Alpha", page: 5, createdAt: new Date("2026-06-01T00:00:00Z") });
-  const b1 = quote({ gameId: "b", title: "Beta", createdAt: new Date("2026-01-01T00:00:00Z") });
-  const b2 = quote({ gameId: "b", title: "Beta", page: 9, createdAt: new Date("2026-04-01T00:00:00Z") });
-  const c1 = quote({ gameId: "c", title: "Gamma", createdAt: new Date("2026-02-01T00:00:00Z") });
-  const all = [b2, c1, a1, b1, a2];
+  const a1 = quote({ gameId: "a", title: "Celeste", createdAt: new Date("2026-03-01T00:00:00Z") });
+  const a2 = quote({ gameId: "a", title: "Celeste", createdAt: new Date("2026-06-01T00:00:00Z") });
+  const b1 = quote({ gameId: "b", title: "Hades", createdAt: new Date("2026-01-01T00:00:00Z") });
+  const b2 = quote({ gameId: "b", title: "Hades", createdAt: new Date("2026-04-01T00:00:00Z") });
+  const c1 = quote({ gameId: "c", title: "Inside", createdAt: new Date("2026-02-01T00:00:00Z") });
+  const all = [b1, c1, a1, b2, a2];
 
-  it("keeps each game's quotes in page order", () => {
-    const groups = groupQuotes(all, "newest", OPTS);
-    expect(groups.find((g) => g.gameId === "a")!.quotes).toEqual([a2, a1]);
-    expect(groups.find((g) => g.gameId === "b")!.quotes).toEqual([b2, b1]);
+  it("keeps each game's quotes newest first, whatever order the games are in", () => {
+    for (const order of ["newest", "oldest", "game", "shuffle"] as const) {
+      const groups = groupQuotes(all, order, OPTS);
+      expect(groups.find((g) => g.gameId === "a")!.quotes).toEqual([a2, a1]);
+      expect(groups.find((g) => g.gameId === "b")!.quotes).toEqual([b2, b1]);
+    }
   });
 
   it("newest puts the game with the newest quote first", () => {

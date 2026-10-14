@@ -59,7 +59,7 @@ export function RegisterForm() {
     <Card className="w-full max-w-sm">
       <CardHeader>
         <CardTitle>Create account</CardTitle>
-        <CardDescription>Set up your library</CardDescription>
+        <CardDescription>Set up your game library</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="grid gap-4">

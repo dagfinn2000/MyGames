@@ -1,11 +1,11 @@
 /**
- * The shell of the reading room's house, in each of the house styles
+ * The shell of the game room's house, in each of the house styles
  * (lib/room-styles.ts): the roof and chimney, the walls outside and in, the
  * floors, the foundations and the garden either side, plus the bits of it
  * that move (a banner, a gear, a beacon) and the pools of light it casts at
  * night. Drawn like the rest of the room (room-art.tsx): rectangles that
- * name paints, coloured for each style in game-room.css. The bookcases
- * and furniture are the same in every style, only repainted.
+ * name paints, coloured for each style in game-room.css. The shelving
+ * units and furniture are the same in every style, only repainted.
  *
  * Everything is in dots, in scene coordinates (the scene's top left is 0,
  * 0). Texture comes from `noise`, a fixed function of position, so a house
@@ -1088,7 +1088,7 @@ function storey(R: Rect[], g: HouseGeometry, style: RoomStyle, f: number, look: 
 const sag = (t: number, span: number, depth: number) => Math.round(depth * (1 - ((2 * t) / span - 1) ** 2));
 
 /** What hangs along the top of a room's walls, from just under the
- *  ceiling at `y`: never lower than the tops of the bookcases. */
+ *  ceiling at `y`: never lower than the tops of the shelving units. */
 function ceiling(R: Rect[], kind: RoomCeiling, x0: number, w: number, y: number, twinkle: Rect[][]) {
   const x1 = x0 + w;
   switch (kind) {
@@ -1503,8 +1503,8 @@ function yard(style: RoomStyle, g: HouseGeometry, earth: number, shell: Shell) {
 
 /**
  * The house in its style: chimney, roof, storeys, the floor of the ground
- * floor, foundations and the garden. Bookcases and furniture are drawn
- * over it.
+ * floor, foundations and the garden. Shelving units and furniture are
+ * drawn over it.
  */
 export function shellArt(g: HouseGeometry, style: RoomStyle, interior: Interior = PLAIN_INTERIOR): Shell {
   const R: Rect[] = [];

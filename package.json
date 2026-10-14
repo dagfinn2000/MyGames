@@ -1,8 +1,8 @@
 {
   "name": "mygames",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "Personal self-hosted library and reading tracker",
+  "description": "Personal self-hosted video game library and play tracker",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",

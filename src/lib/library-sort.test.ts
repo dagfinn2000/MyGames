@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
 import {
-  authorSortKey,
+  developerSortKey,
   groupGames,
-  publishedYear,
   ratingLabel,
+  releaseSortKey,
+  releaseYear,
   seriesHeading,
   seriesProgress,
   sliceGroups,
@@ -15,110 +16,104 @@ import {
 
 function game(overrides: Partial<GroupableGame> & { title: string }): GroupableGame {
   return {
-    authors: [],
+    developers: [],
     rating: null,
     seriesName: null,
     seriesNumber: null,
     dateFinished: null,
     dateStarted: null,
-    pageCount: null,
-    publishedDate: null,
+    lengthMinutes: null,
+    releaseDate: null,
     createdAt: new Date(0),
     updatedAt: new Date(0),
     status: PlayStatus.WANT_TO_PLAY,
     format: GameFormat.PHYSICAL,
     ownership: GameOwnership.OWNED,
+    platform: null,
     tags: [],
     ...overrides,
   };
 }
 
-describe("authorSortKey", () => {
-  it("files authors by surname", () => {
-    expect(authorSortKey("Brandon Sanderson")).toBe("sanderson brandon");
+describe("developerSortKey", () => {
+  it("files studios as written, case and stray spaces aside", () => {
+    expect(developerSortKey("Team Cherry")).toBe("team cherry");
+    expect(developerSortKey("  FromSoftware ")).toBe("fromsoftware");
   });
 
-  it("keeps surname particles with the last name", () => {
-    expect(authorSortKey("Ursula K. Le Guin")).toBe("le guin ursula k.");
-    expect(authorSortKey("Robert van Gulik")).toBe("van gulik robert");
-    expect(authorSortKey("Erik van der Berg")).toBe("van der berg erik");
-  });
-
-  it("moves suffixes to the end", () => {
-    expect(authorSortKey("Martin Luther King Jr.")).toBe("king martin luther jr.");
-  });
-
-  it("uses single-word names as their own key", () => {
-    expect(authorSortKey("Homer")).toBe("homer");
+  it("never files a name by its last word, nor skips a leading The", () => {
+    // A studio's name is one name: nothing is filed by its last word.
+    expect(developerSortKey("Hideo Kojima")).toBe("hideo kojima");
+    expect(developerSortKey("The Chinese Room")).toBe("the chinese room");
   });
 });
 
-describe("sortGames by author", () => {
-  const leGuin = game({ title: "A Wizard of Earthsea", authors: ["Ursula K. Le Guin"] });
-  const vanGulik = game({ title: "The Chinese Maze Murders", authors: ["Robert van Gulik"] });
-  const homer = game({ title: "The Odyssey", authors: ["Homer"] });
-  const sanderson = game({ title: "Elantris", authors: ["Brandon Sanderson"] });
+describe("sortGames by developer", () => {
+  const cherry = game({ title: "Hollow Knight", developers: ["Team Cherry"] });
+  const chineseRoom = game({ title: "Dear Esther", developers: ["The Chinese Room"] });
+  const valve = game({ title: "Half-Life", developers: ["Valve"] });
+  const cdpr = game({ title: "The Witcher 3: Wild Hunt", developers: ["CD Projekt Red"] });
 
-  it("orders authors surname-first: Le Guin under L, van Gulik under V", () => {
-    const sorted = sortGames([vanGulik, leGuin, sanderson, homer], "author", "asc");
+  it("orders developers as written, a leading The included", () => {
+    const sorted = sortGames([valve, chineseRoom, cherry, cdpr], "developer", "asc");
     expect(sorted.map((b) => b.title)).toEqual([
-      "The Odyssey", // Homer
-      "A Wizard of Earthsea", // Le Guin
-      "Elantris", // Sanderson
-      "The Chinese Maze Murders", // van Gulik
+      "The Witcher 3: Wild Hunt", // CD Projekt Red
+      "Hollow Knight", // Team Cherry
+      "Dear Esther", // The Chinese Room, under T
+      "Half-Life", // Valve
     ]);
   });
 
-  it("flips author order on desc but keeps shelf order within an author", () => {
-    const mistborn1 = game({
-      title: "The Final Empire",
-      authors: ["Brandon Sanderson"],
-      seriesName: "Mistborn",
+  it("flips developer order on desc but keeps shelf order within a developer", () => {
+    const portal = game({
+      title: "Portal",
+      developers: ["Valve"],
+      seriesName: "Portal",
       seriesNumber: 1,
     });
-    const mistborn2 = game({
-      title: "The Well of Ascension",
-      authors: ["Brandon Sanderson"],
-      seriesName: "Mistborn",
+    const portal2 = game({
+      title: "Portal 2",
+      developers: ["Valve"],
+      seriesName: "Portal",
       seriesNumber: 2,
     });
-    const sorted = sortGames([mistborn2, homer, mistborn1], "author", "desc");
+    const sorted = sortGames([portal2, cherry, portal], "developer", "desc");
     expect(sorted.map((b) => b.title)).toEqual([
-      "The Final Empire", // Sanderson before Homer on desc…
-      "The Well of Ascension", // …but the series stays in reading order
-      "The Odyssey",
+      "Portal", // Valve before Team Cherry on desc…
+      "Portal 2", // …but the series stays in play order
+      "Hollow Knight",
     ]);
   });
 
-  it("keeps a series together as a block, in series order, novellas slotted in", () => {
+  it("keeps a series together as a block, in series order, spin-offs slotted in", () => {
     const one = game({
-      title: "The Final Empire",
-      authors: ["Brandon Sanderson"],
-      seriesName: "Mistborn",
+      title: "Dark Souls",
+      developers: ["FromSoftware"],
+      seriesName: "Dark Souls",
       seriesNumber: 1,
     });
-    const novella = game({
-      title: "Zz Secret History", // title alone would sort it last
-      authors: ["Brandon Sanderson"],
-      seriesName: "Mistborn",
+    const spinOff = game({
+      title: "Zz Artorias of the Abyss", // title alone would sort it last
+      developers: ["FromSoftware"],
+      seriesName: "Dark Souls",
       seriesNumber: 1.5,
     });
     const two = game({
-      title: "The Well of Ascension",
-      authors: ["Brandon Sanderson"],
-      seriesName: "Mistborn",
+      title: "Dark Souls II",
+      developers: ["FromSoftware"],
+      seriesName: "Dark Souls",
       seriesNumber: 2,
     });
-    const standalone = game({ title: "Elantris", authors: ["Brandon Sanderson"] });
-    const zzStandalone = game({ title: "Warbreaker", authors: ["Brandon Sanderson"] });
+    const standalone = game({ title: "Bloodborne", developers: ["FromSoftware"] });
+    const laterStandalone = game({ title: "Sekiro: Shadows Die Twice", developers: ["FromSoftware"] });
 
-    const sorted = sortGames([two, zzStandalone, novella, standalone, one], "author", "asc");
+    const sorted = sortGames([two, laterStandalone, spinOff, standalone, one], "developer", "asc");
     expect(sorted.map((b) => b.title)).toEqual([
-      "Elantris", // E before M(istborn)
-      "The Final Empire", // Mistborn block: 1, 1.5, 2
-      "Zz Secret History",
-      "The Well of Ascension",
-      "Warbreaker", // W after M
+      "Bloodborne", // B before D(ark Souls)
+      "Dark Souls", // Dark Souls block: 1, 1.5, 2
+      "Zz Artorias of the Abyss",
+      "Dark Souls II",
+      "Sekiro: Shadows Die Twice", // S after D
     ]);
   });
 });
@@ -126,11 +121,11 @@ describe("sortGames by author", () => {
 describe("sortGames by field", () => {
   it("sorts by title", () => {
     const sorted = sortGames(
-      [game({ title: "Beta" }), game({ title: "Alpha" })],
+      [game({ title: "Portal" }), game({ title: "Celeste" })],
       "title",
       "asc",
     );
-    expect(sorted.map((b) => b.title)).toEqual(["Alpha", "Beta"]);
+    expect(sorted.map((b) => b.title)).toEqual(["Celeste", "Portal"]);
   });
 
   it("sorts by rating, unrated last", () => {
@@ -158,35 +153,48 @@ describe("groupGames", () => {
     expect(groupGames([game({ title: "A" })], "none")).toBeNull();
   });
 
-  it("groups by author in surname order, authorless games last", () => {
+  it("groups by developer as written, games without one last", () => {
     const groups = groupGames(
       [
-        game({ title: "V", authors: ["Robert van Gulik"] }),
-        game({ title: "X" }), // no author
-        game({ title: "L", authors: ["Ursula K. Le Guin"] }),
+        game({ title: "V", developers: ["Valve"] }),
+        game({ title: "X" }), // no developer
+        game({ title: "T", developers: ["Team Cherry"] }),
       ],
-      "author",
+      "developer",
     );
-    // Last, like the author sort puts them.
-    expect(groups?.map((g) => g.title)).toEqual([
-      "Ursula K. Le Guin",
-      "Robert van Gulik",
-      "Unknown author",
-    ]);
+    // Last, like the developer sort puts them.
+    expect(groups?.map((g) => g.title)).toEqual(["Team Cherry", "Valve", "Unknown developer"]);
   });
 
-  it("groups by series in reading order, non-series games trailing", () => {
+  it("groups by platform by name, games without one last", () => {
+    const groups = groupGames(
+      [
+        game({ title: "Hades", platform: "PC" }),
+        game({ title: "Celeste", platform: "Nintendo Switch" }),
+        game({ title: "Tetris" }),
+        game({ title: "Blank", platform: "  " }),
+        game({ title: "Portal 2", platform: "PC" }),
+      ],
+      "platform",
+    )!;
+    expect(groups.map((g) => g.title)).toEqual(["Nintendo Switch", "PC", "No platform"]);
+    // In the order they came, as with every grouping but series.
+    expect(groups[1].games.map((b) => b.title)).toEqual(["Hades", "Portal 2"]);
+    expect(groups[2].games.map((b) => b.title)).toEqual(["Tetris", "Blank"]);
+  });
+
+  it("groups by series in play order, non-series games trailing", () => {
     const groups = groupGames(
       [
         game({ title: "Standalone" }),
         game({ title: "Two", seriesName: "Saga", seriesNumber: 2 }),
         game({ title: "One", seriesName: "Saga", seriesNumber: 1 }),
-        game({ title: "Novella", seriesName: "Saga", seriesNumber: 1.5 }),
+        game({ title: "Spin-off", seriesName: "Saga", seriesNumber: 1.5 }),
       ],
       "series",
     );
     expect(groups?.map((g) => g.title)).toEqual(["Saga", "Not in a series"]);
-    expect(groups?.[0].games.map((b) => b.title)).toEqual(["One", "Novella", "Two"]);
+    expect(groups?.[0].games.map((b) => b.title)).toEqual(["One", "Spin-off", "Two"]);
     expect(groups?.[1].games.map((b) => b.title)).toEqual(["Standalone"]);
   });
 
@@ -207,46 +215,34 @@ describe("sorting rules", () => {
 
   it("files titles past a leading article when asked", () => {
     const games = [
-      game({ title: "The Hobbit" }),
-      game({ title: "Dune" }),
-      game({ title: "A Wizard of Earthsea" }),
+      game({ title: "The Witcher 3: Wild Hunt" }),
+      game({ title: "Celeste" }),
+      game({ title: "A Short Hike" }),
     ];
     expect(titles(sortGames(games, "title", "asc"))).toEqual([
-      "A Wizard of Earthsea",
-      "Dune",
-      "The Hobbit",
+      "A Short Hike",
+      "Celeste",
+      "The Witcher 3: Wild Hunt",
     ]);
     expect(titles(sortGames(games, "title", "asc", { ignoreArticles: true }))).toEqual([
-      "Dune",
-      "The Hobbit",
-      "A Wizard of Earthsea",
+      "Celeste",
+      "A Short Hike",
+      "The Witcher 3: Wild Hunt",
     ]);
   });
 
   it("skips the alphabet's own articles too, but never a whole title", () => {
-    expect(titleSortKey("Den siste viking", { ignoreArticles: true, alphabet: "nb" })).toBe(
-      "siste viking",
-    );
-    expect(titleSortKey("Den siste viking", { ignoreArticles: true })).toBe("Den siste viking");
-    expect(titleSortKey("It", { ignoreArticles: true })).toBe("It");
-  });
-
-  it("sorts authors as written when asked", () => {
-    expect(authorSortKey("Ursula K. Le Guin", { authorOrder: "as-written" })).toBe(
-      "ursula k. le guin",
-    );
+    expect(titleSortKey("Die Gilde", { ignoreArticles: true, alphabet: "de" })).toBe("Gilde");
+    expect(titleSortKey("Die Gilde", { ignoreArticles: true })).toBe("Die Gilde");
+    expect(titleSortKey("A", { ignoreArticles: true })).toBe("A");
   });
 
   it("puts Æ, Ø and Å after Z in the Norwegian alphabet", () => {
-    const games = [
-      game({ title: "Åsgårdsreien" }),
-      game({ title: "Zorro" }),
-      game({ title: "Ærlig talt" }),
-    ];
+    const games = [game({ title: "Åsgard" }), game({ title: "Zork" }), game({ title: "Æther" })];
     expect(titles(sortGames(games, "title", "asc", { alphabet: "nb" }))).toEqual([
-      "Zorro",
-      "Ærlig talt",
-      "Åsgårdsreien",
+      "Zork",
+      "Æther",
+      "Åsgard",
     ]);
   });
 });
@@ -260,8 +256,8 @@ describe("games without a value, and ties", () => {
       ["rating", { rating: 4 }, { rating: 8 }],
       ["dateFinished", { dateFinished: day("2024-01-01") }, { dateFinished: day("2025-01-01") }],
       ["dateStarted", { dateStarted: day("2024-01-01") }, { dateStarted: day("2025-01-01") }],
-      ["pageCount", { pageCount: 100 }, { pageCount: 900 }],
-      ["published", { publishedDate: "1999" }, { publishedDate: "2003-07" }],
+      ["length", { lengthMinutes: 600 }, { lengthMinutes: 3000 }],
+      ["released", { releaseDate: "1998" }, { releaseDate: "2017-03" }],
     ];
     for (const [sort, low, high] of cases) {
       const games = [
@@ -274,45 +270,58 @@ describe("games without a value, and ties", () => {
     }
   });
 
-  it("counts a page count of 0 as none", () => {
-    const games = [game({ title: "Zero", pageCount: 0 }), game({ title: "Some", pageCount: 10 })];
-    expect(titles(sortGames(games, "pageCount", "asc"))).toEqual(["Some", "Zero"]);
+  it("counts a time to beat of 0 as none", () => {
+    const games = [
+      game({ title: "Zero", lengthMinutes: 0 }),
+      game({ title: "Some", lengthMinutes: 10 }),
+    ];
+    expect(titles(sortGames(games, "length", "asc"))).toEqual(["Some", "Zero"]);
   });
 
-  it("breaks ties by author surname, then title, A to Z even when sorted descending", () => {
+  it("breaks ties by developer, then title, A to Z even when sorted descending", () => {
     const games = [
-      game({ title: "B", authors: ["Zadie Smith"], rating: 8 }),
-      game({ title: "Z", authors: ["Ursula K. Le Guin"], rating: 8 }),
-      game({ title: "A", authors: ["Zadie Smith"], rating: 8 }),
-      game({ title: "No author", rating: 8 }),
-      game({ title: "Top", authors: ["Zadie Smith"], rating: 10 }),
+      game({ title: "B", developers: ["Valve"], rating: 8 }),
+      game({ title: "Z", developers: ["CD Projekt Red"], rating: 8 }),
+      game({ title: "A", developers: ["Valve"], rating: 8 }),
+      game({ title: "No developer", rating: 8 }),
+      game({ title: "Top", developers: ["Valve"], rating: 10 }),
     ];
     expect(titles(sortGames(games, "rating", "desc"))).toEqual([
       "Top",
       "Z",
       "A",
       "B",
-      "No author",
+      "No developer",
     ]);
   });
 
-  it("puts games without an author last under Author, both ways", () => {
+  it("puts games without a developer last under Developer, both ways", () => {
     const games = [
       game({ title: "Nobody's" }),
-      game({ title: "Homer's", authors: ["Homer"] }),
-      game({ title: "Le Guin's", authors: ["Ursula K. Le Guin"] }),
+      game({ title: "Valve's", developers: ["Valve"] }),
+      game({ title: "Cherry's", developers: ["Team Cherry"] }),
     ];
-    expect(titles(sortGames(games, "author", "asc"))).toEqual(["Homer's", "Le Guin's", "Nobody's"]);
-    expect(titles(sortGames(games, "author", "desc"))).toEqual(["Le Guin's", "Homer's", "Nobody's"]);
+    expect(titles(sortGames(games, "developer", "asc"))).toEqual(["Cherry's", "Valve's", "Nobody's"]);
+    expect(titles(sortGames(games, "developer", "desc"))).toEqual(["Valve's", "Cherry's", "Nobody's"]);
   });
 
-  it("sorts by year published and by when a game was last changed", () => {
+  it("sorts by release date and by when a game was last changed", () => {
     const games = [
-      game({ title: "Old", publishedDate: "c. 1950", updatedAt: new Date(3000) }),
-      game({ title: "New", publishedDate: "2020-05-01", updatedAt: new Date(1000) }),
+      game({ title: "Old", releaseDate: "Q4 1998", updatedAt: new Date(3000) }),
+      game({ title: "New", releaseDate: "2020-05-01", updatedAt: new Date(1000) }),
     ];
-    expect(titles(sortGames(games, "published", "desc"))).toEqual(["New", "Old"]);
+    expect(titles(sortGames(games, "released", "desc"))).toEqual(["New", "Old"]);
     expect(titles(sortGames(games, "updatedAt", "desc"))).toEqual(["Old", "New"]);
+  });
+
+  it("sorts releases within a year by month and day, a bare year first", () => {
+    const games = [
+      game({ title: "Day", releaseDate: "2017-03-03" }),
+      game({ title: "Year", releaseDate: "2017" }),
+      game({ title: "Month", releaseDate: "2017-02" }),
+      game({ title: "Earlier", releaseDate: "2016-12-31" }),
+    ];
+    expect(titles(sortGames(games, "released", "asc"))).toEqual(["Earlier", "Year", "Month", "Day"]);
   });
 
   it("falls back to date added for a sort name from Object's prototype", () => {
@@ -322,37 +331,48 @@ describe("games without a value, and ties", () => {
   });
 });
 
-describe("publishedYear", () => {
+describe("release dates", () => {
   it("reads the first four-digit year", () => {
-    expect(publishedYear("2003-07")).toBe(2003);
-    expect(publishedYear("c. 1999")).toBe(1999);
-    expect(publishedYear("May 12, 1987")).toBe(1987);
-    expect(publishedYear("")).toBeNull();
-    expect(publishedYear(null)).toBeNull();
-    expect(publishedYear("n.d.")).toBeNull();
+    expect(releaseYear("2017-03")).toBe(2017);
+    expect(releaseYear("Q4 1998")).toBe(1998);
+    expect(releaseYear("Nov 14, 2023")).toBe(2023);
+    expect(releaseYear("")).toBeNull();
+    expect(releaseYear(null)).toBeNull();
+    expect(releaseYear("TBA")).toBeNull();
+  });
+
+  it("turns a date into a number that sorts, to the day where it's known", () => {
+    expect(releaseSortKey("2017-03-03")).toBe(20170303);
+    expect(releaseSortKey("2017-3")).toBe(20170300);
+    expect(releaseSortKey("2017")).toBe(20170000);
+    expect(releaseSortKey("Nov 14, 2023")).toBe(20230000);
+    // A span of years is its first year, not a month called 20.
+    expect(releaseSortKey("1998-2001")).toBe(19980000);
+    expect(releaseSortKey("TBA")).toBeNull();
+    expect(releaseSortKey(null)).toBeNull();
   });
 });
 
 describe("the newer groupings", () => {
   const titles = (g: { games: GroupableGame[] }) => g.games.map((b) => b.title);
-  const read = (title: string, dateFinished?: string) =>
+  const completed = (title: string, dateFinished?: string) =>
     game({
       title,
       status: PlayStatus.COMPLETED,
       dateFinished: dateFinished ? new Date(dateFinished) : null,
     });
 
-  it("files finishes by year in the reader's zone, newest first", () => {
+  it("files finishes by year in the player's zone, newest first", () => {
     const games = [
       // 23:30 UTC on New Year's Eve is already 2026 in Oslo.
-      read("Late", "2025-12-31T23:30:00Z"),
+      completed("Late", "2025-12-31T23:30:00Z"),
       // Typed into a date field: that day everywhere, New York included.
-      read("Typed", "2026-01-01T00:00:00Z"),
-      read("Older", "2024-06-01T10:00:00Z"),
-      read("Undated"),
-      // Not Read, so a leftover date doesn't count.
+      completed("Typed", "2026-01-01T00:00:00Z"),
+      completed("Older", "2024-06-01T10:00:00Z"),
+      completed("Undated"),
+      // Not Completed, so a leftover date doesn't count.
       game({
-        title: "Reading",
+        title: "Playing",
         status: PlayStatus.PLAYING,
         dateFinished: new Date("2024-06-01T10:00:00Z"),
       }),
@@ -376,7 +396,7 @@ describe("the newer groupings", () => {
     expect(titles(ny[0])).toEqual(["Typed"]);
   });
 
-  it("files statuses in reading order and drops empty ones", () => {
+  it("files statuses in playing order and drops empty ones", () => {
     const groups = groupGames(
       [
         game({ title: "Done", status: PlayStatus.COMPLETED }),
@@ -385,20 +405,20 @@ describe("the newer groupings", () => {
       ],
       "status",
     )!;
-    expect(groups.map((g) => g.title)).toEqual(["Currently Reading", "Want to Read", "Read"]);
+    expect(groups.map((g) => g.title)).toEqual(["Playing", "Want to Play", "Completed"]);
   });
 
   it("files formats and ownership in a fixed order with their labels", () => {
     const games = [
-      game({ title: "A", format: GameFormat.AUDIOBOOK, ownership: GameOwnership.GIVEN_AWAY }),
-      game({ title: "E", format: GameFormat.EBOOK, ownership: GameOwnership.WISHLIST }),
+      game({ title: "S", format: GameFormat.SUBSCRIPTION, ownership: GameOwnership.GIVEN_AWAY }),
+      game({ title: "D", format: GameFormat.DIGITAL, ownership: GameOwnership.WISHLIST }),
       game({ title: "P", format: GameFormat.PHYSICAL, ownership: GameOwnership.BORROWED }),
       game({ title: "O", format: GameFormat.PHYSICAL, ownership: GameOwnership.OWNED }),
     ];
     expect(groupGames(games, "format")!.map((g) => g.title)).toEqual([
       "Physical",
-      "Ebook",
-      "Audiobook",
+      "Digital",
+      "Subscription",
     ]);
     expect(groupGames(games, "ownership")!.map((g) => g.title)).toEqual([
       "Owned",
@@ -408,29 +428,29 @@ describe("the newer groupings", () => {
     ]);
   });
 
-  it("puts a game under each of its tags, in the reader's alphabet, untagged last", () => {
+  it("puts a game under each of its tags, in the player's alphabet, untagged last", () => {
     const games = [
-      game({ title: "Both", tags: ["ærlig", "zebra"] }),
+      game({ title: "Both", tags: ["åpen verden", "zombies"] }),
       game({ title: "None" }),
-      game({ title: "One", tags: ["zebra"] }),
+      game({ title: "One", tags: ["zombies"] }),
     ];
     const groups = groupGames(games, "tag", { alphabet: "nb" })!;
-    expect(groups.map((g) => g.title)).toEqual(["zebra", "ærlig", "No tags"]);
+    expect(groups.map((g) => g.title)).toEqual(["zombies", "åpen verden", "No tags"]);
     expect(titles(groups[0])).toEqual(["Both", "One"]);
     expect(titles(groups[1])).toEqual(["Both"]);
   });
 
-  it("files shelves in the reader's shelf order, then by name, unshelved last", () => {
+  it("files shelves in the player's shelf order, then by name, unshelved last", () => {
     const fav = { id: "s-fav", name: "Favourites" };
-    const beach = { id: "s-beach", name: "Beach reads" };
-    const club = { id: "s-club", name: "Couch co-op" };
+    const cosy = { id: "s-cosy", name: "Cosy games" };
+    const coop = { id: "s-coop", name: "Couch co-op" };
     const games = [
       game({ title: "Loose", shelves: [] }),
-      game({ title: "Loved", shelves: [fav, beach] }),
-      game({ title: "Club", shelves: [club] }),
+      game({ title: "Loved", shelves: [fav, cosy] }),
+      game({ title: "Party", shelves: [coop] }),
     ];
     expect(groupGames(games, "shelf")!.map((g) => g.title)).toEqual([
-      "Beach reads",
+      "Cosy games",
       "Couch co-op",
       "Favourites",
       "Not on a shelf",
@@ -438,7 +458,7 @@ describe("the newer groupings", () => {
     const ordered = groupGames(games, "shelf", { shelfOrder: ["s-fav", "deleted-shelf"] })!;
     expect(ordered.map((g) => g.title)).toEqual([
       "Favourites",
-      "Beach reads",
+      "Cosy games",
       "Couch co-op",
       "Not on a shelf",
     ]);
@@ -449,7 +469,7 @@ describe("the newer groupings", () => {
     expect(groups.map((g) => g.title)).toEqual(["Not on a shelf"]);
   });
 
-  it("files ratings highest first in the reader's style, unrated last", () => {
+  it("files ratings highest first in the player's style, unrated last", () => {
     const games = [
       game({ title: "Half", rating: 1 }),
       game({ title: "Top", rating: 10 }),
@@ -474,11 +494,19 @@ describe("the newer groupings", () => {
 
   it("gives every section a unique, stable key", () => {
     const games = [
-      game({ title: "A", authors: ["Ann"], seriesName: "S", tags: ["x"], rating: 8 }),
-      read("B", "2024-02-02T10:00:00Z"),
+      game({
+        title: "A",
+        developers: ["Valve"],
+        platform: "PC",
+        seriesName: "S",
+        tags: ["x"],
+        rating: 8,
+      }),
+      completed("B", "2024-02-02T10:00:00Z"),
     ];
     const groupings = [
-      "author",
+      "developer",
+      "platform",
       "series",
       "yearFinished",
       "status",
@@ -498,13 +526,13 @@ describe("the newer groupings", () => {
   it("treats series names that differ only in case and spaces as one series", () => {
     const groups = groupGames(
       [
-        game({ title: "Two", seriesName: "dune ", seriesNumber: 2 }),
-        game({ title: "One", seriesName: "Dune", seriesNumber: 1 }),
+        game({ title: "Two", seriesName: "halo ", seriesNumber: 2 }),
+        game({ title: "One", seriesName: "Halo", seriesNumber: 1 }),
       ],
       "series",
     )!;
     expect(groups).toHaveLength(1);
-    expect(groups[0].title).toBe("dune");
+    expect(groups[0].title).toBe("halo");
     expect(titles(groups[0])).toEqual(["One", "Two"]);
   });
 });
@@ -555,7 +583,7 @@ describe("series progress", () => {
     timesCompleted,
   });
 
-  it("counts what's read and names what's next", () => {
+  it("counts what's completed and names what's next", () => {
     const p = seriesProgress([
       member(1, COMPLETED),
       member(2, COMPLETED),
@@ -563,29 +591,29 @@ describe("series progress", () => {
       member(4, WANT_TO_PLAY),
       member(5, WANT_TO_PLAY),
     ]);
-    expect(p).toMatchObject({ total: 5, read: 3, reading: null, next: 4, missing: [] });
-    expect(seriesHeading(p, 5)).toEqual({ detail: "5 games · 3 read · next #4" });
+    expect(p).toMatchObject({ total: 5, completed: 3, playing: null, next: 4, missing: [] });
+    expect(seriesHeading(p, 5)).toEqual({ detail: "5 games · 3 completed · next #4" });
   });
 
-  it("says which game is being read instead of what's next", () => {
+  it("says which game is being played instead of what's next", () => {
     const p = seriesProgress([member(1, COMPLETED), member(2, PLAYING), member(3, WANT_TO_PLAY)]);
-    expect(p.reading).toBe(2);
-    expect(seriesHeading(p, 3).detail).toBe("3 games · 1 read · reading #2");
+    expect(p.playing).toBe(2);
+    expect(seriesHeading(p, 3).detail).toBe("3 games · 1 completed · playing #2");
   });
 
-  it("skips games put down, as Pick for me does", () => {
+  it("skips dropped games, as Pick for me does", () => {
     const p = seriesProgress([member(1, COMPLETED), member(2, DROPPED), member(3, WANT_TO_PLAY)]);
     expect(p.next).toBe(3);
-    expect(p.read).toBe(1);
+    expect(p.completed).toBe(1);
   });
 
-  it("counts a game read before and being re-read as read", () => {
+  it("counts a game completed before and being replayed as completed", () => {
     const p = seriesProgress([member(1, PLAYING, 1), member(2, COMPLETED)]);
-    expect(p.read).toBe(2);
-    expect(seriesHeading(p, 2).detail).toBe("2 games · all read");
+    expect(p.completed).toBe(2);
+    expect(seriesHeading(p, 2).detail).toBe("2 games · all completed");
   });
 
-  it("lists whole numbers with no game; novellas and prequels fill no gap", () => {
+  it("lists whole numbers with no game; spin-offs and prequels fill no gap", () => {
     const p = seriesProgress([
       member(0, COMPLETED),
       member(1.5, COMPLETED),
@@ -604,17 +632,17 @@ describe("series progress", () => {
 
   it("has no next or gaps for a series without numbers", () => {
     const p = seriesProgress([member(null, COMPLETED), member(null, WANT_TO_PLAY)]);
-    expect(p).toMatchObject({ next: null, reading: null, missing: [] });
-    expect(seriesHeading(p, 2)).toEqual({ detail: "2 games · 1 read" });
+    expect(p).toMatchObject({ next: null, playing: null, missing: [] });
+    expect(seriesHeading(p, 2)).toEqual({ detail: "2 games · 1 completed" });
   });
 
   it("says when the filters on screen show only part of a series", () => {
     const p = seriesProgress([member(1, COMPLETED), member(2, COMPLETED), member(3, WANT_TO_PLAY)]);
-    expect(seriesHeading(p, 1).detail).toBe("1 of 3 games · 2 read · next #3");
+    expect(seriesHeading(p, 1).detail).toBe("1 of 3 games · 2 completed · next #3");
   });
 
   it("prints numbers as stored", () => {
     const p = seriesProgress([member(1, COMPLETED), member(1.5, WANT_TO_PLAY)]);
-    expect(seriesHeading(p, 2).detail).toBe("2 games · 1 read · next #1.5");
+    expect(seriesHeading(p, 2).detail).toBe("2 games · 1 completed · next #1.5");
   });
 });

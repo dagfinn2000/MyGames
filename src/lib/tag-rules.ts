@@ -7,13 +7,13 @@ import {
 } from "@/lib/preferences";
 
 /**
- * What happens to a catalogue's subjects on the way into the tags field:
- * the reader's renames and "never import" list (Manage tags can add to
- * both), then the import mode from Preferences. Pure, so the add form, the
- * shelf scan and the edit page's lookup all apply the same rules.
+ * What happens to a catalogue's genres and themes on the way into the tags
+ * field: the player's renames and "never import" list (Manage tags can add
+ * to both), then the import mode from Preferences. Pure, so the add form
+ * and the edit page's lookup apply the same rules.
  *
- * Only catalogue subjects go through here. Tags typed into the form are the
- * reader's own and are never rewritten.
+ * Only catalogue genres go through here. Tags typed into the form are the
+ * player's own and are never rewritten.
  */
 
 export type TagRules = { renames: TagRename[]; skips: string[] };
@@ -29,14 +29,14 @@ export type TagImportSettings = {
 const MAX_RENAME_HOPS = 10;
 
 /**
- * Catalogue subjects as tags: each subject split on commas (the form would
- * split "Fiction, General" into two tags anyway), trimmed, lower case,
+ * Catalogue genres as tags: each genre split on commas (the form would
+ * split "Action, Adventure" into two tags anyway), trimmed, lower case,
  * deduped. Anything longer than a tag may be is dropped.
  */
-export function splitCatalogueSubjects(raw: readonly string[]): string[] {
+export function splitCatalogueGenres(raw: readonly string[]): string[] {
   const out: string[] = [];
-  for (const subject of raw) {
-    for (const part of subject.split(",")) {
+  for (const genre of raw) {
+    for (const part of genre.split(",")) {
       const tag = part.trim().toLowerCase();
       if (tag && tag.length <= TAG_RULE_MAX && !out.includes(tag)) out.push(tag);
     }
@@ -65,10 +65,10 @@ export function applyTagRules(tags: readonly string[], rules: TagRules): string[
   return out;
 }
 
-/** The tags a catalogue's subjects become under the reader's settings. */
+/** The tags a catalogue's genres become under the player's settings. */
 export function catalogueTags(raw: readonly string[], settings: TagImportSettings): string[] {
   if (settings.mode === "off") return [];
-  const tags = applyTagRules(splitCatalogueSubjects(raw), settings.rules);
+  const tags = applyTagRules(splitCatalogueGenres(raw), settings.rules);
   if (settings.mode === "all") return tags;
   const known = new Set(settings.knownTags.map((t) => t.toLowerCase()));
   return tags.filter((t) => known.has(t));
@@ -79,7 +79,7 @@ export function catalogueTags(raw: readonly string[], settings: TagImportSetting
  * rule for `from`, points rules that led to `from` at `to` instead (so
  * renaming A to B, then B to C, leaves A to C), drops a rule from `to` back
  * to `from` (it would loop), and takes both names off the skip list: the
- * reader just asked for `to`. Unchanged when either name can't be a tag.
+ * player just asked for `to`. Unchanged when either name can't be a tag.
  */
 export function withRenameRule(rules: TagRules, rawFrom: string, rawTo: string): TagRules {
   const from = normalizeRuleTag(rawFrom);

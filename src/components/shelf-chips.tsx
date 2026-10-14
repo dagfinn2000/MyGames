@@ -35,7 +35,7 @@ export interface ShelfInfo {
  * (rename, merge, reorder, hide, delete), and a delete button on the
  * active shelf (confirm dialog — deleting a shelf never touches its games).
  *
- * Chips follow the reader's own order (shelfOrder; shelves not in it
+ * Chips follow the player's own order (shelfOrder; shelves not in it
  * follow by name) and leave out hidden shelves, except the one on screen.
  *
  * Like every other library control, the selection lives in the URL
@@ -46,7 +46,7 @@ export function ShelfChips({
   activeShelfId,
   searchParams,
 }: {
-  /** By name; the reader's order is applied here. */
+  /** By name; the player's order is applied here. */
   shelves: ShelfInfo[];
   activeShelfId: string;
   searchParams: Record<string, string>;
@@ -162,8 +162,8 @@ export function ShelfChips({
           <DialogHeader>
             <DialogTitle>New shelf</DialogTitle>
             <DialogDescription>
-              A freeform group like “Sanderson” or “Fantasy”. Assign games from
-              their detail pages.
+              A freeform group like “Couch co-op” or “Soulslikes”. Assign games
+              from their detail pages.
             </DialogDescription>
           </DialogHeader>
           <form

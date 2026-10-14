@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { GameFormat, type Prisma, PrismaClient, PlayStatus } from "@prisma/client";
-import { dailyPageTotals } from "@/lib/progress";
+import { type Prisma, PrismaClient, PlayStatus } from "@prisma/client";
+import { dailyMinuteTotals } from "@/lib/progress";
 import type { MoveResult, UndoMove } from "@/lib/play-log";
 
 /**
@@ -9,7 +9,7 @@ import type { MoveResult, UndoMove } from "@/lib/play-log";
  *
  * Stats credit each increase between consecutive entries to the later
  * entry's day, so these pin down the exact moments entries get and what
- * the game's page does, as well as what is refused.
+ * the game's time played does, as well as what is refused.
  */
 
 const prisma = new PrismaClient();
@@ -21,7 +21,7 @@ vi.mock("@/auth", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
-const { logPage, updateProgressEntry, deleteProgressEntry, moveFromPlaying, undoMoveFromPlaying } =
+const { logTime, updateProgressEntry, deleteProgressEntry, moveFromPlaying, undoMoveFromPlaying } =
   await import("@/lib/actions/progress");
 
 const OSLO = "Europe/Oslo";
@@ -61,13 +61,16 @@ async function setPrefs(preferences: Prisma.InputJsonObject) {
   await prisma.user.update({ where: { id: userId }, data: { preferences } });
 }
 
+/** Hollow Knight, usually about 30 hours, being played since 5 October. */
 async function makeGame(over: Record<string, unknown> = {}, owner = userId) {
   return prisma.game.create({
     data: {
       userId: owner,
-      title: "Jane Eyre",
-      searchText: "jane eyre",
-      pageCount: 300,
+      title: "Hollow Knight",
+      developers: ["Team Cherry"],
+      platform: "Nintendo Switch",
+      searchText: "hollow knight team cherry nintendo switch",
+      lengthMinutes: 1800,
       status: PlayStatus.PLAYING,
       dateStarted: at("2026-10-05T00:00:00.000Z"),
       ...over,
@@ -77,168 +80,172 @@ async function makeGame(over: Record<string, unknown> = {}, owner = userId) {
 
 async function addEntries(gameId: string, entries: [number, string][]) {
   await prisma.progressEntry.createMany({
-    data: entries.map(([page, iso]) => ({ gameId, page, date: at(iso) })),
+    data: entries.map(([minutes, iso]) => ({ gameId, minutes, date: at(iso) })),
   });
 }
 
 async function log(gameId: string) {
   const rows = await prisma.progressEntry.findMany({
     where: { gameId },
-    orderBy: [{ date: "asc" }, { page: "asc" }],
+    orderBy: [{ date: "asc" }, { minutes: "asc" }],
   });
-  return rows.map((r) => [r.page, r.date.toISOString()] as const);
+  return rows.map((r) => [r.minutes, r.date.toISOString()] as const);
 }
 
 async function gameRow(gameId: string) {
   return prisma.game.findUniqueOrThrow({ where: { id: gameId } });
 }
 
-describe("logPage", () => {
-  it("anchors a fresh read at its start date and logs today now", async () => {
+describe("logTime", () => {
+  it("anchors a fresh playthrough at its start date and logs today now", async () => {
     const game = await makeGame();
-    expect(await logPage(game.id, { page: 40, day: "today" })).toEqual({
+    expect(await logTime(game.id, { minutes: 90, day: "today" })).toEqual({
       ok: true,
-      message: "Logged page 40 for today.",
-      page: 40,
-      lastPage: false,
+      message: "Logged 1 h 30 min for today.",
+      minutes: 90,
     });
     expect(await log(game.id)).toEqual([
       [0, "2026-10-05T00:00:00.000Z"],
-      [40, NOW.toISOString()],
+      [90, NOW.toISOString()],
     ]);
-    expect((await gameRow(game.id)).currentPage).toBe(40);
+    expect((await gameRow(game.id)).playedMinutes).toBe(90);
   });
 
-  it("puts yesterday at the end of yesterday in the reader's zone, and credits that day", async () => {
+  it("says how much was played as well as the total", async () => {
+    const game = await makeGame({ playedMinutes: 600 });
+    await addEntries(game.id, [[0, "2026-10-05T00:00:00.000Z"], [600, "2026-10-10T18:00:00.000Z"]]);
+    expect(await logTime(game.id, { minutes: 750, day: "today" })).toMatchObject({
+      message: "Logged 2 h 30 min for today, 12 h 30 min in all.",
+    });
+  });
+
+  it("puts yesterday at the end of yesterday in the player's zone, and credits that day", async () => {
     const game = await makeGame();
     await addEntries(game.id, [[0, "2026-10-05T00:00:00.000Z"], [100, "2026-10-08T18:00:00.000Z"]]);
-    const result = await logPage(game.id, { page: 150, day: "yesterday" });
-    expect(result).toMatchObject({ ok: true, message: "Logged page 150 for yesterday." });
+    const result = await logTime(game.id, { minutes: 150, day: "yesterday" });
+    expect(result).toMatchObject({ ok: true, message: "Logged 50 min for yesterday, 2 h 30 min in all." });
     const rows = await log(game.id);
     expect(rows.at(-1)).toEqual([150, "2026-10-11T21:59:59.999Z"]);
-    const totals = dailyPageTotals(
-      rows.map(([page, date]) => ({ gameId: game.id, page, date: new Date(date) })),
+    const totals = dailyMinuteTotals(
+      rows.map(([minutes, date]) => ({ gameId: game.id, minutes, date: new Date(date) })),
       OSLO,
     );
     expect(totals.get("2026-10-11")).toBe(50);
-    expect((await gameRow(game.id)).currentPage).toBe(150);
+    expect((await gameRow(game.id)).playedMinutes).toBe(150);
   });
 
-  it("slots an earlier day between two entries and leaves the page alone", async () => {
-    const game = await makeGame({ currentPage: 210 });
+  it("slots an earlier day between two entries and leaves the time played alone", async () => {
+    const game = await makeGame({ playedMinutes: 210 });
     await addEntries(game.id, [
       [0, "2026-10-05T00:00:00.000Z"],
       [120, "2026-10-08T18:00:00.000Z"],
       [210, "2026-10-12T07:00:00.000Z"],
     ]);
-    expect(await logPage(game.id, { page: 160, day: "2026-10-10" })).toMatchObject({
+    expect(await logTime(game.id, { minutes: 160, day: "2026-10-10" })).toEqual({
       ok: true,
-      message: "Logged page 160 for 10 Oct 2026.",
-      lastPage: false,
+      message: "Logged 40 min for 10 Oct 2026, 2 h 40 min in all.",
+      minutes: 160,
     });
     expect(await log(game.id)).toContainEqual([160, "2026-10-10T21:59:59.999Z"]);
-    expect((await gameRow(game.id)).currentPage).toBe(210);
+    expect((await gameRow(game.id)).playedMinutes).toBe(210);
   });
 
-  it("refuses an earlier day past a later entry, and writes nothing", async () => {
-    const game = await makeGame({ currentPage: 188 });
+  it("refuses an earlier day with more time than a later entry, and writes nothing", async () => {
+    const game = await makeGame({ playedMinutes: 188 });
     await addEntries(game.id, [[0, "2026-10-05T00:00:00.000Z"], [188, "2026-10-12T07:00:00.000Z"]]);
-    expect(await logPage(game.id, { page: 200, day: "yesterday" })).toEqual({
+    expect(await logTime(game.id, { minutes: 200, day: "yesterday" })).toEqual({
       error:
-        "Page 200 for yesterday is past page 188, which you logged today. Log it for a later day, or fix that entry.",
+        "3 h 20 min for yesterday is more than the 3 h 8 min you logged today. Log it for a later day, or fix that entry.",
     });
     expect(await log(game.id)).toHaveLength(2);
   });
 
-  it("refuses today below the newest entry", async () => {
-    const game = await makeGame({ currentPage: 400, pageCount: 500 });
+  it("refuses today with less time than the newest entry", async () => {
+    const game = await makeGame({ playedMinutes: 400 });
     await addEntries(game.id, [[0, "2026-10-05T00:00:00.000Z"], [400, "2026-10-11T18:00:00.000Z"]]);
-    expect(await logPage(game.id, { page: 380, day: "today" })).toEqual({
+    expect(await logTime(game.id, { minutes: 380, day: "today" })).toEqual({
       error:
-        "Page 380 for today is before page 400, which you logged yesterday. If that entry is wrong, fix it with its pencil.",
+        "6 h 20 min for today is less than the 6 h 40 min you logged yesterday. If that entry is wrong, fix it with its pencil.",
     });
   });
 
-  it("refuses a future day, a day before the start, a page past the end and page 0", async () => {
+  it("refuses a future day, a day before the start, and no time at all", async () => {
     const game = await makeGame();
-    expect(await logPage(game.id, { page: 10, day: "2026-10-13" })).toEqual({
+    expect(await logTime(game.id, { minutes: 10, day: "2026-10-13" })).toEqual({
       error: "That day hasn't happened yet.",
     });
-    expect(await logPage(game.id, { page: 10, day: "2026-10-04" })).toEqual({
+    expect(await logTime(game.id, { minutes: 10, day: "2026-10-04" })).toEqual({
       error: "You started this game on 5 Oct 2026. Pick that day or later.",
     });
-    expect(await logPage(game.id, { page: 301, day: "today" })).toEqual({
-      error: "Page 301 is past the end of the game (300 pages).",
+    expect(await logTime(game.id, { minutes: 0, day: "today" })).toEqual({ error: "Log at least a minute" });
+    expect(await logTime(game.id, { minutes: 600_001, day: "today" })).toEqual({
+      error: "That's more than 10,000 hours",
     });
-    expect(await logPage(game.id, { page: 0, day: "today" })).toEqual({ error: "Log at least page 1" });
-    expect(await logPage(game.id, { page: 10, day: "2026-02-30" })).toMatchObject({ error: expect.any(String) });
+    expect(await logTime(game.id, { minutes: 10, day: "2026-02-30" })).toMatchObject({ error: expect.any(String) });
     expect(await log(game.id)).toEqual([]);
   });
 
-  it("refuses a game that isn't being read, and another account's game", async () => {
+  it("takes a time past the usual time to beat, without asking anything", async () => {
+    const game = await makeGame({ playedMinutes: 1750 });
+    await addEntries(game.id, [[0, "2026-10-05T00:00:00.000Z"], [1750, "2026-10-11T18:00:00.000Z"]]);
+    expect(await logTime(game.id, { minutes: 2710, day: "today" })).toEqual({
+      ok: true,
+      message: "Logged 16 h for today, 45 h 10 min in all.",
+      minutes: 2710,
+    });
+    expect(await gameRow(game.id)).toMatchObject({ status: PlayStatus.PLAYING, playedMinutes: 2710 });
+  });
+
+  it("refuses a game that isn't being played, and another account's game", async () => {
     const shelved = await makeGame({ status: PlayStatus.WANT_TO_PLAY });
-    expect(await logPage(shelved.id, { page: 10, day: "today" })).toEqual({
-      error: "Only games you're reading can log pages. Set this one to Currently Reading first.",
+    expect(await logTime(shelved.id, { minutes: 10, day: "today" })).toEqual({
+      error: "Only games you're playing can log time. Set this one to Playing first.",
     });
     const theirs = await makeGame({}, otherUserId);
-    expect(await logPage(theirs.id, { page: 10, day: "today" })).toEqual({ error: "Game not found" });
-    expect(await logPage(42 as unknown as string, { page: 10, day: "today" })).toEqual({
+    expect(await logTime(theirs.id, { minutes: 10, day: "today" })).toEqual({ error: "Game not found" });
+    expect(await logTime(42 as unknown as string, { minutes: 10, day: "today" })).toEqual({
       error: "Game not found",
     });
     expect(await log(theirs.id)).toEqual([]);
   });
 
-  it("flags the last page, and logs nothing for the page it's already at", async () => {
+  it("logs nothing for the time it's already at", async () => {
     const game = await makeGame();
-    expect(await logPage(game.id, { page: 300, day: "today" })).toMatchObject({ ok: true, lastPage: true });
-    expect(await logPage(game.id, { page: 300, day: "today" })).toEqual({
+    expect(await logTime(game.id, { minutes: 300, day: "today" })).toMatchObject({ ok: true });
+    expect(await logTime(game.id, { minutes: 300, day: "today" })).toEqual({
       ok: true,
-      message: "Already at page 300.",
-      page: 300,
-      lastPage: true,
+      message: "Already at 5 h.",
+      minutes: 300,
     });
     expect(await log(game.id)).toHaveLength(2);
   });
 
-  it("compares with the log, not a game page the log never reached", async () => {
-    const game = await makeGame({ currentPage: 212 });
+  it("compares with the log, not a time played the log never reached", async () => {
+    const game = await makeGame({ playedMinutes: 212 });
     await addEntries(game.id, [[0, "2026-10-05T00:00:00.000Z"], [200, "2026-10-10T18:00:00.000Z"]]);
-    expect(await logPage(game.id, { page: 212, day: "today" })).toMatchObject({
-      message: "Logged page 212 for today.",
+    expect(await logTime(game.id, { minutes: 212, day: "today" })).toMatchObject({
+      message: "Logged 12 min for today, 3 h 32 min in all.",
     });
     expect((await log(game.id)).at(-1)).toEqual([212, NOW.toISOString()]);
   });
 
-  it("speaks the game's unit", async () => {
-    await setPrefs({ timeZone: OSLO, ebookUnit: "percent" });
-    const game = await makeGame({ format: GameFormat.EBOOK, pageCount: 400 });
-    expect(await logPage(game.id, { page: 180, day: "today" })).toMatchObject({
-      message: "Logged 45% for today.",
+  it("starts counting again after Play it again", async () => {
+    // The first playthrough ended at 30 h; playAgain wrote a 0-minute anchor.
+    const game = await makeGame({ dateStarted: at("2026-10-10T09:00:00.000Z") });
+    await addEntries(game.id, [
+      [0, "2026-09-01T10:00:00.000Z"],
+      [1800, "2026-09-30T20:00:00.000Z"],
+      [0, "2026-10-10T09:00:00.000Z"],
+    ]);
+    expect(await logTime(game.id, { minutes: 45, day: "yesterday" })).toMatchObject({
+      message: "Logged 45 min for yesterday.",
     });
-  });
-
-  it("says a percent or time back as typed", async () => {
-    await setPrefs({ timeZone: OSLO, audiobookUnit: "time" });
-    const game = await makeGame({ format: GameFormat.AUDIOBOOK, pageCount: 400, lengthMinutes: 700 });
-    // 5:11 saves as page 178, which on its own reads as 5:12.
-    expect(await logPage(game.id, { page: 178, day: "today", value: 311 })).toMatchObject({
-      message: "Logged 5:11 for today.",
-    });
-  });
-
-  it("never says 42% is before 42%", async () => {
-    await setPrefs({ timeZone: OSLO, ebookUnit: "percent" });
-    const game = await makeGame({ format: GameFormat.EBOOK, pageCount: 412, currentPage: 175 });
-    await addEntries(game.id, [[0, "2026-10-05T00:00:00.000Z"], [175, "2026-10-11T18:00:00.000Z"]]);
-    // 42% typed is page 173; yesterday's page 175 also reads 42%.
-    expect(await logPage(game.id, { page: 173, day: "today", value: 42 })).toEqual({
-      error:
-        "42% (page 173) for today is before 42% (page 175), which you logged yesterday. If that entry is wrong, fix it with its pencil.",
-    });
-    // Logging the box as it stands sends the game's own page.
-    expect(await logPage(game.id, { page: 175, day: "today", value: 42 })).toMatchObject({
-      message: "Already at 42%.",
-    });
+    const rows = await log(game.id);
+    const totals = dailyMinuteTotals(
+      rows.map(([minutes, date]) => ({ gameId: game.id, minutes, date: new Date(date) })),
+      OSLO,
+    );
+    expect(totals.get("2026-10-11")).toBe(45);
   });
 
   describe("east of UTC on the start day", () => {
@@ -251,40 +258,40 @@ describe("logPage", () => {
       await setPrefs({ timeZone: "Asia/Tokyo" });
     });
 
-    it("anchors a fresh read no later than its first entry", async () => {
+    it("anchors a fresh playthrough no later than its first entry", async () => {
       const game = await makeGame({ dateStarted: started });
-      expect(await logPage(game.id, { page: 30, day: "today" })).toMatchObject({ ok: true });
+      expect(await logTime(game.id, { minutes: 30, day: "today" })).toMatchObject({ ok: true });
       const rows = await log(game.id);
       expect(rows).toEqual([
         [0, morning.toISOString()],
         [30, morning.toISOString()],
       ]);
-      const totals = dailyPageTotals(
-        rows.map(([page, date]) => ({ gameId: game.id, page, date: new Date(date) })),
+      const totals = dailyMinuteTotals(
+        rows.map(([minutes, date]) => ({ gameId: game.id, minutes, date: new Date(date) })),
         "Asia/Tokyo",
       );
       expect(totals.get("2026-10-12")).toBe(30);
     });
 
-    it("counts on from a game added mid-read earlier that morning", async () => {
+    it("counts on from a game added part-way through earlier that morning", async () => {
       // createGame's lone entry, from 07:30 in Tokyo, with no anchor.
-      const game = await makeGame({ dateStarted: started, currentPage: 50 });
+      const game = await makeGame({ dateStarted: started, playedMinutes: 50 });
       await addEntries(game.id, [[50, "2026-10-11T22:30:00.000Z"]]);
-      expect(await logPage(game.id, { page: 70, day: "today" })).toMatchObject({
+      expect(await logTime(game.id, { minutes: 70, day: "today" })).toMatchObject({
         ok: true,
-        message: "Logged page 70 for today.",
+        message: "Logged 20 min for today, 1 h 10 min in all.",
       });
       expect(await log(game.id)).toEqual([
         [50, "2026-10-11T22:30:00.000Z"],
         [70, morning.toISOString()],
       ]);
-      expect((await gameRow(game.id)).currentPage).toBe(70);
+      expect((await gameRow(game.id)).playedMinutes).toBe(70);
     });
 
     it("moves an existing start-date anchor back to the entry", async () => {
       const game = await makeGame({ dateStarted: started });
       await addEntries(game.id, [[0, started.toISOString()]]);
-      expect(await logPage(game.id, { page: 30, day: "today" })).toMatchObject({ ok: true });
+      expect(await logTime(game.id, { minutes: 30, day: "today" })).toMatchObject({ ok: true });
       expect(await log(game.id)).toEqual([
         [0, morning.toISOString()],
         [30, morning.toISOString()],
@@ -295,118 +302,114 @@ describe("logPage", () => {
 
 describe("updateProgressEntry", () => {
   async function seeded(over: Record<string, unknown> = {}) {
-    const game = await makeGame({ currentPage: 210, ...over });
+    const game = await makeGame({ playedMinutes: 210, ...over });
     await addEntries(game.id, [
       [0, "2026-10-05T00:00:00.000Z"],
       [120, "2026-10-08T18:00:00.000Z"],
-      [161, "2026-10-10T18:00:00.000Z"],
+      [165, "2026-10-10T18:00:00.000Z"],
       [210, "2026-10-12T07:00:00.000Z"],
     ]);
     const rows = await prisma.progressEntry.findMany({ where: { gameId: game.id }, orderBy: { date: "asc" } });
     return { game, rows };
   }
 
-  it("fixes a page within its neighbours, keeping its moment", async () => {
+  it("fixes a time within its neighbours, keeping its moment", async () => {
     const { game, rows } = await seeded();
-    expect(await updateProgressEntry(rows[2].id, { page: 190, day: "2026-10-10" })).toEqual({
-      message: "Fixed: page 190 for 10 Oct 2026.",
+    expect(await updateProgressEntry(rows[2].id, { minutes: 190, day: "2026-10-10" })).toEqual({
+      message: "Fixed: 3 h 10 min for 10 Oct 2026.",
     });
     expect((await log(game.id))[2]).toEqual([190, "2026-10-10T18:00:00.000Z"]);
-    expect((await gameRow(game.id)).currentPage).toBe(210);
+    expect((await gameRow(game.id)).playedMinutes).toBe(210);
   });
 
-  it("moves the game's page with the newest entry", async () => {
+  it("moves the game's time played with the newest entry", async () => {
     const { game, rows } = await seeded();
-    await updateProgressEntry(rows[3].id, { page: 205, day: "2026-10-12" });
-    expect((await gameRow(game.id)).currentPage).toBe(205);
+    await updateProgressEntry(rows[3].id, { minutes: 205, day: "2026-10-12" });
+    expect((await gameRow(game.id)).playedMinutes).toBe(205);
+  });
+
+  it("takes the newest entry past the usual time to beat", async () => {
+    const { game, rows } = await seeded();
+    expect(await updateProgressEntry(rows[3].id, { minutes: 2000, day: "2026-10-12" })).toEqual({
+      message: "Fixed: 33 h 20 min for today.",
+    });
+    expect((await gameRow(game.id)).playedMinutes).toBe(2000);
   });
 
   it("moves an entry to another day", async () => {
     const { game, rows } = await seeded();
-    expect(await updateProgressEntry(rows[2].id, { page: 161, day: "2026-10-11" })).toEqual({
-      message: "Fixed: page 161 for yesterday.",
+    expect(await updateProgressEntry(rows[2].id, { minutes: 165, day: "2026-10-11" })).toEqual({
+      message: "Fixed: 2 h 45 min for yesterday.",
     });
-    expect((await log(game.id))[2]).toEqual([161, "2026-10-11T21:59:59.999Z"]);
+    expect((await log(game.id))[2]).toEqual([165, "2026-10-11T21:59:59.999Z"]);
   });
 
   it("refuses crossing a neighbour, the start, and a future day", async () => {
     const { rows } = await seeded();
-    expect(await updateProgressEntry(rows[2].id, { page: 230, day: "2026-10-10" })).toEqual({
-      error: "That entry has to stay between page 120 and page 210, to fit the days around it.",
+    expect(await updateProgressEntry(rows[2].id, { minutes: 230, day: "2026-10-10" })).toEqual({
+      error: "That entry has to stay between 2 h and 3 h 30 min, to fit the days around it.",
     });
-    // Moved to today, it would come after today's page 210.
-    expect(await updateProgressEntry(rows[2].id, { page: 161, day: "2026-10-12" })).toEqual({
-      error: "That entry has to stay between page 210 and page 300, to fit the days around it.",
+    // Moved to today, it would come after today's 3 h 30 min.
+    expect(await updateProgressEntry(rows[2].id, { minutes: 165, day: "2026-10-12" })).toEqual({
+      error: "That entry can't be less than 3 h 30 min, to fit the days around it.",
     });
-    expect(await updateProgressEntry(rows[1].id, { page: 120, day: "2026-10-01" })).toEqual({
-      error: "That's before this read started (5 Oct 2026).",
+    expect(await updateProgressEntry(rows[1].id, { minutes: 120, day: "2026-10-01" })).toEqual({
+      error: "That's before this playthrough started (5 Oct 2026).",
     });
-    expect(await updateProgressEntry(rows[1].id, { page: 120, day: "2026-10-13" })).toEqual({
+    expect(await updateProgressEntry(rows[1].id, { minutes: 120, day: "2026-10-13" })).toEqual({
       error: "That day hasn't happened yet.",
     });
   });
 
-  it("keeps an entry of a read with no anchor on or after its Started day", async () => {
-    // A game added mid-read: one entry, no page-0 anchor. Moved before
-    // Started it would leave the read and take the game's page with it.
-    const game = await makeGame({ currentPage: 120 });
+  it("keeps an entry of a playthrough with no anchor on or after its Started day", async () => {
+    // A game added part-way through: one entry, no 0-minute anchor. Moved
+    // before Started it would leave the playthrough and take the game's
+    // time played with it.
+    const game = await makeGame({ playedMinutes: 120 });
     await addEntries(game.id, [[120, "2026-10-08T12:00:00.000Z"]]);
     const [row] = await prisma.progressEntry.findMany({ where: { gameId: game.id } });
-    expect(await updateProgressEntry(row.id, { page: 120, day: "2026-09-28" })).toEqual({
+    expect(await updateProgressEntry(row.id, { minutes: 120, day: "2026-09-28" })).toEqual({
       error: "You started this game on 5 Oct 2026. Pick that day or later.",
     });
     expect(await log(game.id)).toEqual([[120, "2026-10-08T12:00:00.000Z"]]);
-    expect(await updateProgressEntry(row.id, { page: 120, day: "2026-10-05" })).toEqual({
-      message: "Fixed: page 120 for 5 Oct 2026.",
+    expect(await updateProgressEntry(row.id, { minutes: 120, day: "2026-10-05" })).toEqual({
+      message: "Fixed: 2 h for 5 Oct 2026.",
     });
-    expect((await gameRow(game.id)).currentPage).toBe(120);
+    expect((await gameRow(game.id)).playedMinutes).toBe(120);
   });
 
-  it("reads a refusal against what was typed", async () => {
-    await setPrefs({ timeZone: OSLO, ebookUnit: "percent" });
-    const { rows } = await seeded({ format: GameFormat.EBOOK, pageCount: 412 });
-    // 29% typed is page 119, just under the entry before it: page 120,
-    // which also reads 29%.
-    expect(await updateProgressEntry(rows[2].id, { page: 119, day: "2026-10-10", value: 29 })).toEqual({
-      error: "That entry has to stay between 29% (page 120) and 51%, to fit the days around it.",
-    });
-    expect(await updateProgressEntry(rows[2].id, { page: 165, day: "2026-10-10", value: 40 })).toEqual({
-      message: "Fixed: 40% for 10 Oct 2026.",
-    });
-  });
-
-  it("keeps an entry of an earlier read before the next one starts", async () => {
-    const game = await makeGame({ currentPage: 50 });
+  it("keeps an entry of an earlier playthrough before the next one starts", async () => {
+    const game = await makeGame({ playedMinutes: 50 });
     await addEntries(game.id, [
       [0, "2026-01-05T10:00:00.000Z"],
-      [300, "2026-02-01T10:00:00.000Z"],
+      [1800, "2026-02-01T10:00:00.000Z"],
       [0, "2026-03-01T10:00:00.000Z"],
       [50, "2026-03-02T10:00:00.000Z"],
     ]);
     const rows = await prisma.progressEntry.findMany({ where: { gameId: game.id }, orderBy: { date: "asc" } });
-    expect(await updateProgressEntry(rows[1].id, { page: 300, day: "2026-03-05" })).toEqual({
-      error: "That's after you started reading it again (1 Mar 2026).",
+    expect(await updateProgressEntry(rows[1].id, { minutes: 1800, day: "2026-03-05" })).toEqual({
+      error: "That's after you started playing it again (1 Mar 2026).",
     });
-    // An earlier read's fix leaves the current read's page alone.
-    await updateProgressEntry(rows[1].id, { page: 290, day: "2026-02-01" });
-    expect((await gameRow(game.id)).currentPage).toBe(50);
+    // An earlier playthrough's fix leaves the current one's time alone.
+    await updateProgressEntry(rows[1].id, { minutes: 1790, day: "2026-02-01" });
+    expect((await gameRow(game.id)).playedMinutes).toBe(50);
   });
 
-  it("refuses the start of a read and another account's entry", async () => {
+  it("refuses the start of a playthrough and another account's entry", async () => {
     const { rows } = await seeded();
-    expect(await updateProgressEntry(rows[0].id, { page: 5, day: "2026-10-05" })).toEqual({
-      error: "The start of a read can't be changed.",
+    expect(await updateProgressEntry(rows[0].id, { minutes: 5, day: "2026-10-05" })).toEqual({
+      error: "The start of a playthrough can't be changed.",
     });
     currentUserId = otherUserId;
-    expect(await updateProgressEntry(rows[2].id, { page: 150, day: "2026-10-10" })).toEqual({
+    expect(await updateProgressEntry(rows[2].id, { minutes: 150, day: "2026-10-10" })).toEqual({
       error: "Entry not found",
     });
   });
 });
 
 describe("deleteProgressEntry", () => {
-  it("moves the page back when the newest entry goes, and only then", async () => {
-    const game = await makeGame({ currentPage: 210 });
+  it("moves the time played back when the newest entry goes, and only then", async () => {
+    const game = await makeGame({ playedMinutes: 210 });
     await addEntries(game.id, [
       [0, "2026-10-05T00:00:00.000Z"],
       [120, "2026-10-08T18:00:00.000Z"],
@@ -414,17 +417,19 @@ describe("deleteProgressEntry", () => {
     ]);
     const rows = await prisma.progressEntry.findMany({ where: { gameId: game.id }, orderBy: { date: "asc" } });
     expect(await deleteProgressEntry(rows[1].id)).toEqual({});
-    expect((await gameRow(game.id)).currentPage).toBe(210);
+    expect((await gameRow(game.id)).playedMinutes).toBe(210);
     await deleteProgressEntry(rows[2].id);
-    expect((await gameRow(game.id)).currentPage).toBeNull();
+    expect((await gameRow(game.id)).playedMinutes).toBeNull();
     expect(await log(game.id)).toEqual([[0, "2026-10-05T00:00:00.000Z"]]);
   });
 
-  it("won't delete the start of a read, or another account's entry", async () => {
+  it("won't delete the start of a playthrough, or another account's entry", async () => {
     const game = await makeGame();
     await addEntries(game.id, [[0, "2026-10-05T00:00:00.000Z"], [20, "2026-10-06T10:00:00.000Z"]]);
     const rows = await prisma.progressEntry.findMany({ where: { gameId: game.id }, orderBy: { date: "asc" } });
-    expect(await deleteProgressEntry(rows[0].id)).toEqual({ error: "The start of a read can't be deleted." });
+    expect(await deleteProgressEntry(rows[0].id)).toEqual({
+      error: "The start of a playthrough can't be deleted.",
+    });
     currentUserId = otherUserId;
     expect(await deleteProgressEntry(rows[1].id)).toEqual({ error: "Entry not found" });
     expect(await log(game.id)).toHaveLength(2);
@@ -432,89 +437,86 @@ describe("deleteProgressEntry", () => {
 });
 
 describe("moveFromPlaying and undo", () => {
-  it("finishes today, closes the log and can be undone", async () => {
-    const game = await makeGame({ currentPage: 218 });
-    await prisma.playthrough.create({ data: { gameId: game.id } }); // one earlier read
-    await addEntries(game.id, [[0, "2026-10-05T00:00:00.000Z"], [218, "2026-10-11T18:00:00.000Z"]]);
+  it("completes today, keeping the time played, and can be undone", async () => {
+    const game = await makeGame({ playedMinutes: 1650 });
+    await prisma.playthrough.create({ data: { gameId: game.id, playedMinutes: 1900 } }); // an earlier one
+    await addEntries(game.id, [[0, "2026-10-05T00:00:00.000Z"], [1650, "2026-10-11T18:00:00.000Z"]]);
 
     const moved = await moveFromPlaying(game.id, "COMPLETED");
     expect(moved).toEqual({
       ok: true,
       finished: true,
-      message: "Jane Eyre moved to Read. Finished today.",
-      undo: { from: "COMPLETED", finishedAt: NOW.toISOString(), page: 218 },
+      message: "Hollow Knight moved to Completed. Finished today, in 27 h 30 min.",
+      undo: { from: "COMPLETED", finishedAt: NOW.toISOString() },
     });
-    const done = await gameRow(game.id);
-    expect(done).toMatchObject({
+    expect(await gameRow(game.id)).toMatchObject({
       status: PlayStatus.COMPLETED,
+      dateStarted: at("2026-10-05T00:00:00.000Z"),
       dateFinished: NOW,
-      currentPage: null,
+      playedMinutes: 1650,
       timesCompleted: 2,
     });
-    expect((await log(game.id)).at(-1)).toEqual([300, NOW.toISOString()]);
+    // No closing entry: the log already says how long it took.
+    expect(await log(game.id)).toHaveLength(2);
 
     expect(await undoMoveFromPlaying(game.id, undoOf(moved))).toEqual({});
     expect(await gameRow(game.id)).toMatchObject({
       status: PlayStatus.PLAYING,
       dateFinished: null,
-      currentPage: 218,
+      playedMinutes: 1650,
       timesCompleted: 1,
     });
     expect(await log(game.id)).toHaveLength(2);
   });
 
-  it("stops at the current page, writing nothing to the log", async () => {
-    const game = await makeGame({ currentPage: 218 });
-    await addEntries(game.id, [[0, "2026-10-05T00:00:00.000Z"], [218, "2026-10-11T18:00:00.000Z"]]);
+  it("says nothing about a time it doesn't have", async () => {
+    const game = await makeGame();
+    expect(await moveFromPlaying(game.id, "COMPLETED")).toMatchObject({
+      message: "Hollow Knight moved to Completed. Finished today.",
+    });
+    const other = await makeGame({ title: "Celeste" });
+    expect(await moveFromPlaying(other.id, "DROPPED")).toMatchObject({
+      message: "Celeste moved to Dropped.",
+    });
+  });
+
+  it("stops at the time played, writing nothing to the log", async () => {
+    const game = await makeGame({ playedMinutes: 750 });
+    await addEntries(game.id, [[0, "2026-10-05T00:00:00.000Z"], [750, "2026-10-11T18:00:00.000Z"]]);
     const moved = await moveFromPlaying(game.id, "DROPPED");
     expect(moved).toMatchObject({
-      message: "Jane Eyre moved to Did Not Finish at page 218.",
+      message: "Hollow Knight moved to Dropped at 12 h 30 min.",
       finished: false,
-      undo: { from: "DROPPED", finishedAt: null, page: 218 },
+      undo: { from: "DROPPED", finishedAt: null },
     });
-    expect(await gameRow(game.id)).toMatchObject({ status: PlayStatus.DROPPED, currentPage: 218 });
+    expect(await gameRow(game.id)).toMatchObject({ status: PlayStatus.DROPPED, playedMinutes: 750 });
     expect(await log(game.id)).toHaveLength(2);
-    await undoMoveFromPlaying(game.id, { from: "DROPPED", finishedAt: null, page: 218 });
-    expect(await gameRow(game.id)).toMatchObject({ status: PlayStatus.PLAYING, currentPage: 218 });
-  });
-
-  it("says nothing about a page it doesn't have", async () => {
-    const game = await makeGame();
-    expect(await moveFromPlaying(game.id, "DROPPED")).toMatchObject({
-      message: "Jane Eyre moved to Did Not Finish.",
-    });
-  });
-
-  it("restores an untracked game's page on undo", async () => {
-    const game = await makeGame({ currentPage: 120 });
-    const moved = await moveFromPlaying(game.id, "COMPLETED");
-    expect(await log(game.id)).toEqual([]);
     await undoMoveFromPlaying(game.id, undoOf(moved));
-    expect((await gameRow(game.id)).currentPage).toBe(120);
+    expect(await gameRow(game.id)).toMatchObject({ status: PlayStatus.PLAYING, playedMinutes: 750 });
   });
 
-  it("refuses a game that isn't being read and another account's game", async () => {
+  it("refuses a game that isn't being played and another account's game", async () => {
     const shelved = await makeGame({ status: PlayStatus.COMPLETED });
     expect(await moveFromPlaying(shelved.id, "COMPLETED")).toEqual({
-      error: "This game isn't in Currently Reading any more.",
+      error: "This game isn't in Playing any more.",
     });
     const theirs = await makeGame({}, otherUserId);
     expect(await moveFromPlaying(theirs.id, "COMPLETED")).toEqual({ error: "Game not found" });
     expect((await gameRow(theirs.id)).status).toBe(PlayStatus.PLAYING);
   });
 
-  it("won't undo once the game has changed, and never touches an earlier read's entries", async () => {
-    const game = await makeGame({ currentPage: 100, dateStarted: at("2026-09-01T10:00:00.000Z") });
+  it("won't undo once the game has changed, and leaves the log alone", async () => {
+    const game = await makeGame({ playedMinutes: 100, dateStarted: at("2026-09-01T10:00:00.000Z") });
     await addEntries(game.id, [
       [0, "2026-01-05T10:00:00.000Z"],
-      [300, "2026-02-01T00:00:00.000Z"], // the first read's closing entry
+      [1800, "2026-02-01T00:00:00.000Z"],
       [0, "2026-09-01T10:00:00.000Z"],
       [100, "2026-10-10T10:00:00.000Z"],
     ]);
     const moved = await moveFromPlaying(game.id, "COMPLETED");
-    const undo = (moved as { undo: { from: "COMPLETED"; finishedAt: string; page: number } }).undo;
+    const undo = undoOf(moved);
 
-    // A crafted undo aimed at the first read's finish is refused.
+    // A crafted undo aimed at another finish is refused.
     expect(
       await undoMoveFromPlaying(game.id, { ...undo, finishedAt: "2026-02-01T00:00:00.000Z" }),
     ).toEqual({ error: "This game has changed since. Open it to set its status." });
@@ -528,10 +530,18 @@ describe("moveFromPlaying and undo", () => {
     expect(await undoMoveFromPlaying(game.id, undo)).toEqual({});
     expect(await log(game.id)).toEqual([
       [0, "2026-01-05T10:00:00.000Z"],
-      [300, "2026-02-01T00:00:00.000Z"],
+      [1800, "2026-02-01T00:00:00.000Z"],
       [0, "2026-09-01T10:00:00.000Z"],
       [100, "2026-10-10T10:00:00.000Z"],
     ]);
-    expect((await gameRow(game.id)).currentPage).toBe(100);
+    expect((await gameRow(game.id)).playedMinutes).toBe(100);
+  });
+
+  it("refuses an undo for another account's game", async () => {
+    const theirs = await makeGame({ status: PlayStatus.DROPPED }, otherUserId);
+    expect(await undoMoveFromPlaying(theirs.id, { from: "DROPPED", finishedAt: null })).toEqual({
+      error: "Game not found",
+    });
+    expect((await gameRow(theirs.id)).status).toBe(PlayStatus.DROPPED);
   });
 });

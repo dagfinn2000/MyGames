@@ -5,9 +5,9 @@ import { resolveGameWhere } from "@/lib/library-where";
 import type { Preferences } from "@/lib/preferences";
 
 /**
- * The library's filters against a real database: array containment on tags,
- * a year's finishes across time zones and archived reads, and every lookup
- * kept to the reader's own games.
+ * The library's filters against a real database: array containment on tags
+ * and developers, a year's finishes across time zones and archived
+ * playthroughs, and every lookup kept to the player's own games.
  */
 const prisma = new PrismaClient();
 
@@ -46,7 +46,7 @@ async function titles(
 const COMPLETED = PlayStatus.COMPLETED;
 
 describe("Finished in", () => {
-  it("files a late-night finish in the reader's own year", async () => {
+  it("files a late-night finish in the player's own year", async () => {
     await add("New Year's Eve", { status: COMPLETED, dateFinished: new Date("2025-12-31T23:30:00Z") });
     const oslo = { searchAlsoIn: [], timeZone: "Europe/Oslo" };
     expect(await titles({ finished: "2026" }, oslo)).toEqual(["New Year's Eve"]);
@@ -61,78 +61,91 @@ describe("Finished in", () => {
     expect(await titles({ finished: "2025" }, ny)).toEqual([]);
   });
 
-  it("counts re-reads, but not a date left on a game that isn't Read", async () => {
-    const reread = await add("Re-read", { status: PlayStatus.PLAYING });
-    await prisma.playthrough.create({ data: { gameId: reread.id, dateFinished: new Date("2024-05-01T00:00:00Z") } });
+  it("counts replays, but not a date left on a game that isn't Completed", async () => {
+    const replay = await add("Replay", { status: PlayStatus.PLAYING });
+    await prisma.playthrough.create({ data: { gameId: replay.id, dateFinished: new Date("2024-05-01T00:00:00Z") } });
     // Near New Year too, so the edge lookup has to find it.
-    const late = await add("Late re-read", { status: PlayStatus.WANT_TO_PLAY });
+    const late = await add("Late replay", { status: PlayStatus.WANT_TO_PLAY });
     await prisma.playthrough.create({ data: { gameId: late.id, dateFinished: new Date("2024-12-31T20:00:00Z") } });
     await add("Stale", { status: PlayStatus.WANT_TO_PLAY, dateFinished: new Date("2024-05-01T00:00:00Z") });
     await add("Mid-year", { status: COMPLETED, dateFinished: new Date("2024-07-14T18:00:00Z") });
 
-    expect(await titles({ finished: "2024" })).toEqual(["Late re-read", "Mid-year", "Re-read"]);
-    // On the Currently Reading tab, the archived pass still counts.
-    expect(await titles({ finished: "2024", shelf: "PLAYING" })).toEqual(["Re-read"]);
+    expect(await titles({ finished: "2024" })).toEqual(["Late replay", "Mid-year", "Replay"]);
+    // On the Playing tab, the archived playthrough still counts.
+    expect(await titles({ finished: "2024", shelf: "PLAYING" })).toEqual(["Replay"]);
   });
 
-  it("never finds another reader's games", async () => {
+  it("never finds another player's games", async () => {
     await add("Theirs", { status: COMPLETED, dateFinished: new Date("2024-01-01T02:00:00Z") }, otherUserId);
-    const theirs = await add("Their re-read", {}, otherUserId);
+    const theirs = await add("Their replay", {}, otherUserId);
     await prisma.playthrough.create({ data: { gameId: theirs.id, dateFinished: new Date("2024-12-31T23:00:00Z") } });
     expect(await titles({ finished: "2024" })).toEqual([]);
   });
 });
 
-describe("tags, author, rating and missing details", () => {
+describe("tags, developer, platform, rating and missing details", () => {
   beforeEach(async () => {
-    await add("Fantasy classic", { tags: ["fantasy", "classic"], status: COMPLETED, rating: 8 });
-    await add("Just fantasy", { tags: ["fantasy"], status: COMPLETED });
-    await add("Horror", { tags: ["horror"], status: PlayStatus.WANT_TO_PLAY });
-    await add("Untagged", {
-      authors: ["Ursula K. Le Guin"],
+    await add("Chrono Trigger", {
+      tags: ["rpg", "classic"],
+      status: COMPLETED,
+      rating: 8,
+      platform: "SNES",
+    });
+    await add("Persona 5", { tags: ["rpg"], status: COMPLETED, platform: "PlayStation 4" });
+    await add("Resident Evil", { tags: ["horror"], status: PlayStatus.WANT_TO_PLAY, platform: "PC" });
+    await add("Hollow Knight", {
+      developers: ["Team Cherry"],
       status: PlayStatus.DROPPED,
       coverUrl: "",
-      pageCount: 0,
-      isbn: "",
+      lengthMinutes: 0,
+      platform: "",
     });
-    await add("Other's fantasy", { tags: ["fantasy"] }, otherUserId);
+    await add("Their RPG", { tags: ["rpg"], platform: "PC" }, otherUserId);
   });
 
   it("matches tags any, all or not", async () => {
-    expect(await titles({ tag: "fantasy,horror" })).toEqual(["Fantasy classic", "Horror", "Just fantasy"]);
-    expect(await titles({ tag: "fantasy,classic", tagMatch: "all" })).toEqual(["Fantasy classic"]);
-    expect(await titles({ tag: "fantasy", notTag: "classic" })).toEqual(["Just fantasy"]);
-    expect(await titles({ notTag: "fantasy,horror" })).toEqual(["Untagged"]);
+    expect(await titles({ tag: "rpg,horror" })).toEqual(["Chrono Trigger", "Persona 5", "Resident Evil"]);
+    expect(await titles({ tag: "rpg,classic", tagMatch: "all" })).toEqual(["Chrono Trigger"]);
+    expect(await titles({ tag: "rpg", notTag: "classic" })).toEqual(["Persona 5"]);
+    expect(await titles({ notTag: "rpg,horror" })).toEqual(["Hollow Knight"]);
   });
 
-  it("matches the author exactly", async () => {
-    expect(await titles({ author: "Ursula K. Le Guin" })).toEqual(["Untagged"]);
-    expect(await titles({ author: "Le Guin" })).toEqual([]);
+  it("matches the developer exactly", async () => {
+    expect(await titles({ developer: "Team Cherry" })).toEqual(["Hollow Knight"]);
+    expect(await titles({ developer: "Cherry" })).toEqual([]);
   });
 
-  it("lists unrated games that aren't on Want to Read, keeping the tab", async () => {
-    expect(await titles({ minRating: "unrated" })).toEqual(["Just fantasy", "Untagged"]);
-    expect(await titles({ minRating: "unrated", shelf: "COMPLETED" })).toEqual(["Just fantasy"]);
+  it("matches the platform exactly, and only the player's games on it", async () => {
+    expect(await titles({ platform: "PC" })).toEqual(["Resident Evil"]);
+    expect(await titles({ platform: "PlayStation 4" })).toEqual(["Persona 5"]);
+    expect(await titles({ platform: "PlayStation" })).toEqual([]);
+  });
+
+  it("lists unrated games that aren't on Want to Play, keeping the tab", async () => {
+    expect(await titles({ minRating: "unrated" })).toEqual(["Hollow Knight", "Persona 5"]);
+    expect(await titles({ minRating: "unrated", shelf: "COMPLETED" })).toEqual(["Persona 5"]);
   });
 
   it("finds games missing a detail, empty or zero counting as missing", async () => {
-    // Every fixture but "Untagged" has a null cover, page count and ISBN.
+    // Every fixture has a null or empty cover and no time to beat; only
+    // Hollow Knight has no platform.
     expect(await titles({ missing: "cover" })).toHaveLength(4);
-    expect(await titles({ missing: "pages", tag: "horror" })).toEqual(["Horror"]);
-    expect(await titles({ missing: "isbn", author: "Ursula K. Le Guin" })).toEqual(["Untagged"]);
-    expect(await titles({ missing: "tags" })).toEqual(["Untagged"]);
+    expect(await titles({ missing: "length", tag: "horror" })).toEqual(["Resident Evil"]);
+    expect(await titles({ missing: "length", developer: "Team Cherry" })).toEqual(["Hollow Knight"]);
+    expect(await titles({ missing: "platform" })).toEqual(["Hollow Knight"]);
+    expect(await titles({ missing: "tags" })).toEqual(["Hollow Knight"]);
     await prisma.game.updateMany({
       where: { userId },
-      data: { coverUrl: "/api/covers/x.jpg", pageCount: 100, isbn: "9780261102217" },
+      data: { coverUrl: "/api/covers/x.jpg", lengthMinutes: 1200, platform: "PC" },
     });
     expect(await titles({ missing: "cover" })).toEqual([]);
-    expect(await titles({ missing: "pages" })).toEqual([]);
-    expect(await titles({ missing: "isbn" })).toEqual([]);
+    expect(await titles({ missing: "length" })).toEqual([]);
+    expect(await titles({ missing: "platform" })).toEqual([]);
   });
 
   it("ignores an ownership value it doesn't know", async () => {
-    await prisma.game.updateMany({ where: { userId, title: "Horror" }, data: { ownership: GameOwnership.WISHLIST } });
+    await prisma.game.updateMany({ where: { userId, title: "Resident Evil" }, data: { ownership: GameOwnership.WISHLIST } });
     expect(await titles({ owned: "constructor" })).toHaveLength(4);
-    expect(await titles({ owned: "wishlist" })).toEqual(["Horror"]);
+    expect(await titles({ owned: "wishlist" })).toEqual(["Resident Evil"]);
   });
 });

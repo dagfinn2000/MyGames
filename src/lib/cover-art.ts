@@ -1,5 +1,5 @@
 /**
- * The colours of the drawn cover a game gets when it has no cover image
+ * The colours of the drawn cover a game gets when it has no box art
  * (GameCover in components/game-card.tsx).
  *
  * Everything comes from the title, so a game keeps the same cover on every
@@ -17,15 +17,16 @@ export interface CoverArt {
   /** Which of the three title arrangements to use (see globals.css). */
   layout: 0 | 1 | 2;
   /** Title size as a percent of the cover's width: smaller when the title
-   *  has a long word, so "Lavransdatter" fits on one line instead of
+   *  has a long word, so "Castlevania:" fits on one line instead of
    *  breaking mid-word. */
   titleSize: number;
 }
 
 /** 32-bit FNV-1a, finished with MurmurHash3's mixing step. FNV alone
- *  leaves titles that differ only in their last letter ("Game 1",
- *  "Game 2") with nearly the same low bits, which the hue comes from.
- *  The reading room (lib/room.ts) uses it for spine heights too. */
+ *  leaves titles that differ only in their last letter ("Doom 2",
+ *  "Doom 3") with nearly the same low bits, which the hue comes from.
+ *  The game room (lib/room.ts) uses it too, so each game's case looks the
+ *  same on every visit. */
 export function hash(text: string): number {
   let h = 2166136261;
   for (const ch of text) {

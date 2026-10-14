@@ -71,7 +71,7 @@ const readThemeOnServer = () => null;
  * The browser snapshots the page before and after; the after snapshot is
  * clipped to the growing circle (the `theme-reveal` rule in globals.css
  * turns off the default cross-fade). Browsers without view transitions,
- * and readers with animations off, get the instant switch.
+ * and players with animations off, get the instant switch.
  */
 function revealTheme(change: () => void, origin: HTMLElement | null) {
   if (!origin || !document.startViewTransition || !motionAllowed()) {

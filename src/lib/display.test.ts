@@ -22,7 +22,7 @@ describe("formatDate", () => {
     expect(formatDate(d, { dateFormat: "iso" })).toBe("2024-05-02");
   });
 
-  it("puts a timestamp on the reader's day", () => {
+  it("puts a timestamp on the player's day", () => {
     const late = new Date("2024-05-02T22:00:00.000Z");
     expect(formatDate(late, { timeZone: "Asia/Tokyo", dateFormat: "iso" })).toBe("2024-05-03");
     expect(formatDate(late, { timeZone: "America/Chicago", dateFormat: "iso" })).toBe(
@@ -66,7 +66,7 @@ describe("formatWeekdayDay", () => {
     expect(formatWeekdayDay(d, { timeZone: "UTC", dateFormat: "mm/dd/y" })).toBe("Monday, October 12");
   });
 
-  it("follows the reader's zone across midnight", () => {
+  it("follows the player's zone across midnight", () => {
     const late = new Date("2026-10-12T23:30:00.000Z");
     expect(formatWeekdayDay(late, { timeZone: "Asia/Tokyo" })).toBe("Tuesday 13 October");
     expect(formatWeekdayDay(late, { timeZone: "America/New_York" })).toBe("Monday 12 October");

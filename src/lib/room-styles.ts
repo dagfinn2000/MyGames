@@ -1,5 +1,5 @@
 /**
- * How the reading room can be decorated (the Decorate panel on the Room
+ * How the game room can be decorated (the Decorate panel on the Room
  * page): the style of the house, the colours of its walls, wood and
  * fabrics, its wallpaper and floors, what hangs over the fireplace and
  * along the ceilings, and the walls and floor of each added room. Kept

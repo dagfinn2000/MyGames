@@ -43,22 +43,6 @@ describe("RateLimiter", () => {
     expect(limiter.blocked("k")).toBe(false);
   });
 
-  it("usage() reports the count and the time left in an open window", () => {
-    const limiter = new RateLimiter(5, 1000);
-    limiter.hit("k");
-    vi.advanceTimersByTime(400);
-    limiter.hit("k");
-    expect(limiter.usage("k")).toEqual({ count: 2, resetInMs: 600 });
-  });
-
-  it("usage() is zero for an unknown or expired key", () => {
-    const limiter = new RateLimiter(5, 1000);
-    expect(limiter.usage("nobody")).toEqual({ count: 0, resetInMs: 0 });
-    limiter.hit("k");
-    vi.advanceTimersByTime(1000);
-    expect(limiter.usage("k")).toEqual({ count: 0, resetInMs: 0 });
-  });
-
   it("tracks keys independently", () => {
     const limiter = new RateLimiter(1, 1000);
     limiter.hit("alice");
@@ -74,7 +58,7 @@ describe("metadataLimiter", () => {
   // Guards a third party's budget rather than ours, so unlike the auth
   // limiters it counts every call, not just failures. Exercised with fake
   // timers: proving it by making ~90 real requests would mean doing the exact
-  // thing to Open Library that this limit exists to prevent.
+  // thing to the catalogues that this limit exists to prevent.
   it("allows a realistic burst of searching, then blocks", () => {
     const limiter = new RateLimiter(90, 60_000);
     const key = "metadata:user-1";

@@ -16,9 +16,9 @@ import {
 } from "@/components/ui/card";
 
 /**
- * Quotes & highlights on the game detail page: passages worth keeping, each
- * with an optional page reference and personal note. Quotes are listed in
- * page order (unpaged ones last), with inline edit and delete.
+ * Quotes on the game detail page: lines worth keeping, each with who says
+ * it and a personal note, both optional. Listed newest first (the page
+ * loads them that way), with inline edit and delete.
  */
 export function QuotesCard({
   gameId,
@@ -50,7 +50,7 @@ export function QuotesCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Quotes &amp; highlights</CardTitle>
+        <CardTitle>Quotes</CardTitle>
       </CardHeader>
       {/* grid-cols-1 clamps the tracks so a long unbroken token (a pasted
           URL, say) wraps via break-words instead of stretching the card. */}
@@ -67,9 +67,9 @@ export function QuotesCard({
                       {quote.text}
                     </blockquote>
                     <div className="flex min-h-7 flex-wrap items-center gap-x-2 pl-3">
-                      {quote.page != null && (
-                        <span className="text-xs tabular-nums text-muted-foreground">
-                          p. {quote.page}
+                      {quote.speaker && (
+                        <span className="min-w-0 break-words text-xs text-muted-foreground">
+                          — {quote.speaker}
                         </span>
                       )}
                       {quote.note && (
@@ -111,7 +111,7 @@ export function QuoteForm({
   onDone,
 }: {
   gameId?: string;
-  quote?: Pick<Quote, "id" | "text" | "page" | "note">;
+  quote?: Pick<Quote, "id" | "text" | "speaker" | "note">;
   onDone?: () => void;
 }) {
   const action = quote ? updateQuote.bind(null, quote.id) : addQuote;
@@ -149,7 +149,7 @@ export function QuoteForm({
         rows={2}
         required
         maxLength={5000}
-        placeholder="A passage worth keeping…"
+        placeholder="A line worth keeping…"
         defaultValue={quote?.text ?? ""}
         aria-label={quote ? "Quote text" : "New quote"}
         autoFocus={!!quote}
@@ -159,14 +159,12 @@ export function QuoteForm({
       />
       <div className="flex flex-wrap items-center gap-2">
         <Input
-          name="page"
-          type="number"
-          min={1}
-          max={100000}
-          className="w-20"
-          placeholder="Page"
-          defaultValue={quote?.page ?? ""}
-          aria-label="Page"
+          name="speaker"
+          maxLength={200}
+          className="w-36"
+          placeholder="Who says it"
+          defaultValue={quote?.speaker ?? ""}
+          aria-label="Who says it"
         />
         <Input
           name="note"

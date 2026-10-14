@@ -28,7 +28,7 @@ export const getCurrentUser = cache(
   async (): Promise<{
     id: string;
     theme: string | null;
-    /** As stored: `timeZone` is "" until the reader's zone is known. */
+    /** As stored: `timeZone` is "" until the player's zone is known. */
     preferences: Preferences;
     /** For the 3D covers switch, which the root layout applies everywhere. */
     libraryView: LibraryView;
@@ -53,7 +53,7 @@ export const getCurrentUser = cache(
 
 /**
  * The signed-in user's preferences, ready to use: defaults when signed out,
- * and `timeZone` always set — to the server's zone until the reader's own
+ * and `timeZone` always set — to the server's zone until the player's own
  * is known — so date code never has to handle "no zone".
  */
 export const getPreferences = cache(async (): Promise<Preferences> => {

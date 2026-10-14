@@ -2,25 +2,32 @@ import { describe, expect, it } from "vitest";
 import { buildSearchText, escapeLike, foldForSearch, searchTerms } from "@/lib/utils";
 
 describe("buildSearchText", () => {
-  it("joins title, authors, and series, lowercased", () => {
+  it("joins title, developers, series and platform, lowercased", () => {
     expect(
-      buildSearchText("The Final Empire", ["Brandon Sanderson"], "Mistborn"),
-    ).toBe("the final empire brandon sanderson mistborn");
+      buildSearchText("Breath of the Wild", ["Nintendo EPD"], "The Legend of Zelda", "Nintendo Switch"),
+    ).toBe("breath of the wild nintendo epd the legend of zelda nintendo switch");
   });
 
-  it("handles missing series and authors without stray whitespace", () => {
-    expect(buildSearchText("Dune", [], null)).toBe("dune");
-    expect(buildSearchText("Dune", ["Frank Herbert"], undefined)).toBe(
-      "dune frank herbert",
+  it("takes every developer", () => {
+    expect(buildSearchText("Portal 2", ["Valve", "Hidden Path Entertainment"])).toBe(
+      "portal 2 valve hidden path entertainment",
     );
+  });
+
+  it("handles missing series, platform and developers without stray whitespace", () => {
+    expect(buildSearchText("Tetris", [], null, null)).toBe("tetris");
+    expect(buildSearchText("Celeste", ["Maddy Makes Games"], undefined)).toBe(
+      "celeste maddy makes games",
+    );
+    expect(buildSearchText("Celeste", [], null, "PC")).toBe("celeste pc");
   });
 });
 
 describe("foldForSearch", () => {
   it("strips accents and spells out letters NFD keeps whole", () => {
-    expect(foldForSearch("Brontë")).toBe("bronte");
+    expect(foldForSearch("Pokémon")).toBe("pokemon");
+    expect(foldForSearch("Ōkami")).toBe("okami");
     expect(foldForSearch("Bjørn Ærø")).toBe("bjorn aero");
-    expect(foldForSearch("Åsne Seierstad")).toBe("asne seierstad");
     expect(foldForSearch("Straße, Łódź, Þór")).toBe("strasse, lodz, thor");
   });
 
@@ -32,16 +39,16 @@ describe("foldForSearch", () => {
 
 describe("buildSearchText folding", () => {
   it("stores the folded form, so accent-free searches match", () => {
-    expect(buildSearchText("Jane Eyre", ["Charlotte Brontë"], "Brontë Novels")).toBe(
-      "jane eyre charlotte bronte bronte novels",
+    expect(buildSearchText("Pokémon Red", ["Game Freak"], "Pokémon", "Game Boy")).toBe(
+      "pokemon red game freak pokemon game boy",
     );
   });
 });
 
 describe("searchTerms", () => {
   it("trims, splits into words, folds, and dedupes", () => {
-    expect(searchTerms("   Tolkien  HOBBIT tolkien ")).toEqual(["tolkien", "hobbit"]);
-    expect(searchTerms("Brontë")).toEqual(["bronte"]);
+    expect(searchTerms("   Cherry  KNIGHT cherry ")).toEqual(["cherry", "knight"]);
+    expect(searchTerms("Pokémon")).toEqual(["pokemon"]);
     expect(searchTerms("   ")).toEqual([]);
   });
 

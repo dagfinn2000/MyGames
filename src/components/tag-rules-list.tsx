@@ -10,8 +10,8 @@ type Rules = { renames: TagRename[]; skips: string[] };
 type Removal = { from?: string; skip?: string };
 
 /**
- * The rules for imported subjects, under "Copy subjects from the catalogue
- * as tags" in Preferences. Rules are added from Manage tags in the library;
+ * The rules for genres imported as tags, under the catalogue's tags in
+ * Preferences (New games). Rules are added from Manage tags in the library;
  * here they can only be removed. Each removal goes through its own action
  * (not the Preferences save, which would write back the whole list as this
  * page loaded it, dropping a rule added since in another tab).
@@ -46,7 +46,7 @@ export function TagRulesList({ renames, skips }: Rules) {
     <div className="grid gap-1.5 sm:grid-cols-[14rem_1fr] sm:items-start sm:gap-4">
       <div>
         <p className="text-sm font-medium">Tag rules</p>
-        <p className="text-xs text-muted-foreground">For subjects copied from the catalogue.</p>
+        <p className="text-xs text-muted-foreground">For genres copied from the catalogue.</p>
       </div>
       <div className="grid gap-1" aria-busy={pending}>
         {empty ? (

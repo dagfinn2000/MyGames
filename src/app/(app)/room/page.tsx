@@ -5,18 +5,19 @@ import { prisma } from "@/lib/prisma";
 import { getPreferences } from "@/lib/current-user";
 import { formatNumber } from "@/lib/display";
 import { sortGames } from "@/lib/library-sort";
-import { caseCount, shelve, spineFor, type RoomGame } from "@/lib/room";
+import { caseCount, fileByPlatform, shelve, spineFor, type RoomGame } from "@/lib/room";
 import { RoomView } from "@/components/room-view";
 import { RoomSwitch } from "@/components/room-switch";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Reading room · MyGames" };
+export const metadata = { title: "Game room · MyGames" };
 
 /**
- * The reading room: the whole library as a little pixel-art house, every
- * game a spine on a shelf, filed by author the way a bookshelf is. The
- * house grows with the library (components/game-room.tsx), and is
- * decorated as the reader likes (components/room-view.tsx).
+ * The game room: the whole library as a little pixel-art house, every game
+ * a case standing spine out on a shelf, filed by platform the way a games
+ * shelf usually is. The house grows with the library
+ * (components/game-room.tsx), and is decorated as the player likes
+ * (components/room-view.tsx).
  */
 export default async function GameRoomPage() {
   const session = await auth();
@@ -27,9 +28,9 @@ export default async function GameRoomPage() {
     // Turned off in Preferences: no house, just the way back to it.
     return (
       <div className="mx-auto grid max-w-md justify-items-center gap-3 py-16 text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">Reading room</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Game room</h1>
         <p className="text-sm text-muted-foreground">
-          The reading room is turned off, so your games aren&apos;t drawn as a house here, and the Room tab is
+          The game room is turned off, so your games aren&apos;t drawn as a house here, and the Room tab is
           hidden.
         </p>
         <RoomSwitch hiddenNav={prefs.hiddenNav} on />
@@ -42,19 +43,21 @@ export default async function GameRoomPage() {
     select: {
       id: true,
       title: true,
-      authors: true,
+      platform: true,
+      format: true,
       coverUrl: true,
-      pageCount: true,
-      currentPage: true,
+      playedMinutes: true,
+      lengthMinutes: true,
       status: true,
       ownership: true,
+      // The rest of what sortGames reads; only the developer order is used.
+      developers: true,
       seriesName: true,
       seriesNumber: true,
-      // The rest of what sortGames reads; only the author order is used.
       rating: true,
       dateFinished: true,
       dateStarted: true,
-      publishedDate: true,
+      releaseDate: true,
       createdAt: true,
       updatedAt: true,
       loans: {
@@ -66,24 +69,25 @@ export default async function GameRoomPage() {
     },
   });
 
-  const sorted = sortGames(rows, "author", "asc", {
-    ignoreArticles: prefs.ignoreArticles,
-    authorOrder: prefs.authorOrder,
-    alphabet: prefs.sortAlphabet,
-  });
+  // By platform, and within a platform by developer, a series together.
+  const sorted = fileByPlatform(
+    sortGames(rows, "developer", "asc", { ignoreArticles: prefs.ignoreArticles, alphabet: prefs.sortAlphabet }),
+    prefs.sortAlphabet,
+  );
   // Only what the room draws goes to the browser.
-  const games: RoomGame[] = sorted.map((b) => ({
-    id: b.id,
-    title: b.title,
-    author: b.authors.join(", "),
-    coverUrl: b.coverUrl,
-    pageCount: b.pageCount,
-    currentPage: b.currentPage,
-    status: b.status,
-    ownership: b.ownership,
-    lentTo: b.loans[0]?.borrower ?? null,
+  const games: RoomGame[] = sorted.map((g) => ({
+    id: g.id,
+    title: g.title,
+    platform: g.platform,
+    format: g.format,
+    coverUrl: g.coverUrl,
+    playedMinutes: g.playedMinutes,
+    lengthMinutes: g.lengthMinutes,
+    status: g.status,
+    ownership: g.ownership,
+    lentTo: g.loans[0]?.borrower ?? null,
   }));
-  const cases = caseCount(shelve(games.map((b) => spineFor(b).width)).length);
+  const cases = caseCount(shelve(games.map((g) => spineFor(g).width)).length);
 
   return (
     <div className="grid gap-4">
@@ -114,26 +118,25 @@ export default async function GameRoomPage() {
         summary={
           games.length > 0
             ? `${games.length === 1 ? "1 game" : `${formatNumber(games.length, prefs)} games`} on ${
-                cases === 1 ? "1 bookcase" : `${formatNumber(cases, prefs)} bookcases`
+                cases === 1 ? "1 shelving unit" : `${formatNumber(cases, prefs)} shelving units`
               }`
             : null
         }
       />
       {games.length === 0 ? (
         <p className="text-center text-sm text-muted-foreground">
-          The shelves are waiting.{" "}
           <Link href="/games/new" className="underline underline-offset-2 hover:text-foreground">
-            Add a game
+            Add games
           </Link>{" "}
-          and it will be the first spine on them.
+          and they&apos;ll appear on the shelves.
         </p>
       ) : (
         <p className="mx-auto max-w-prose text-center text-xs text-muted-foreground">
-          Games are filed by author. An outline keeps the place of a game that isn&apos;t on the
-          shelf right now: wished for, lent out or given away. A red ribbon marks a game
-          you&apos;re reading. The room gets more furniture as your library grows, and
-          Decorate changes its style and colours, adds rooms and furniture, moves it
-          about, and makes the little you who lives there.
+          Games are filed by platform, then by developer. Handheld games stand in slim cases and boxed PC
+          games in big boxes. An outline keeps the place of a game that isn&apos;t on the shelf right now:
+          wished for, lent out or given away. A red ribbon marks a game you&apos;re playing. The room gets
+          more furniture as your library grows, and Decorate changes its style and colours, adds rooms and
+          furniture, moves it about, and makes the little you who lives there.
         </p>
       )}
     </div>

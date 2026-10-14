@@ -18,7 +18,7 @@ export default async function EditGamePage({
   if (!session?.user?.id) redirect("/login"); // revoked session (see auth.ts)
   const { id } = await params;
 
-  const [game, seriesRows] = await Promise.all([
+  const [game, seriesRows, platformRows] = await Promise.all([
     prisma.game.findFirst({
       where: { id, userId: session.user.id },
     }),
@@ -29,15 +29,26 @@ export default async function EditGamePage({
       distinct: ["seriesName"],
       orderBy: { seriesName: "asc" },
     }),
+    // The platforms already in the library, suggested before the common
+    // ones, so each is spelt the same way on every game.
+    prisma.game.findMany({
+      where: { userId: session.user.id, platform: { not: null } },
+      select: { platform: true },
+      distinct: ["platform"],
+      orderBy: { platform: "asc" },
+    }),
   ]);
   if (!game) notFound();
   const seriesNames = seriesRows
     .map((r) => r.seriesName)
     .filter((s): s is string => !!s);
+  const platformNames = platformRows
+    .map((r) => r.platform)
+    .filter((p): p is string => !!p);
 
   // Bind the id server-side so the client form can't target another row.
   const action = updateGame.bind(null, game.id);
-  // How "Look up details" turns catalogue subjects into tags.
+  // How "Look up details" turns catalogue genres into tags.
   const lookup = await tagImportFor(session.user.id, await getPreferences());
 
   return (
@@ -49,22 +60,23 @@ export default async function EditGamePage({
         action={action}
         submitLabel="Save changes"
         seriesNames={seriesNames}
+        platformOptions={platformNames}
         lookup={lookup}
         initial={{
           title: game.title,
-          authors: game.authors.join(", "),
-          isbn: game.isbn ?? "",
+          developers: game.developers.join(", "),
+          publisher: game.publisher ?? "",
+          platform: game.platform ?? "",
           description: game.description ?? "",
           coverUrl: game.coverUrl ?? "",
-          pageCount: game.pageCount?.toString() ?? "",
           lengthMinutes: game.lengthMinutes?.toString() ?? "",
-          publishedDate: game.publishedDate ?? "",
+          releaseDate: game.releaseDate ?? "",
           tags: game.tags.join(", "),
           seriesName: game.seriesName ?? "",
           seriesNumber: game.seriesNumber?.toString() ?? "",
           format: game.format,
           ownership: game.ownership,
-          openLibraryId: game.openLibraryId ?? "",
+          catalogueId: game.catalogueId ?? "",
         }}
       />
     </div>

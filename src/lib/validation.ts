@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
+import { parseDuration, TIME_EXAMPLE } from "@/lib/progress-units";
 
 /**
  * What a stored cover URL may be: a local path ("/api/covers/…") or an
@@ -38,12 +39,66 @@ export const changePasswordSchema = z.object({
   newPassword: passwordSchema,
 });
 
+/** The longest time to beat a game can have, in minutes (1,000 hours).
+ *  Shared with the backup restore, so a restored game passes the form. */
+export const MAX_LENGTH_MINUTES = 60_000;
+
+/** The most time one playthrough can record, in minutes (10,000 hours).
+ *  Generous on purpose: some games are played for years. Shared with the
+ *  backup restore. */
+export const MAX_PLAYED_MINUTES = 600_000;
+
+/**
+ * What a catalogue id may be: "igdb:<slug>", "steam:<app id>" or
+ * "wikidata:<Q-id>", as the catalogue clients write them. The form carries
+ * it in a hidden field, so anything else came from somewhere else and would
+ * only make "Look up details" and the catalogue link go wrong.
+ */
+export const CATALOGUE_ID_PATTERN = /^(igdb|steam|wikidata):\S+$/;
+
+/** Trimmed text with a length limit; blank is null. */
+function optionalText(max: number, message?: string) {
+  return z
+    .string()
+    .trim()
+    .max(max, message)
+    .transform((s) => s || null)
+    .nullable()
+    .optional();
+}
+
+/**
+ * Time played, as typed: "12:30", "12h 30m", "45 min", "1.5h" or a bare
+ * number of minutes (see parseDuration). Blank or zero is none (null); not
+ * sent at all is undefined, which updatePlay reads as "keep the time there
+ * is". Something that isn't a time is reported rather than quietly dropped,
+ * so a typo never wipes the time already recorded.
+ */
+const playedMinutesField = z
+  .string()
+  .optional()
+  .transform((s, ctx) => {
+    if (s === undefined) return undefined;
+    const text = s.trim();
+    if (!text) return null;
+    const minutes = parseDuration(text);
+    if (minutes === null) {
+      ctx.addIssue({ code: "custom", message: `Couldn't read “${text.slice(0, 20)}”. ${TIME_EXAMPLE}` });
+      return z.NEVER;
+    }
+    if (minutes > MAX_PLAYED_MINUTES) {
+      ctx.addIssue({ code: "custom", message: "Time played must be at most 10,000 hours" });
+      return z.NEVER;
+    }
+    return minutes || null;
+  });
+
 /** Shared shape for creating and editing games. Forms submit strings; this
  *  schema does the coercion so server actions can pass FormData through. */
 export const gameSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(500),
-  /** Comma-separated in the form; stored as an array. */
-  authors: z
+  /** The studios, comma-separated in the form; stored as an array. */
+  developers: z
     .string()
     .transform((s) =>
       s
@@ -51,26 +106,15 @@ export const gameSchema = z.object({
         .map((a) => a.trim())
         .filter(Boolean),
     ),
-  isbn: z
-    .string()
-    .trim()
-    .max(20)
-    .transform((s) => s.replace(/[\s-]/g, "") || null)
-    .nullable()
-    .optional(),
-  description: z
-    .string()
-    .trim()
-    .max(10000)
-    .transform((s) => s || null)
-    .nullable()
-    .optional(),
+  publisher: optionalText(200, "Publisher must be at most 200 characters"),
+  /** The platform you play it on. Freeform: the form only suggests names. */
+  platform: optionalText(100, "Platform must be at most 100 characters"),
+  description: optionalText(10000),
   /**
    * Either a local cache path ("/api/covers/…") or a remote image URL the
-   * user pasted. Bounded like every other free-text field — this was the one
-   * that had no `.max()`, while the import schema capped the same field at
-   * 2000 — and restricted to http(s) so a `javascript:` or `data:` value
-   * can't be stored and later rendered into an attribute.
+   * player pasted. Bounded like every other free-text field and restricted
+   * to http(s), so a `javascript:` or `data:` value can't be stored and
+   * later rendered into an attribute.
    */
   coverUrl: z
     .string()
@@ -80,40 +124,27 @@ export const gameSchema = z.object({
     .transform((s) => s || null)
     .nullable()
     .optional(),
-  pageCount: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(100000)
-    .nullable()
-    .optional()
-    .catch(null),
-  /** An audiobook's running time in whole minutes (the form's hours and
-   *  minutes, added up). Blank is "not known". Same bounds as the backup
-   *  import, and a bad value is reported rather than quietly dropped. */
+  /** How long the game usually takes to beat, in whole minutes (the form's
+   *  hours and minutes, added up). Blank is "not known". A bad value is
+   *  reported rather than quietly dropped. */
   lengthMinutes: z.preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? null : v),
     z.coerce
       .number()
-      .int("Length must be whole minutes")
-      .min(1, "Length must be at least 1 minute")
-      .max(60000, "Length must be at most 1,000 hours")
+      .int("Time to beat must be whole minutes")
+      .min(1, "Time to beat must be at least 1 minute")
+      .max(MAX_LENGTH_MINUTES, "Time to beat must be at most 1,000 hours")
       .nullable()
       .optional(),
   ),
-  publishedDate: z
-    .string()
-    .trim()
-    .max(20)
-    .transform((s) => s || null)
-    .nullable()
-    .optional(),
+  /** As the catalogues give it: "1998", "2017-03" or "2017-03-03". */
+  releaseDate: optionalText(20),
   tags: z
     .string()
     .transform((s) => [
-      // Deduped: metadata subjects often differ only in case ("Fiction",
-      // "fiction"), which collide after lowercasing — and duplicate tags
-      // break React keys wherever tags render.
+      // Deduped: catalogue genres often differ only in case ("RPG", "rpg"),
+      // which collide after lowercasing — and duplicate tags break React
+      // keys wherever tags render.
       ...new Set(
         s
           .split(",")
@@ -121,14 +152,8 @@ export const gameSchema = z.object({
           .filter(Boolean),
       ),
     ]),
-  seriesName: z
-    .string()
-    .trim()
-    .max(200)
-    .transform((s) => s || null)
-    .nullable()
-    .optional(),
-  /** Position in a series; float so novellas can slot in at 1.5. A blank
+  seriesName: optionalText(200),
+  /** Position in a series; float so a spin-off can slot in at 2.5. A blank
    *  field is no number, not #0: `z.coerce` alone turns "" into 0, and 0 is
    *  a real position (prequels are often numbered 0). */
   seriesNumber: z.preprocess(
@@ -137,11 +162,14 @@ export const gameSchema = z.object({
   ),
   format: z.nativeEnum(GameFormat),
   /** Defaults to OWNED so a form that omits the field (or sends something
-   *  unexpected) still saves as an ordinary game on your shelf. */
+   *  unexpected) still saves as an ordinary game in your collection. */
   ownership: z.nativeEnum(GameOwnership).catch(GameOwnership.OWNED),
-  openLibraryId: z
+  /** The catalogue entry the game came from; blank when typed in by hand. */
+  catalogueId: z
     .string()
     .trim()
+    .max(200)
+    .refine((s) => s === "" || CATALOGUE_ID_PATTERN.test(s), "That isn't a catalogue id MyGames knows")
     .transform((s) => s || null)
     .nullable()
     .optional(),
@@ -156,8 +184,8 @@ function parseDateOrNull(s: string): Date | null {
 
 /**
  * Started/finished dates must make sense together: no finishing before you
- * started (it shows up as a negative "fastest read"), and nothing in the
- * future. "Future" allows a day's slack, because the form sends a calendar
+ * started (it shows up as a negative "quickest to complete"), and nothing in
+ * the future. "Future" allows a day's slack, because the form sends a calendar
  * date read as midnight UTC, which is already tomorrow east of UTC.
  */
 function checkPlayDates(
@@ -180,7 +208,7 @@ function checkPlayDates(
   }
 }
 
-/** Personal reading data, editable from the game detail page. */
+/** Personal play data, editable from the game detail page. */
 export const playSchema = z.object({
   status: z.nativeEnum(PlayStatus),
   /** 1–10 half-star units; empty string/0 clears the rating. */
@@ -202,23 +230,16 @@ export const playSchema = z.object({
     .transform(parseDateOrNull)
     .nullable()
     .optional(),
-  /** Reading progress; empty string/0 clears it. */
-  currentPage: z.coerce
-    .number()
-    .int()
-    .min(0)
-    .max(100000)
-    .nullable()
-    .optional()
-    .catch(null),
+  /** Time played so far in this playthrough, typed ("12:30"). */
+  playedMinutes: playedMinutesField,
   /** The "Don't remember" box next to the finish date: a ticked checkbox
    *  sends "on", an unticked one sends nothing. */
   finishedUnknown: z.preprocess((v) => v === "on" || v === "true" || v === true, z.boolean()),
 }).superRefine(checkPlayDates);
 
-/** A past read of a game (the read-history card). Everything is optional:
- *  "I know I read this in 2019" and a fully undated "read it before" are
- *  both valid entries. */
+/** A past playthrough of a game (the play history card). Everything is
+ *  optional: "I know I beat this in 2019" and a fully undated "played it
+ *  before" are both valid entries. */
 export const pastPlaythroughSchema = z.object({
   dateStarted: z
     .string()
@@ -232,7 +253,9 @@ export const pastPlaythroughSchema = z.object({
     .optional(),
   /** 1–10 half-star units; empty string/0 means "unrated that time". */
   rating: z.coerce.number().int().min(0).max(10).nullable().optional().catch(null),
-  /** "Read it aloud to the kids"; empty clears it. Same limit as restore. */
+  /** How long that playthrough took, when you know ("42:00"). */
+  playedMinutes: playedMinutesField,
+  /** "100%, on hard"; empty clears it. Same limit as restore. */
   note: z
     .string()
     .trim()
@@ -242,22 +265,21 @@ export const pastPlaythroughSchema = z.object({
     .optional(),
 }).superRefine(checkPlayDates);
 
-/** A quote/highlight from the game detail page. Forms submit strings. */
+/** The longest speaker name a quote can carry. Shared with the restore. */
+export const MAX_SPEAKER_LENGTH = 200;
+
+/** A favourite line from the game detail page. Forms submit strings. */
 export const quoteSchema = z.object({
   text: z
     .string()
     .trim()
     .min(1, "Quote text is required")
     .max(5000, "Quote must be at most 5000 characters"),
-  /** Page reference; empty string/0 means "no page". */
-  page: z.coerce
-    .number()
-    .int()
-    .min(0)
-    .max(100000)
-    .nullable()
-    .optional()
-    .catch(null),
+  /** Who says it in the game ("Cave old man"); empty means nobody named. */
+  speaker: optionalText(
+    MAX_SPEAKER_LENGTH,
+    `Speaker must be at most ${MAX_SPEAKER_LENGTH} characters`,
+  ),
   note: z
     .string()
     .trim()

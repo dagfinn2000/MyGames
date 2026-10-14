@@ -1,11 +1,11 @@
 /**
  * Calendar-day helpers. A "day key" is "2026-07-17": sortable, comparable,
- * and the unit every reading-day statistic is counted in.
+ * and the unit every play-day statistic is counted in.
  *
  * Which day a moment falls on depends on the time zone. Without one these
- * use the server's local zone, which is how MyGames always behaved; with
- * the reader's zone (Preferences) late-evening reading lands on the evening
- * it happened rather than on the server's next day.
+ * use the server's local zone; with the player's zone (Preferences) a
+ * late-evening session lands on the evening it happened rather than on the
+ * server's next day.
  */
 
 const keyFormatters = new Map<string, Intl.DateTimeFormat>();
@@ -57,7 +57,7 @@ export function shiftDayKey(key: string, days: number): string {
  * UTC and mean that day wherever you are, so they read back in UTC — read in
  * New York they would otherwise show the 11th. Anything else is a moment in
  * time (a "finished today" stamp, a play-log entry) and falls on whatever
- * day it was in the reader's zone.
+ * day it was in the player's zone.
  */
 export function calendarDay(d: Date, timeZone?: string): string {
   const isMidnightUtc =

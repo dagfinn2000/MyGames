@@ -8,7 +8,8 @@ import { prisma } from "@/lib/prisma";
 /**
  * Local cover-image cache. When a game is saved with a remote cover URL the
  * image is downloaded here once and served from /api/covers/<file> from then
- * on, so the library never depends on (or hammers) covers.openlibrary.org.
+ * on, so the library never depends on (or hammers) the catalogues' image
+ * servers — IGDB's, Steam's or Wikimedia's.
  *
  * In Docker this directory is a named volume (COVERS_DIR=/app/data/covers).
  */
@@ -37,12 +38,13 @@ const EXT_BY_MIME: Record<string, string> = {
   "image/webp": "webp",
 };
 
-/** Hard ceiling on a downloaded cover. Game covers are tens to hundreds of
- *  KB; anything past this is a mistake or an attempt to exhaust memory. */
+/** Hard ceiling on a downloaded cover. Box art is tens to hundreds of KB;
+ *  anything past this is a mistake or an attempt to exhaust memory. */
 const MAX_COVER_BYTES = 5 * 1024 * 1024;
 
-/** Redirect hops to follow. Open Library covers redirect to archive.org, so
- *  some redirection is required; an unbounded chain is not. */
+/** Redirect hops to follow. Image hosts and CDNs do redirect (an old store
+ *  asset to its new path, a short link to the file), so some redirection
+ *  is required; an unbounded chain is not. */
 const MAX_REDIRECTS = 3;
 
 /**
@@ -61,7 +63,9 @@ async function guardedFetch(url: string): Promise<Response | null> {
     const res = await fetch(target, {
       redirect: "manual",
       signal: AbortSignal.timeout(15_000),
-      headers: { "User-Agent": "mygames/1.0 (self-hosted personal library)" },
+      // Wikimedia, where Wikipedia's box art lives, turns away requests
+      // without a descriptive User-Agent.
+      headers: { "User-Agent": "mygames/1.0 (self-hosted personal game library)" },
     });
 
     if (res.status >= 300 && res.status < 400) {
@@ -106,7 +110,8 @@ export async function cacheCoverImage(
 
     const buf = await readBodyCapped(res, MAX_COVER_BYTES);
     if (!buf) return null;
-    // Open Library serves a tiny placeholder for missing covers; skip those.
+    // No real box art is this small: it's a placeholder or a tracking
+    // pixel standing in for a missing cover. Skip those.
     if (buf.length < 500) return null;
 
     const dir = coversDir();

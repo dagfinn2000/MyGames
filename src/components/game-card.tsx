@@ -2,7 +2,7 @@ import type { Game } from "@prisma/client";
 import { GameOwnership, PlayStatus } from "@prisma/client";
 import {
   ArrowLeftRight,
-  BookOpen,
+  Gamepad2,
   Gift,
   HandHeart,
   Heart,
@@ -17,14 +17,14 @@ import {
   STATUS_BADGE_CLASS,
   STATUS_LABELS,
   formatDate,
-  formatNumber,
   type FormatPrefs,
 } from "@/lib/display";
 import { coverArt } from "@/lib/cover-art";
 import type { LibraryDisplay } from "@/lib/library-view";
+import { formatPlaytime, progressFigure, progressPercent } from "@/lib/progress-units";
 import { cn } from "@/lib/utils";
 
-/** Cover image, or a stand-in when the game has none.
+/** Box art, or a stand-in when the game has none.
  *  Lazy by default — grids request hundreds of covers at once, and the
  *  below-the-fold ones shouldn't compete with the visible page. The detail
  *  page passes `loading="eager"` for its above-the-fold hero cover. */
@@ -34,7 +34,7 @@ export function GameCover({
   loading = "lazy",
   flightTarget,
 }: {
-  game: Pick<Game, "title" | "coverUrl"> & { authors?: string[] };
+  game: Pick<Game, "title" | "coverUrl"> & { developers?: string[] };
   className?: string;
   loading?: "eager" | "lazy";
   /** The game's id, on the game page's own cover: where a cover clicked
@@ -56,7 +56,7 @@ export function GameCover({
           className="h-full w-full object-cover"
         />
       ) : (
-        <MissingCover title={game.title} author={game.authors?.[0]} />
+        <MissingCover title={game.title} developer={game.developers?.[0]} />
       )}
     </div>
   );
@@ -97,17 +97,17 @@ export function GameBackdrop({ game }: { game: Pick<Game, "title" | "coverUrl"> 
 }
 
 /**
- * The stand-in for a game without a cover image. Both kinds are rendered and
- * CSS shows one, following "Games without a cover" in Preferences
+ * The stand-in for a game without box art. Both kinds are rendered and CSS
+ * shows one, following "Games without a cover" in Preferences
  * (`data-covers` on <html>; see globals.css) — so this stays a plain
  * component that server and client pages can share without passing the
  * setting down.
  *
- * The drawn cover is a coloured board with the title and first author,
- * coloured from the title (lib/cover-art.ts). The plain one is the old grey
- * box with a game icon.
+ * The drawn cover is a coloured board with the title and first developer,
+ * coloured from the title (lib/cover-art.ts). The plain one is a grey box
+ * with a controller.
  */
-function MissingCover({ title, author }: { title: string; author?: string }) {
+function MissingCover({ title, developer }: { title: string; developer?: string }) {
   const art = coverArt(title);
   return (
     <>
@@ -127,11 +127,11 @@ function MissingCover({ title, author }: { title: string; author?: string }) {
         <div className="drawn-cover-frame">
           <span className="drawn-cover-title">{title}</span>
           <span className="drawn-cover-rule" />
-          {author && <span className="drawn-cover-author">{author}</span>}
+          {developer && <span className="drawn-cover-developer">{developer}</span>}
         </div>
       </div>
       <div className="plain-cover h-full w-full items-center justify-center">
-        <BookOpen className="size-10 text-muted-foreground/40" />
+        <Gamepad2 className="size-10 text-muted-foreground/40" />
       </div>
     </>
   );
@@ -144,12 +144,13 @@ export type GameCardGame = Pick<
   Game,
   | "id"
   | "title"
-  | "authors"
+  | "developers"
+  | "platform"
   | "coverUrl"
   | "status"
   | "rating"
-  | "currentPage"
-  | "pageCount"
+  | "playedMinutes"
+  | "lengthMinutes"
   | "seriesName"
   | "seriesNumber"
 > & {
@@ -166,23 +167,55 @@ export type GameCardGame = Pick<
 /** Which details a card or row shows (the library's View menu). */
 export type CardDetails = Pick<
   LibraryDisplay,
-  "showRating" | "showStatus" | "showSeries" | "showOwnership" | "rowDate" | "showPageCount"
+  | "showRating"
+  | "showStatus"
+  | "showSeries"
+  | "showPlatform"
+  | "showOwnership"
+  | "rowDate"
+  | "showLength"
 >;
 
 const ALL_DETAILS: CardDetails = {
   showRating: true,
   showStatus: true,
   showSeries: true,
+  showPlatform: true,
   showOwnership: false,
   rowDate: "none",
-  showPageCount: false,
+  showLength: false,
 };
 
-/** Reading progress as 0–1 while a game is being read, else null. */
-function playProgress(game: GameCardGame): number | null {
-  return game.status === PlayStatus.PLAYING && game.currentPage != null && game.pageCount
-    ? Math.min(game.currentPage / game.pageCount, 1)
-    : null;
+/**
+ * The progress bar on a game being played: how far through its usual time
+ * to beat (0–100, full once past it), and the figure behind it for the
+ * tooltip. Null when nothing is being played, or the time to beat isn't
+ * known, since a bar needs an end.
+ */
+function playProgress(game: GameCardGame): { percent: number; label: string } | null {
+  if (game.status !== PlayStatus.PLAYING || game.playedMinutes == null) return null;
+  const percent = progressPercent(game.playedMinutes, game.lengthMinutes);
+  return percent === null
+    ? null
+    : { percent, label: progressFigure(game.playedMinutes, game.lengthMinutes) };
+}
+
+/** The thin bar under a cover or in a row. */
+function ProgressBar({
+  progress,
+  className,
+}: {
+  progress: { percent: number; label: string };
+  className: string;
+}) {
+  return (
+    <div className={cn("rounded-full bg-muted", className)} title={progress.label}>
+      <div
+        className="bar-grow h-full rounded-full bg-primary/80"
+        style={{ width: `${progress.percent}%` }}
+      />
+    </div>
+  );
 }
 
 function LentBadge() {
@@ -225,8 +258,13 @@ function seriesLabel(game: GameCardGame): string {
   return `${game.seriesName}${game.seriesNumber != null ? ` #${game.seriesNumber}` : ""}`;
 }
 
-/** A list row's extra line: the date added or finished and the page count,
- *  as the View menu asks. Empty when there is nothing to show (a date
+/** The platform when the View menu shows it and the game has one. */
+function shownPlatform(game: GameCardGame, details: CardDetails): string | null {
+  return details.showPlatform ? game.platform?.trim() || null : null;
+}
+
+/** A list row's extra line: the date added or finished and the time to
+ *  beat, as the View menu asks. Empty when there is nothing to show (a date
  *  finished for a game not finished, say). */
 function rowFacts(game: GameCardGame, details: CardDetails, formatPrefs?: FormatPrefs): string {
   const facts: string[] = [];
@@ -236,16 +274,16 @@ function rowFacts(game: GameCardGame, details: CardDetails, formatPrefs?: Format
   if (details.rowDate === "finished" && game.dateFinished) {
     facts.push(`Finished ${formatDate(game.dateFinished, formatPrefs)}`);
   }
-  if (details.showPageCount && game.pageCount) {
-    facts.push(`${formatNumber(game.pageCount, formatPrefs)} pages`);
+  if (details.showLength && game.lengthMinutes) {
+    facts.push(`About ${formatPlaytime(game.lengthMinutes)} to beat`);
   }
   return facts.join(" · ");
 }
 
 /**
  * One line per game for the library's list layout: a small cover, title,
- * author and series, then rating and badges on the right. For long
- * libraries, where scanning titles beats scanning covers.
+ * developers, platform and series, then rating and badges on the right.
+ * For long libraries, where scanning titles beats scanning covers.
  */
 export function GameRow({
   game,
@@ -254,13 +292,16 @@ export function GameRow({
 }: {
   game: GameCardGame;
   details?: CardDetails;
-  /** The reader's date and number formats, for the date and page count
-   *  line. Passed in so this file stays free of hooks: server pages import
-   *  GameCover from it. */
+  /** The player's date format, for the date line. Passed in so this file
+   *  stays free of hooks: server pages import GameCover from it. */
   formatPrefs?: FormatPrefs;
 }) {
   const progress = playProgress(game);
   const facts = rowFacts(game, details, formatPrefs);
+  const byline = [game.developers.join(", "), shownPlatform(game, details)]
+    .filter(Boolean)
+    .join(" · ");
+  const series = details.showSeries && game.seriesName ? seriesLabel(game) : null;
   return (
     <GameLink
       gameId={game.id}
@@ -272,23 +313,16 @@ export function GameRow({
           {game.title}
         </p>
         <p className="truncate text-xs text-muted-foreground">
-          {game.authors.join(", ")}
-          {details.showSeries && game.seriesName && (
-            <span className="italic text-muted-foreground/80"> · {seriesLabel(game)}</span>
+          {byline}
+          {series && (
+            <span className="italic text-muted-foreground/80">
+              {byline && " · "}
+              {series}
+            </span>
           )}
         </p>
         {facts && <p className="truncate text-xs text-muted-foreground tabular-nums">{facts}</p>}
-        {progress !== null && (
-          <div
-            className="mt-0.5 h-1 max-w-40 rounded-full bg-muted"
-            title={`Page ${game.currentPage} of ${game.pageCount}`}
-          >
-            <div
-              className="bar-grow h-full rounded-full bg-primary/80"
-              style={{ width: `${progress * 100}%` }}
-            />
-          </div>
-        )}
+        {progress && <ProgressBar progress={progress} className="mt-0.5 h-1 max-w-40" />}
       </div>
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
         {details.showRating && game.rating ? <Stars value={game.rating} /> : null}
@@ -312,10 +346,11 @@ export function GameCard({
 }: {
   game: GameCardGame;
   details?: CardDetails;
-  /** Small covers: tighter padding, no author line. */
+  /** Small covers: tighter padding, no developer or platform line. */
   compact?: boolean;
 }) {
   const progress = playProgress(game);
+  const platform = shownPlatform(game, details);
 
   return (
     <GameLink
@@ -326,17 +361,7 @@ export function GameCard({
       )}
     >
       <GameCover game={game} className="aspect-[2/3] w-full" />
-      {progress !== null && (
-        <div
-          className="-mt-1 h-1.5 rounded-full bg-muted"
-          title={`Page ${game.currentPage} of ${game.pageCount}`}
-        >
-          <div
-            className="bar-grow h-full rounded-full bg-primary/80"
-            style={{ width: `${progress * 100}%` }}
-          />
-        </div>
-      )}
+      {progress && <ProgressBar progress={progress} className="-mt-1 h-1.5" />}
       <div className="flex flex-1 flex-col gap-1">
         <p
           className={cn(
@@ -346,10 +371,13 @@ export function GameCard({
         >
           {game.title}
         </p>
-        {!compact && (
+        {!compact && game.developers.length > 0 && (
           <p className="line-clamp-1 text-xs text-muted-foreground">
-            {game.authors.join(", ")}
+            {game.developers.join(", ")}
           </p>
+        )}
+        {!compact && platform && (
+          <p className="line-clamp-1 text-xs text-muted-foreground">{platform}</p>
         )}
         {details.showSeries && game.seriesName && (
           <p className="line-clamp-1 text-xs italic text-muted-foreground/80">
@@ -383,17 +411,7 @@ export function GameCoverTile({ game, compact = false }: { game: GameCardGame; c
   return (
     <GameLink gameId={game.id} className="lift-cover group flex flex-col gap-1.5">
       <GameCover game={game} className="cover-shadow aspect-[2/3] w-full" />
-      {progress !== null && (
-        <div
-          className="h-1 rounded-full bg-muted"
-          title={`Page ${game.currentPage} of ${game.pageCount}`}
-        >
-          <div
-            className="bar-grow h-full rounded-full bg-primary/80"
-            style={{ width: `${progress * 100}%` }}
-          />
-        </div>
-      )}
+      {progress && <ProgressBar progress={progress} className="h-1" />}
       <p
         className={cn(
           "line-clamp-2 font-heading leading-snug text-muted-foreground group-hover:text-foreground group-hover:underline",
@@ -406,10 +424,10 @@ export function GameCoverTile({ game, compact = false }: { game: GameCardGame; c
   );
 }
 
-/** "Bookshelf": just the cover, standing on the shelf its slot draws
+/** "Shelf": just the cover, standing on the shelf its slot draws
  *  (globals.css). The title shows on hover and to screen readers. */
 export function GameOnShelf({ game }: { game: GameCardGame }) {
-  const byline = game.authors.length ? ` by ${game.authors.join(", ")}` : "";
+  const byline = game.developers.length ? ` by ${game.developers.join(", ")}` : "";
   return (
     <GameLink gameId={game.id} className="lift-cover block" title={`${game.title}${byline}`}>
       <GameCover game={game} className="cover-shadow aspect-[2/3] w-full" />

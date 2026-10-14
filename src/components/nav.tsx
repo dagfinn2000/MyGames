@@ -1,15 +1,14 @@
 import Link from "next/link";
 import {
   Armchair,
-  BookOpen,
-  BookOpenText,
   ChartColumn,
+  Gamepad2,
   HardDriveDownload,
+  Joystick,
   LibraryBig,
   LogOut,
   Plus,
   Quote,
-  ScanSearch,
   UserRound,
 } from "lucide-react";
 import { auth, signOut } from "@/auth";
@@ -19,18 +18,18 @@ import { NavLink } from "@/components/nav-link";
 import { ThemePicker } from "@/components/theme-picker";
 
 /** Top navigation for authenticated pages. Server component — reads the
- *  session directly and signs out via a server action. The Now reading,
- *  Check, Quotes and Reading room links can be hidden in Preferences; the
- *  logo goes to the start page chosen there. */
+ *  session directly and signs out via a server action. The Now playing,
+ *  Quotes and Game room links can be hidden in Preferences; the logo goes
+ *  to the start page chosen there. */
 export async function Nav() {
   const [session, prefs] = await Promise.all([auth(), getPreferences()]);
   const hidden = new Set(prefs.hiddenNav);
 
   return (
     <header className="top-bar sticky top-0 z-40 border-b bg-background/75 backdrop-blur-md backdrop-saturate-150">
-      {/* Below lg the nav buttons collapse to icons. With seven labelled
-          links plus the right-hand group the bar needs about 1000px, so
-          labels from sm (640px) overflowed tablets and narrow windows.
+      {/* Below lg the nav buttons collapse to icons. With every link
+          labelled plus the right-hand group the bar needs well over 900px,
+          so labels from sm (640px) overflowed tablets and narrow windows.
           On phones the icons sit closer together and the wordmark waits
           for room, so the bar fits from 360px up with every link shown. */}
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-0.5 px-3 max-sm:[&_[data-slot=button]]:px-[5px] sm:gap-1 sm:px-4">
@@ -38,29 +37,23 @@ export async function Nav() {
           href="/"
           className="wordmark mr-1 flex items-center gap-2 text-lg sm:mr-4"
         >
-          <BookOpen className="size-5" />
+          <Gamepad2 className="size-5" />
           <span className="hidden min-[480px]:inline">MyGames</span>
         </Link>
         <NavLink href="/games" title="Library">
           <LibraryBig data-slot="icon" />
           <span className="hidden lg:inline">Library</span>
         </NavLink>
-        {!hidden.has("reading") && (
-          <NavLink href="/playing" title="Now reading">
-            <BookOpenText data-slot="icon" />
-            <span className="hidden lg:inline">Now reading</span>
+        {!hidden.has("playing") && (
+          <NavLink href="/playing" title="Now playing">
+            <Joystick data-slot="icon" />
+            <span className="hidden lg:inline">Now playing</span>
           </NavLink>
         )}
         <NavLink href="/games/new" title="Add game">
           <Plus data-slot="icon" />
           <span className="hidden lg:inline">Add game</span>
         </NavLink>
-        {!hidden.has("check") && (
-          <NavLink href="/games/check" title="Do I own this?">
-            <ScanSearch data-slot="icon" />
-            <span className="hidden lg:inline">Check</span>
-          </NavLink>
-        )}
         {!hidden.has("quotes") && (
           <NavLink href="/quotes" title="Quotes">
             <Quote data-slot="icon" />
@@ -72,7 +65,7 @@ export async function Nav() {
           <span className="hidden lg:inline">Stats</span>
         </NavLink>
         {!hidden.has("room") && (
-          <NavLink href="/room" title="Reading room">
+          <NavLink href="/room" title="Game room">
             <Armchair data-slot="icon" />
             <span className="hidden lg:inline">Room</span>
           </NavLink>

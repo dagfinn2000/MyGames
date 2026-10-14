@@ -1,4 +1,4 @@
-/** Skeleton for Now reading. */
+/** Skeleton for Now playing. */
 export default function NowPlayingLoading() {
   return (
     <div className="shimmer grid gap-6">

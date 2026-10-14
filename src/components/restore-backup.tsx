@@ -7,9 +7,9 @@ import type { ImportSummary } from "@/lib/import";
 import { Button } from "@/components/ui/button";
 
 /**
- * "Restore backup" button on the account page: picks a MyGames export (zip
- * with covers, or a legacy JSON), posts it to /api/import, and reports what
- * was merged in.
+ * "Restore backup" button on the account page: picks a MyGames backup (the
+ * zip with covers, or its library.json on its own), posts it to
+ * /api/import, and reports what was merged in.
  */
 export function RestoreBackup() {
   const router = useRouter();
@@ -30,7 +30,7 @@ export function RestoreBackup() {
         setMessage(data.error ?? "Restore failed.");
         return;
       }
-      // "1 cover", "2 covers"; "1 past read", "2 past reads".
+      // "1 cover", "2 covers"; "1 past playthrough", "2 past playthroughs".
       const n = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
       const parts = [
         `${n(data.gamesCreated, "game")} restored`,
@@ -38,8 +38,8 @@ export function RestoreBackup() {
         data.gamesInvalid > 0 ? `${data.gamesInvalid} invalid` : null,
         data.coversRestored > 0 ? `${n(data.coversRestored, "cover")} restored` : null,
         data.quotesRestored > 0 ? `${n(data.quotesRestored, "quote")} restored` : null,
-        data.playthroughsRestored > 0 ? `${n(data.playthroughsRestored, "past read")} restored` : null,
-        data.progressRestored > 0 ? `${n(data.progressRestored, "progress entry", "progress entries")} restored` : null,
+        data.playthroughsRestored > 0 ? `${n(data.playthroughsRestored, "past playthrough")} restored` : null,
+        data.progressRestored > 0 ? `${n(data.progressRestored, "play log entry", "play log entries")} restored` : null,
         data.loansRestored > 0 ? `${n(data.loansRestored, "loan")} restored` : null,
         data.shelvesCreated > 0 ? `${n(data.shelvesCreated, "shelf", "shelves")} created` : null,
         data.goalsRestored > 0 ? `${n(data.goalsRestored, "goal")} restored` : null,
@@ -57,7 +57,7 @@ export function RestoreBackup() {
       );
       router.refresh();
     } catch {
-      setMessage("Restore failed — is this a MyGames export file?");
+      setMessage("Restore failed — is this a MyGames backup?");
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = "";

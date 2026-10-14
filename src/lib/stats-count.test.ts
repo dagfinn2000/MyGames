@@ -1,29 +1,31 @@
 import { describe, expect, it } from "vitest";
 import { calendarDay } from "@/lib/dates";
+import { formatNumber } from "@/lib/display";
 import { goalProgress, markReplays } from "@/lib/goals";
 import {
-  gamesCompletedAllTime,
+  NO_PLATFORM,
   buildPasses,
   countWindow,
+  gamesCompletedAllTime,
+  gamesLabel,
   goalRuleLine,
   inWindow,
+  perYear,
+  platformCounts,
   ruleNotes,
   tally,
-  type GameDayPages,
   type CountGame,
-  type CountCompleted,
+  type CountPlaythrough,
   type CountRules,
+  type GameDayMinutes,
   type StatsInputs,
 } from "@/lib/stats-count";
 import { ALL_TIME, yearWindow, type DayWindow } from "@/lib/stats-period";
 
 const TZ = "UTC";
-const DEFAULTS: CountRules = {
-  statsPagesRead: "finished",
-  statsStoppedGames: "none",
-  statsAudiobooks: "full",
-};
-const LOGGED: CountRules = { ...DEFAULTS, statsPagesRead: "logged" };
+/** Hours played as logged, dropped games left out: how Preferences starts. */
+const LOGGED: CountRules = { statsHoursPlayed: "logged", statsStoppedGames: "none" };
+const FINISHED: CountRules = { ...LOGGED, statsHoursPlayed: "finished" };
 
 /** A date typed into a date field: midnight UTC. */
 const d = (day: string) => new Date(`${day}T00:00:00Z`);
@@ -32,9 +34,7 @@ function game(id: string, over: Partial<CountGame> = {}): CountGame {
   return {
     id,
     status: "COMPLETED",
-    format: "PHYSICAL",
-    pageCount: 300,
-    currentPage: null,
+    playedMinutes: null,
     dateStarted: null,
     dateFinished: null,
     rating: null,
@@ -42,108 +42,140 @@ function game(id: string, over: Partial<CountGame> = {}): CountGame {
   };
 }
 
-function read(gameId: string, finished: string | null, over: Partial<CountCompleted> = {}): CountCompleted {
-  return { gameId, dateStarted: null, dateFinished: finished ? d(finished) : null, rating: null, ...over };
+/** An archived playthrough from the play history. */
+function playthrough(
+  gameId: string,
+  finished: string | null,
+  over: Partial<CountPlaythrough> = {},
+): CountPlaythrough {
+  return {
+    gameId,
+    dateStarted: null,
+    dateFinished: finished ? d(finished) : null,
+    rating: null,
+    playedMinutes: null,
+    ...over,
+  };
 }
 
-function log(gameId: string, day: string, pages: number, current = true): GameDayPages {
-  return { gameId, day, pages, current };
+function log(gameId: string, day: string, minutes: number, current = true): GameDayMinutes {
+  return { gameId, day, minutes, current };
 }
 
-function inputs(
-  games: CountGame[],
-  playthroughs: CountCompleted[] = [],
-  logDays: GameDayPages[] = [],
+function inputs<G extends CountGame>(
+  games: G[],
+  playthroughs: CountPlaythrough[] = [],
+  logDays: GameDayMinutes[] = [],
   lastLogDates: Map<string, Date> = new Map(),
-): StatsInputs {
+): StatsInputs<G> {
   return { games, playthroughs, logDays, lastLogDates };
 }
 
-/** Games and pages a window adds up to under some rules. */
+/** Games and minutes a window adds up to under some rules. */
 function count(inp: StatsInputs, rules: CountRules, window: DayWindow = ALL_TIME) {
   return tally(countWindow(buildPasses(inp, rules, TZ), window, rules));
 }
 
-describe("with the default rules", () => {
+describe("with hours counted by whole playthroughs", () => {
   // A library with a bit of everything.
   const games = [
-    game("a", { dateFinished: d("2025-06-01") }), // and read before, in 2024
-    game("b", { pageCount: 200 }), // Read, no finish date
-    game("c", { pageCount: null, dateFinished: d("2026-02-01") }),
-    game("d", { status: "WANT_TO_PLAY", pageCount: 150 }), // read before the app
-    game("e", { status: "DROPPED", pageCount: 400, currentPage: 120, dateFinished: d("2026-03-01") }),
-    game("f", { status: "PLAYING", pageCount: 500, currentPage: 100 }),
-    game("g", { format: "AUDIOBOOK", pageCount: 350, dateFinished: d("2026-05-05") }),
+    game("hollow-knight", { playedMinutes: 2400, dateFinished: d("2025-06-01") }), // and in 2024
+    game("portal-2", { playedMinutes: 600 }), // Completed, no finish date
+    game("witcher-3", { dateFinished: d("2026-02-01") }), // no time given
+    game("celeste", { status: "WANT_TO_PLAY" }), // played before the app
+    game("dark-souls", { status: "DROPPED", playedMinutes: 750, dateFinished: d("2026-03-01") }),
+    game("ff7-rebirth", { status: "PLAYING", playedMinutes: 1200 }),
+    game("stardew", { playedMinutes: 3000, dateFinished: d("2026-05-05") }),
   ];
-  const reads = [read("a", "2024-03-01"), read("d", null)];
-  const logDays = [log("f", "2026-09-01", 100), log("e", "2026-02-20", 120)];
-  const inp = inputs(games, reads, logDays);
+  const playthroughs = [
+    playthrough("hollow-knight", "2024-03-01", { playedMinutes: 2700 }),
+    playthrough("celeste", null, { playedMinutes: 480 }),
+  ];
+  const logDays = [log("ff7-rebirth", "2026-09-01", 1200), log("dark-souls", "2026-02-20", 750)];
+  const inp = inputs(games, playthroughs, logDays);
 
-  /** The stats page's sums before "What counts" existed. */
-  function before() {
-    const completedGames = games.filter((b) => b.status === "COMPLETED");
-    const pageCountOf = (id: string) => games.find((b) => b.id === id)!.pageCount;
+  /** The plain sums: every completed playthrough, current or archived,
+   *  adds one game and the time it took, on the day it was completed. */
+  function plainSums() {
+    const completed = [
+      ...games
+        .filter((g) => g.status === "COMPLETED")
+        .map((g) => ({ gameId: g.id, date: g.dateFinished, minutes: g.playedMinutes ?? 0 })),
+      ...playthroughs.map((p) => ({
+        gameId: p.gameId,
+        date: p.dateFinished,
+        minutes: p.playedMinutes ?? 0,
+      })),
+    ];
     const finishes = markReplays(
-      [
-        ...completedGames
-          .filter((b) => b.dateFinished)
-          .map((b) => ({ gameId: b.id, dateFinished: b.dateFinished!, pageCount: b.pageCount })),
-        ...reads
-          .filter((r) => r.dateFinished)
-          .map((r) => ({ gameId: r.gameId, dateFinished: r.dateFinished!, pageCount: pageCountOf(r.gameId) })),
-      ],
-      new Set(reads.filter((r) => !r.dateFinished).map((r) => r.gameId)),
+      completed.flatMap((c) => (c.date ? [{ ...c, dateFinished: c.date }] : [])),
+      new Set(playthroughs.filter((p) => !p.dateFinished).map((p) => p.gameId)),
     ).map((f) => ({ ...f, year: Number(calendarDay(f.dateFinished, TZ).slice(0, 4)) }));
     return {
-      gamesCompleted: completedGames.length,
-      pagesRead:
-        completedGames.reduce((s, b) => s + (b.pageCount ?? 0), 0) +
-        reads.reduce((s, r) => s + (pageCountOf(r.gameId) ?? 0), 0),
+      gamesCompleted: games.filter((g) => g.status === "COMPLETED").length,
+      minutes: completed.reduce((s, c) => s + c.minutes, 0),
       perYear: (year: number) => finishes.filter((f) => f.year === year).length,
-      goal: (year: number, unit: "GAMES" | "PAGES", countReplays: boolean) => {
+      goal: (year: number, unit: "GAMES" | "HOURS", countReplays: boolean) => {
         const counted = finishes
           .filter((f) => f.year === year)
           .filter((f) => countReplays || !f.isReplay);
-        return unit === "PAGES"
-          ? counted.reduce((s, f) => s + (f.pageCount ?? 0), 0)
-          : counted.length;
+        return unit === "HOURS" ? counted.reduce((s, f) => s + f.minutes, 0) : counted.length;
       },
     };
   }
 
-  it("reproduces Games read, Pages read, the per-year bars and goal progress", () => {
-    const old = before();
-    expect(gamesCompletedAllTime(games, DEFAULTS).games).toBe(old.gamesCompleted);
-    expect(count(inp, DEFAULTS).pages).toBe(old.pagesRead);
-    expect(old.pagesRead).toBe(1300);
+  it("adds up Games completed, Hours played, the per-year bars and goal progress", () => {
+    const plain = plainSums();
+    expect(gamesCompletedAllTime(games, FINISHED).games).toBe(plain.gamesCompleted);
+    expect(count(inp, FINISHED).minutes).toBe(plain.minutes);
+    expect(plain.minutes).toBe(9180);
 
-    const passes = buildPasses(inp, DEFAULTS, TZ);
+    const passes = buildPasses(inp, FINISHED, TZ);
     for (const year of [2023, 2024, 2025, 2026, 2027]) {
-      const items = countWindow(passes, yearWindow(year), DEFAULTS);
-      expect(tally(items).games, `${year}`).toBe(old.perYear(year));
-      for (const unit of ["GAMES", "PAGES"] as const) {
+      const items = countWindow(passes, yearWindow(year), FINISHED);
+      expect(tally(items).games, `${year}`).toBe(plain.perYear(year));
+      for (const unit of ["GAMES", "HOURS"] as const) {
         for (const countReplays of [true, false]) {
           expect(goalProgress(items, { unit, countReplays }), `${year} ${unit}`).toBe(
-            old.goal(year, unit, countReplays),
+            plain.goal(year, unit, countReplays),
           );
         }
       }
     }
   });
 
-  it("counts open and stopped games nowhere", () => {
-    const ids = countWindow(buildPasses(inp, DEFAULTS, TZ), ALL_TIME, DEFAULTS).map(
+  it("leaves out games still being played, and dropped ones", () => {
+    const ids = countWindow(buildPasses(inp, FINISHED, TZ), ALL_TIME, FINISHED).map(
       (i) => i.pass.game.id,
     );
-    expect(ids).not.toContain("e");
-    expect(ids).not.toContain("f");
+    expect(ids).not.toContain("dark-souls");
+    expect(ids).not.toContain("ff7-rebirth");
+
+    // Counting the time logged, the game being played adds its time; the
+    // dropped one still adds nothing.
+    const logged = countWindow(buildPasses(inp, LOGGED, TZ), ALL_TIME, LOGGED);
+    expect(logged.find((i) => i.pass.game.id === "ff7-rebirth")).toMatchObject({
+      games: 0,
+      minutes: 1200,
+    });
+    expect(logged.map((i) => i.pass.game.id)).not.toContain("dark-souls");
+  });
+
+  it("counts a playthrough that ran past the usual time to beat in full", () => {
+    const long = inputs(
+      [{ ...game("elden-ring", { playedMinutes: 6000, dateFinished: d("2026-04-01") }), lengthMinutes: 3600 }],
+      [],
+      [log("elden-ring", "2026-03-01", 3600), log("elden-ring", "2026-04-01", 2400)],
+    );
+    expect(count(long, FINISHED).minutes).toBe(6000);
+    expect(count(long, LOGGED).minutes).toBe(6000);
   });
 });
 
-describe("Pages I logged", () => {
-  it("splits a game read across New Year between the two years", () => {
+describe("hours as logged", () => {
+  it("splits a game played across New Year between the two years", () => {
     const inp = inputs(
-      [game("x", { pageCount: 600, dateFinished: d("2026-01-10") })],
+      [game("x", { playedMinutes: 600, dateFinished: d("2026-01-10") })],
       [],
       [
         log("x", "2025-12-20", 300),
@@ -152,64 +184,78 @@ describe("Pages I logged", () => {
         log("x", "2026-01-10", 50),
       ],
     );
-    expect(count(inp, LOGGED, yearWindow(2025))).toMatchObject({ games: 0, pages: 450 });
-    expect(count(inp, LOGGED, yearWindow(2026))).toMatchObject({ games: 1, pages: 150 });
-    expect(count(inp, LOGGED).pages).toBe(600);
-    // Whole games put it all in the year it was finished.
-    expect(count(inp, DEFAULTS, yearWindow(2025)).pages).toBe(0);
-    expect(count(inp, DEFAULTS, yearWindow(2026)).pages).toBe(600);
+    expect(count(inp, LOGGED, yearWindow(2025))).toMatchObject({ games: 0, minutes: 450 });
+    expect(count(inp, LOGGED, yearWindow(2026))).toMatchObject({ games: 1, minutes: 150 });
+    expect(count(inp, LOGGED).minutes).toBe(600);
+    // Whole playthroughs put it all in the year it was completed.
+    expect(count(inp, FINISHED, yearWindow(2025)).minutes).toBe(0);
+    expect(count(inp, FINISHED, yearWindow(2026)).minutes).toBe(600);
   });
 
-  it("adds a game finished without logging on its finish day; undated only in all time", () => {
+  it("adds a game completed without logging on its finish day; undated only in all time", () => {
     const inp = inputs([
-      game("y", { pageCount: 250, dateFinished: d("2026-03-03") }),
-      game("z", { pageCount: 100 }),
+      game("y", { playedMinutes: 250, dateFinished: d("2026-03-03") }),
+      game("z", { playedMinutes: 100 }),
+      // No time given: a game, but no time.
+      game("n", { dateFinished: d("2026-03-04") }),
     ]);
-    expect(count(inp, LOGGED, yearWindow(2026)).pages).toBe(250);
-    expect(count(inp, LOGGED).pages).toBe(350);
+    expect(count(inp, LOGGED, yearWindow(2026))).toMatchObject({ games: 2, minutes: 250 });
+    expect(count(inp, LOGGED).minutes).toBe(350);
   });
 
-  it("counts a read from before the app and a logged re-read once each", () => {
+  it("counts a playthrough from before the app and a logged replay once each", () => {
     const inp = inputs(
-      [game("p", { dateFinished: d("2026-04-01") })],
-      [read("p", "2020-05-01")],
+      [game("p", { playedMinutes: 300, dateFinished: d("2026-04-01") })],
+      [playthrough("p", "2020-05-01", { playedMinutes: 300 })],
       [log("p", "2026-03-20", 200), log("p", "2026-04-01", 100)],
     );
-    expect(count(inp, LOGGED).pages).toBe(600);
-    expect(count(inp, LOGGED, yearWindow(2020)).pages).toBe(300);
-    expect(count(inp, LOGGED, yearWindow(2026)).pages).toBe(300);
+    expect(count(inp, LOGGED).minutes).toBe(600);
+    expect(count(inp, LOGGED, yearWindow(2020)).minutes).toBe(300);
+    expect(count(inp, LOGGED, yearWindow(2026)).minutes).toBe(300);
 
-    // An undated "read it before" adds its pages in all time only.
+    // An undated "played it before" adds its time in all time only.
     const undated = inputs(
-      [game("p", { dateFinished: d("2026-04-01") })],
-      [read("p", null)],
+      [game("p", { playedMinutes: 300, dateFinished: d("2026-04-01") })],
+      [playthrough("p", null, { playedMinutes: 300 })],
       [log("p", "2026-03-20", 300)],
     );
-    expect(count(undated, LOGGED).pages).toBe(600);
-    expect(count(undated, LOGGED, yearWindow(2026)).pages).toBe(300);
+    expect(count(undated, LOGGED).minutes).toBe(600);
+    expect(count(undated, LOGGED, yearWindow(2026)).minutes).toBe(300);
   });
 
-  it("counts pages logged in games still on the go, and back on the shelf", () => {
+  it("counts time logged in games still being played, and back on Want to Play", () => {
     const inp = inputs(
       [
-        game("r", { status: "PLAYING", currentPage: 120 }),
+        game("r", { status: "PLAYING", playedMinutes: 120 }),
         game("w", { status: "WANT_TO_PLAY" }),
       ],
       [],
       [log("r", "2026-09-01", 120), log("w", "2026-02-02", 80)],
     );
     const last30 = { from: "2026-08-17", to: "2026-09-15" };
-    expect(count(inp, LOGGED, last30)).toMatchObject({ games: 0, pages: 120 });
-    expect(count(inp, LOGGED, yearWindow(2026)).pages).toBe(200);
-    expect(count(inp, DEFAULTS, yearWindow(2026)).pages).toBe(0);
+    expect(count(inp, LOGGED, last30)).toMatchObject({ games: 0, minutes: 120 });
+    expect(count(inp, LOGGED, yearWindow(2026)).minutes).toBe(200);
+    expect(count(inp, FINISHED, yearWindow(2026)).minutes).toBe(0);
+  });
+
+  it("counts only what was logged of a game added part-way through", () => {
+    // Added at 20 h played, then 5 h logged before completing it at 25 h:
+    // the first 20 h were played on days nobody wrote down.
+    const inp = inputs(
+      [game("ac", { playedMinutes: 1500, dateFinished: d("2026-06-30") })],
+      [],
+      [log("ac", "2026-06-20", 300)],
+    );
+    expect(count(inp, LOGGED).minutes).toBe(300);
+    expect(count(inp, FINISHED).minutes).toBe(1500);
   });
 });
 
 describe("log attribution", () => {
-  it("gives pages before a finish to that pass and later ones to the re-read", () => {
+  it("gives time before a completion to that playthrough and later time to the replay", () => {
     const inp = inputs(
-      [game("r", { dateFinished: d("2026-06-01") })],
-      [read("r", "2025-03-10", { dateStarted: d("2025-03-01") })],
+      [game("r", { playedMinutes: 300, dateFinished: d("2026-06-01") })],
+      [playthrough("r", "2025-03-10", { dateStarted: d("2025-03-01"), playedMinutes: 300 })],
       [
         log("r", "2025-03-05", 200, false),
         log("r", "2025-03-10", 100, false),
@@ -218,131 +264,136 @@ describe("log attribution", () => {
     );
     const passes = buildPasses(inp, LOGGED, TZ);
     const [first, again] = passes;
-    expect(first).toMatchObject({ isReplay: false, logged: [{ pages: 200 }, { pages: 100 }] });
-    expect(again).toMatchObject({ isReplay: true, logged: [{ day: "2026-05-20", pages: 300 }] });
+    expect(first).toMatchObject({ isReplay: false, logged: [{ minutes: 200 }, { minutes: 100 }] });
+    expect(again).toMatchObject({ isReplay: true, logged: [{ day: "2026-05-20", minutes: 300 }] });
 
     const year2026 = countWindow(passes, yearWindow(2026), LOGGED);
-    expect(goalProgress(year2026, { unit: "PAGES", countReplays: false })).toBe(0);
-    expect(goalProgress(year2026, { unit: "PAGES", countReplays: true })).toBe(300);
-    expect(count(inp, LOGGED, yearWindow(2025)).pages).toBe(300);
+    expect(goalProgress(year2026, { unit: "HOURS", countReplays: false })).toBe(0);
+    expect(goalProgress(year2026, { unit: "HOURS", countReplays: true })).toBe(300);
+    expect(count(inp, LOGGED, yearWindow(2025)).minutes).toBe(300);
   });
 
-  it("treats a re-read in progress as a re-read for the goal", () => {
+  it("treats a replay in progress as a replay for the goal", () => {
     const inp = inputs(
-      [game("q", { status: "PLAYING", currentPage: 150 })],
-      [read("q", "2025-01-10")],
+      [game("q", { status: "PLAYING", playedMinutes: 150 })],
+      [playthrough("q", "2025-01-10")],
       [log("q", "2026-08-01", 150)],
     );
     const items = countWindow(buildPasses(inp, LOGGED, TZ), yearWindow(2026), LOGGED);
     expect(items).toHaveLength(1);
     expect(items[0].isReplay).toBe(true);
-    expect(goalProgress(items, { unit: "PAGES", countReplays: false })).toBe(0);
-    expect(goalProgress(items, { unit: "PAGES", countReplays: true })).toBe(150);
+    expect(goalProgress(items, { unit: "HOURS", countReplays: false })).toBe(0);
+    expect(goalProgress(items, { unit: "HOURS", countReplays: true })).toBe(150);
   });
 
-  it("keeps an undated logged pass's pages on it, so they aren't counted twice", () => {
-    // Finished with "Don't remember", then read again: the earlier pages
-    // sit before the new pass's start.
+  it("keeps an undated logged playthrough's time on it, so it isn't counted twice", () => {
+    // Completed with "Don't remember", then played again: the earlier time
+    // sits before the new playthrough's start.
     const inp = inputs(
-      [game("u", { status: "PLAYING", pageCount: 400, currentPage: 50 })],
-      [read("u", null, { dateStarted: d("2026-02-01") })],
+      [game("u", { status: "PLAYING", playedMinutes: 50 })],
+      [playthrough("u", null, { dateStarted: d("2026-02-01"), playedMinutes: 400 })],
       [log("u", "2026-02-10", 400, false), log("u", "2026-07-05", 50)],
     );
-    expect(count(inp, LOGGED).pages).toBe(450);
-    expect(count(inp, LOGGED, yearWindow(2026)).pages).toBe(450);
+    expect(count(inp, LOGGED).minutes).toBe(450);
+    expect(count(inp, LOGGED, yearWindow(2026)).minutes).toBe(450);
   });
 
-  it("bounds each earlier pass by its own start", () => {
-    // An undated pass read in 2022, then a dated one in early 2023.
+  it("bounds each earlier playthrough by its own start", () => {
+    // An undated playthrough in 2022, then a dated one in early 2023.
     const inp = inputs(
       [game("v", { status: "WANT_TO_PLAY" })],
       [
-        read("v", null, { dateStarted: d("2022-01-01") }),
-        read("v", "2023-03-01", { dateStarted: d("2023-01-15") }),
+        playthrough("v", null, { dateStarted: d("2022-01-01"), playedMinutes: 300 }),
+        playthrough("v", "2023-03-01", { dateStarted: d("2023-01-15"), playedMinutes: 300 }),
       ],
       [log("v", "2022-06-01", 300, false), log("v", "2023-02-01", 300, false)],
     );
     const [undated, dated] = buildPasses(inp, LOGGED, TZ);
-    expect(undated.logged).toEqual([{ day: "2022-06-01", pages: 300 }]);
-    expect(dated.logged).toEqual([{ day: "2023-02-01", pages: 300 }]);
-    expect(count(inp, LOGGED).pages).toBe(600);
+    expect(undated.logged).toEqual([{ day: "2022-06-01", minutes: 300 }]);
+    expect(dated.logged).toEqual([{ day: "2023-02-01", minutes: 300 }]);
+    expect(count(inp, LOGGED).minutes).toBe(600);
   });
 
-  it("gives pages logged after a typed finish date to that finish", () => {
+  it("gives time logged after a typed finish date to that finish", () => {
     const inp = inputs(
       [game("t", { status: "PLAYING" })],
-      [read("t", "2024-05-01")],
+      [playthrough("t", "2024-05-01")],
       [log("t", "2024-04-20", 250, false), log("t", "2024-05-03", 50, false)],
     );
     const [archived] = buildPasses(inp, LOGGED, TZ);
-    expect(archived.logged.reduce((s, l) => s + l.pages, 0)).toBe(300);
+    expect(archived.logged.reduce((s, l) => s + l.minutes, 0)).toBe(300);
   });
 });
 
-describe("Games I stop reading", () => {
-  const stopped = game("s", {
+describe("dropped games", () => {
+  // Put down at 12 h 30 min.
+  const dropped = game("ds", {
     status: "DROPPED",
-    pageCount: 500,
-    currentPage: 218,
+    playedMinutes: 750,
     dateFinished: d("2026-03-01"),
   });
-  const logs = [log("s", "2026-02-20", 218)];
+  const logs = [log("ds", "2026-02-20", 750)];
 
-  it("drops a stopped game entirely by default, logged pages too", () => {
-    expect(count(inputs([stopped], [], logs), LOGGED, yearWindow(2026))).toMatchObject({
+  it("leaves a dropped game out entirely by default, logged time too", () => {
+    expect(count(inputs([dropped], [], logs), LOGGED, yearWindow(2026))).toMatchObject({
       games: 0,
-      pages: 0,
+      minutes: 0,
     });
   });
 
-  it("counts the pages read on the day it was put down", () => {
-    const rules: CountRules = { ...DEFAULTS, statsStoppedGames: "pages" };
-    const inp = inputs([stopped], [], logs);
+  it("counts the time played on the day it was dropped", () => {
+    const rules: CountRules = { ...FINISHED, statsStoppedGames: "hours" };
+    const inp = inputs([dropped], [], logs);
     expect(count(inp, rules, { from: "2026-03-01", to: "2026-03-31" })).toMatchObject({
       games: 0,
-      pages: 218,
+      minutes: 750,
     });
-    expect(count(inp, rules, { from: "2026-02-01", to: "2026-02-28" }).pages).toBe(0);
-    // Logged, the pages land on the days they were read.
-    expect(count(inp, { ...rules, statsPagesRead: "logged" }, { from: "2026-02-01", to: "2026-02-28" }).pages).toBe(218);
+    expect(count(inp, rules, { from: "2026-02-01", to: "2026-02-28" }).minutes).toBe(0);
+    // Counting the time logged, it lands on the days it was played.
+    expect(
+      count(inp, { ...rules, statsHoursPlayed: "logged" }, { from: "2026-02-01", to: "2026-02-28" })
+        .minutes,
+    ).toBe(750);
   });
 
-  it("dates a stop without a finish date by the last log entry, else all time only", () => {
-    const rules: CountRules = { ...DEFAULTS, statsStoppedGames: "pages" };
+  it("dates a drop without a finish date by the last log entry, else all time only", () => {
+    const rules: CountRules = { ...FINISHED, statsStoppedGames: "hours" };
     const byLog = inputs(
-      [game("s", { status: "DROPPED", currentPage: 90 })],
+      [game("s", { status: "DROPPED", playedMinutes: 90 })],
       [],
       [],
       new Map([["s", new Date("2026-04-04T18:00:00Z")]]),
     );
-    expect(count(byLog, rules, { from: "2026-04-04", to: "2026-04-04" }).pages).toBe(90);
+    expect(count(byLog, rules, { from: "2026-04-04", to: "2026-04-04" }).minutes).toBe(90);
 
-    const undated = inputs([game("s", { status: "DROPPED", currentPage: 90 })]);
-    expect(count(undated, rules, yearWindow(2026)).pages).toBe(0);
-    expect(count(undated, rules).pages).toBe(90);
+    const undated = inputs([game("s", { status: "DROPPED", playedMinutes: 90 })]);
+    expect(count(undated, rules, yearWindow(2026)).minutes).toBe(0);
+    expect(count(undated, rules).minutes).toBe(90);
   });
 
-  it("caps the pages at the game's length, and falls back to the logged pages", () => {
-    const rules: CountRules = { ...DEFAULTS, statsStoppedGames: "pages" };
-    expect(count(inputs([{ ...stopped, currentPage: 700 }]), rules).pages).toBe(500);
-    expect(count(inputs([{ ...stopped, currentPage: null }], [], logs), rules).pages).toBe(218);
+  it("counts all the time played, past the usual time to beat, else the time logged", () => {
+    const rules: CountRules = { ...FINISHED, statsStoppedGames: "hours" };
+    expect(
+      count(inputs([{ ...dropped, playedMinutes: 900, lengthMinutes: 600 }]), rules).minutes,
+    ).toBe(900);
+    expect(count(inputs([{ ...dropped, playedMinutes: null }], [], logs), rules).minutes).toBe(750);
   });
 
-  it("counts as a game in the window it was put down, and all time", () => {
-    const rules: CountRules = { ...DEFAULTS, statsStoppedGames: "game" };
-    const inp = inputs([stopped, game("k", { dateFinished: d("2026-03-15") })]);
+  it("counts as a game in the window it was dropped, and all time", () => {
+    const rules: CountRules = { ...LOGGED, statsStoppedGames: "game" };
+    const inp = inputs([dropped, game("k", { dateFinished: d("2026-03-15") })]);
     expect(count(inp, rules, { from: "2026-03-01", to: "2026-03-31" })).toMatchObject({
       games: 2,
-      putDown: 1,
+      dropped: 1,
     });
     expect(count(inp, rules, { from: "2026-04-01", to: "2026-04-30" }).games).toBe(0);
-    expect(gamesCompletedAllTime([stopped, game("k")], rules)).toEqual({ games: 2, putDown: 1 });
-    expect(gamesCompletedAllTime([stopped, game("k")], DEFAULTS)).toEqual({ games: 1, putDown: 0 });
+    expect(gamesCompletedAllTime([dropped, game("k")], rules)).toEqual({ games: 2, dropped: 1 });
+    expect(gamesCompletedAllTime([dropped, game("k")], LOGGED)).toEqual({ games: 1, dropped: 0 });
   });
 
-  it("leaves a stopped re-read's earlier finish alone, and marks the stop a re-read", () => {
-    const rules: CountRules = { ...DEFAULTS, statsStoppedGames: "game" };
-    const passes = buildPasses(inputs([stopped], [read("s", "2024-01-01")]), rules, TZ);
+  it("leaves a dropped replay's earlier completion alone, and marks the drop a replay", () => {
+    const rules: CountRules = { ...LOGGED, statsStoppedGames: "game" };
+    const passes = buildPasses(inputs([dropped], [playthrough("ds", "2024-01-01")]), rules, TZ);
     expect(passes.map((p) => [p.kind, p.isReplay])).toEqual([
       ["finished", false],
       ["stopped", true],
@@ -350,22 +401,50 @@ describe("Games I stop reading", () => {
   });
 });
 
-describe("Audiobooks", () => {
-  const audio = game("h", { format: "AUDIOBOOK", pageCount: 476, dateFinished: d("2026-08-21") });
-  const logs = [log("h", "2026-08-10", 476)];
+describe("perYear", () => {
+  const inp = inputs(
+    [
+      game("x", { playedMinutes: 600, dateFinished: d("2026-01-10") }),
+      game("y", { playedMinutes: 900, dateFinished: d("2024-08-01") }),
+    ],
+    [],
+    [log("x", "2025-12-20", 450), log("x", "2026-01-10", 150)],
+  );
 
-  it("as games, not pages: keeps the game, drops its pages in both modes", () => {
-    const rules: CountRules = { ...DEFAULTS, statsAudiobooks: "games" };
-    expect(count(inputs([audio], [], logs), rules)).toMatchObject({ games: 1, pages: 0 });
-    expect(
-      count(inputs([audio], [], logs), { ...rules, statsPagesRead: "logged" }),
-    ).toMatchObject({ games: 1, pages: 0 });
+  it("lists each year with games or time in it, oldest first", () => {
+    expect(perYear(buildPasses(inp, LOGGED, TZ), LOGGED)).toEqual([
+      { year: 2024, games: 1, minutes: 900 },
+      { year: 2025, games: 0, minutes: 450 },
+      { year: 2026, games: 1, minutes: 150 },
+    ]);
+    // Whole playthroughs: nothing in the year before it was completed.
+    expect(perYear(buildPasses(inp, FINISHED, TZ), FINISHED)).toEqual([
+      { year: 2024, games: 1, minutes: 900 },
+      { year: 2026, games: 1, minutes: 600 },
+    ]);
   });
 
-  it("left out: gone from games, pages and Games read", () => {
-    const rules: CountRules = { ...DEFAULTS, statsAudiobooks: "out" };
-    expect(buildPasses(inputs([audio], [read("h", "2025-01-01")], logs), rules, TZ)).toEqual([]);
-    expect(gamesCompletedAllTime([audio, game("k")], rules).games).toBe(1);
+  it("counts each year as that year's goal does", () => {
+    for (const rules of [LOGGED, FINISHED]) {
+      const passes = buildPasses(inp, rules, TZ);
+      for (const { year, games, minutes } of perYear(passes, rules)) {
+        const items = countWindow(passes, yearWindow(year), rules);
+        expect(goalProgress(items, { unit: "GAMES", countReplays: true })).toBe(games);
+        expect(goalProgress(items, { unit: "HOURS", countReplays: true })).toBe(minutes);
+      }
+    }
+  });
+
+  it("has no row for a year where nothing counts", () => {
+    const quiet = inputs([
+      game("ds", { status: "DROPPED", playedMinutes: 300, dateFinished: d("2023-05-01") }),
+      game("p2", { playedMinutes: 600 }), // completed, undated
+    ]);
+    expect(perYear(buildPasses(quiet, LOGGED, TZ), LOGGED)).toEqual([]);
+    const hours: CountRules = { ...LOGGED, statsStoppedGames: "hours" };
+    expect(perYear(buildPasses(quiet, hours, TZ), hours)).toEqual([
+      { year: 2023, games: 0, minutes: 300 },
+    ]);
   });
 });
 
@@ -381,47 +460,83 @@ describe("windows", () => {
 
   it("read a typed finish date as the day typed, in any zone", () => {
     const inp = inputs([game("m", { dateFinished: d("2026-09-12") })]);
-    const passes = buildPasses(inp, DEFAULTS, "America/New_York");
+    const passes = buildPasses(inp, LOGGED, "America/New_York");
     expect(passes[0].day).toBe("2026-09-12");
-    expect(countWindow(passes, { from: "2026-09-12", to: "2026-10-11" }, DEFAULTS)).toHaveLength(1);
-    expect(countWindow(passes, { from: "2026-08-13", to: "2026-09-11" }, DEFAULTS)).toHaveLength(0);
+    expect(countWindow(passes, { from: "2026-09-12", to: "2026-10-11" }, LOGGED)).toHaveLength(1);
+    expect(countWindow(passes, { from: "2026-08-13", to: "2026-09-11" }, LOGGED)).toHaveLength(0);
 
-    // A "finished now" moment falls on the reader's own day.
+    // A "completed now" moment falls on the player's own day.
     const late = inputs([game("n", { dateFinished: new Date("2026-09-12T02:00:00Z") })]);
-    expect(buildPasses(late, DEFAULTS, "America/New_York")[0].day).toBe("2026-09-11");
+    expect(buildPasses(late, LOGGED, "America/New_York")[0].day).toBe("2026-09-11");
   });
 });
 
-describe("rule notes", () => {
+describe("platformCounts", () => {
+  it("counts games per platform, most first, with the games without one last", () => {
+    const games = [
+      "PC", "Nintendo Switch", "PC", null, "PlayStation 5", "", "Nintendo Switch", "PC", null,
+      null, null,
+    ].map((platform) => ({ platform }));
+    // Five without a platform, still after the three on PC.
+    expect(platformCounts(games)).toEqual([
+      ["PC", 3],
+      ["Nintendo Switch", 2],
+      ["PlayStation 5", 1],
+      [NO_PLATFORM, 5],
+    ]);
+    expect(platformCounts([])).toEqual([]);
+  });
+
+  it("breaks ties by name and keeps the top few", () => {
+    const games = ["Xbox Series X|S", "Game Boy", "PC", "Game Boy", "PC", "Xbox Series X|S", "Wii"]
+      .map((platform) => ({ platform }));
+    expect(platformCounts(games, 2)).toEqual([
+      ["Game Boy", 2],
+      ["PC", 2],
+    ]);
+  });
+
+  it("takes platforms as written, as the library's platform filter does", () => {
+    expect(platformCounts([{ platform: "PC" }, { platform: " PC " }, { platform: "Mac" }])).toEqual([
+      ["PC", 2],
+      ["Mac", 1],
+    ]);
+  });
+});
+
+describe("labels and notes", () => {
+  it("calls them games completed, or games finished when dropped games count too", () => {
+    expect(gamesLabel(LOGGED)).toBe("Games completed");
+    expect(gamesLabel({ ...LOGGED, statsStoppedGames: "hours" })).toBe("Games completed");
+    expect(gamesLabel({ ...LOGGED, statsStoppedGames: "game" })).toBe("Games finished");
+  });
+
   it("names the rule on each card", () => {
-    expect(ruleNotes(DEFAULTS)).toEqual({
-      pagesSuffix: "",
-      pages: ["whole games when finished"],
+    expect(ruleNotes(LOGGED)).toEqual({ hoursSuffix: " · as logged", hours: [], games: [] });
+    expect(ruleNotes(FINISHED)).toEqual({
+      hoursSuffix: "",
+      hours: ["whole playthroughs when completed"],
       games: [],
     });
     expect(
-      ruleNotes(
-        { statsPagesRead: "logged", statsStoppedGames: "game", statsAudiobooks: "out" },
-        { replays: 2, putDown: 1 },
-      ),
+      ruleNotes({ statsHoursPlayed: "logged", statsStoppedGames: "game" }, { replays: 2, dropped: 1 }),
     ).toEqual({
-      pagesSuffix: " · as logged",
-      pages: ["includes pages of games you stopped", "audiobooks left out"],
-      games: ["includes 2 re-reads", "includes 1 put down", "audiobooks left out"],
+      hoursSuffix: " · as logged",
+      hours: ["includes time in games you dropped"],
+      games: ["includes 2 replays", "includes 1 dropped"],
     });
-    expect(ruleNotes({ ...LOGGED, statsAudiobooks: "games" }, { replays: 1 })).toEqual({
-      pagesSuffix: " · as logged",
-      pages: ["no audiobook pages"],
-      games: ["includes 1 re-read"],
-    });
+    expect(ruleNotes(FINISHED, { replays: 1 }).games).toEqual(["includes 1 replay"]);
+    expect(ruleNotes(LOGGED, { replays: 1200 }, (n) => formatNumber(n)).games).toEqual([
+      "includes 1,200 replays",
+    ]);
   });
 
-  it("explains a pages goal in both modes", () => {
-    expect(goalRuleLine(DEFAULTS)).toBe(
-      "A pages goal adds up the page counts of the games you finish.",
+  it("explains an hours goal both ways", () => {
+    expect(goalRuleLine(FINISHED)).toBe(
+      "An hours goal adds up the whole time played on each game you complete.",
     );
     expect(goalRuleLine(LOGGED)).toBe(
-      "A pages goal counts the pages you log, plus whole games you finish without logging.",
+      "An hours goal counts the time you log, plus the time played on games you complete without logging.",
     );
   });
 });

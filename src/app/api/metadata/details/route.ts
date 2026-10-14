@@ -4,9 +4,11 @@ import { getPreferences } from "@/lib/current-user";
 import { getGameDetails } from "@/lib/metadata";
 
 /**
- * GET /api/metadata/details?olid=…&isbn=…&title=…&author=…
- * Called when the user picks a search result — fetches description/subjects
- * (and Google Games enrichment when configured) for the review form.
+ * GET /api/metadata/details?id=<catalogueId>&title=…
+ * Called when the player picks a search result, and by "Look up details"
+ * on the edit page — fetches the entry's full record (description,
+ * studios, platforms, genres; the time to beat from IGDB when it is set
+ * up) for the form.
  */
 export async function GET(req: Request) {
   const guard = await guardMetadataRequest();
@@ -15,10 +17,8 @@ export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
   const details = await getGameDetails(
     {
-      openLibraryId: params.get("olid"),
-      isbn: params.get("isbn"),
+      catalogueId: params.get("id"),
       title: params.get("title"),
-      author: params.get("author"),
     },
     (await getPreferences()).catalogues,
   );

@@ -1,14 +1,15 @@
 /**
- * The reader's avatar in the reading room, drawn in code like the rest of
- * the room (room-art.tsx): rectangles naming paints, coloured in
- * game-room.css from the --av-* colours the avatar's element sets from
- * its look (lib/avatar.ts).
+ * The player's avatar in the game room, drawn in code like the rest of the
+ * room (room-art.tsx): rectangles naming paints, coloured in game-room.css
+ * from the --av-* colours the avatar's element sets from its look
+ * (lib/avatar.ts).
  *
  * A figure is painted dot by dot in layers (what's behind it, legs, top,
  * arms, the face, hair, hats), then every empty dot touching it gets a dark
  * outline, so it reads against any wall. Standing and walking, it is seen
  * three-quarters on, facing right (CSS mirrors it to face left); in the
- * armchair it faces the room, reading.
+ * armchair it faces the room, a controller in its hands and its eyes on
+ * the game, as if the screen were where we are.
  *
  * Figure dots are counted from the top of the head (row 0) and the left of
  * the figure (column 0; the head is columns 3 to 10), so a hat or hair can
@@ -699,7 +700,7 @@ function neck(c: Canvas, look: AvatarLook, view: View, pose: Pose) {
 
 // ── The head ─────────────────────────────────────────────────────────────
 
-function face(c: Canvas, look: AvatarLook, view: View, reading: boolean) {
+function face(c: Canvas, look: AvatarLook, view: View) {
   const side = view === "side";
   c.run(4, 9, 1, "av-skin");
   c.block(3, 10, 2, 8, "av-skin");
@@ -741,11 +742,11 @@ function face(c: Canvas, look: AvatarLook, view: View, reading: boolean) {
   if (look.cheeks.includes("blush")) for (const x of cheeks) c.set(x, 7, "av-blush");
   if (look.cheeks.includes("spot")) c.set(side ? 8 : 9, side ? 8 : 6, "av-freckle");
 
-  eyes(c, look, view, reading);
+  eyes(c, look, view);
   mouth(c, look, view);
 }
 
-function eyes(c: Canvas, look: AvatarLook, view: View, reading: boolean) {
+function eyes(c: Canvas, look: AvatarLook, view: View) {
   const side = view === "side";
   // The near eye and the far one: three-quarters on, the far one is at the
   // edge of the face.
@@ -761,10 +762,7 @@ function eyes(c: Canvas, look: AvatarLook, view: View, reading: boolean) {
       if (x + 1 <= 10) c.set(x + 1, 6, "av-eye");
     } else c.set(i === 0 ? x - 1 : x + 1, 6, "av-eye");
   };
-  const open = (x: number) => {
-    if (reading) c.set(x, 6, "av-eye");
-    else c.block(x, x, 5, tall ? 6 : 5, "av-eye");
-  };
+  const open = (x: number) => c.block(x, x, 5, tall ? 6 : 5, "av-eye");
   at.forEach((x, i) => {
     switch (look.eyes) {
       case "happy":
@@ -779,7 +777,7 @@ function eyes(c: Canvas, look: AvatarLook, view: View, reading: boolean) {
         // Big eyes with a glint.
         const x0 = side ? x - 1 : i === 0 ? x - 1 : x;
         c.block(x0, x0 + 1, 5, 6, "av-eye");
-        c.set(x0, reading ? 6 : 5, "av-eye-hi");
+        c.set(x0, 5, "av-eye-hi");
         break;
       }
       case "lashes":
@@ -1461,7 +1459,7 @@ function hairFront(c: Canvas, look: AvatarLook, view: View) {
 
 // ── Glasses, hats, headphones, earrings ─────────────────────────────────
 
-function glasses(c: Canvas, look: AvatarLook, view: View, reading: boolean) {
+function glasses(c: Canvas, look: AvatarLook, view: View) {
   const side = view === "side";
   const at = side ? [7, 10] : [5, 8];
   if (look.accessories.includes("sunglasses")) {
@@ -1473,7 +1471,7 @@ function glasses(c: Canvas, look: AvatarLook, view: View, reading: boolean) {
     return;
   }
   if (!look.accessories.includes("glasses")) return;
-  const y = reading ? 6 : 5;
+  const y = 5;
   for (const x of at) {
     c.run(x - 1, x + 1, y - 1, "av-frame");
     c.set(x - 1, y, "av-frame");
@@ -2190,23 +2188,19 @@ function earrings(c: Canvas, look: AvatarLook, view: View) {
     );
 }
 
-/** The open game held in front, in its spine colour, and the thumbs on
- *  it. */
-function heldGame(c: Canvas) {
-  const rows = [".yyyy.yyyy.", "yyyyyYyyyyy", "21111111112"];
-  const paints: Record<string, Paint> = { y: "paper", Y: "paper-lo", "1": "game", "2": "game-lo" };
-  rows.forEach((row, dy) =>
-    [...row].forEach((ch, dx) => {
-      if (paints[ch]) c.set(1 + dx, 15 + dy, paints[ch]);
-    }),
-  );
+/** The controller held in both hands in front, in the game's spine
+ *  colour: a light home button in the middle, the grips going down into
+ *  the hands at either end, and a thumb on each side, on the d-pad and on
+ *  the buttons. */
+function heldController(c: Canvas) {
+  paintGrid(c, [".111111111.", "11111y11111", "222.....222"], 1, 15, { y: "paper", "1": "game", "2": "game-lo" });
   c.set(3, 16, "av-skin");
   c.set(9, 16, "av-skin-lo");
 }
 
-/** Where the held game is, in the seated figure's own dots: a link to the
- *  game is laid over it. */
-export const HELD_GAME = { x: 1 + PAD, y: 15 + HEADROOM, w: 11, h: 3 };
+/** Where the held controller is, in the seated figure's own dots: a link
+ *  to the game being played is laid over it. */
+export const HELD_CONTROLLER = { x: 1 + PAD, y: 15 + HEADROOM, w: 11, h: 3 };
 
 // ── Carried things, a walking stick, a wheelchair ───────────────────────
 
@@ -2241,7 +2235,26 @@ function held(c: Canvas, look: AvatarLook, hx: number, hy: number, dir: 1 | -1) 
       );
       put([[2, 0]], "av-accent-lo");
       return;
-    case "game":
+    case "controller":
+      // Held by one grip, hanging on its side: the other grip below, and
+      // the body with a light button out to the side.
+      put(
+        [
+          [0, 1],
+          [1, 1],
+          [2, 1],
+          [1, 2],
+          [1, 3],
+          [0, 4],
+          [1, 4],
+          [2, 4],
+        ],
+        "av-accent",
+      );
+      put([[2, 3]], "av-accent-lo");
+      put([[2, 2]], "paper");
+      return;
+    case "book":
       // Carried by its top edge, hanging at the side.
       put(
         [
@@ -2493,7 +2506,7 @@ export interface AvatarArt {
   stand: Art;
   /** Mid-stride; walking swaps it with `stand`. */
   stride: Art;
-  /** In the armchair with the game. */
+  /** In the armchair with a controller. */
   sit: Art;
 }
 
@@ -2544,14 +2557,14 @@ export function avatarPose(look: AvatarLook, pose: Pose): Art {
     }
   }
   neck(c, look, view, wheel ? "stand" : pose);
-  face(c, look, view, sit);
+  face(c, look, view);
   ears(c, look, view);
   facialHair(c, look, view, pose);
   if (!hairless) hairFront(c, look, view);
-  glasses(c, look, view, sit);
+  glasses(c, look, view);
   faceExtras(c, look, view);
   earrings(c, look, view);
-  if (sit) heldGame(c);
+  if (sit) heldController(c);
   hat(c, look, view);
   headphones(c, look, view);
   c.dy = 0;

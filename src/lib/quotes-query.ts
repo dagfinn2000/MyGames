@@ -13,11 +13,13 @@ import { escapeLike, searchTerms } from "@/lib/utils";
 const quoteRowSelect = {
   id: true,
   text: true,
-  page: true,
+  speaker: true,
   note: true,
   createdAt: true,
   gameId: true,
-  game: { select: { id: true, title: true, authors: true, coverUrl: true } },
+  game: {
+    select: { id: true, title: true, developers: true, platform: true, coverUrl: true },
+  },
 } satisfies Prisma.QuoteSelect;
 
 export type QuoteRow = Prisma.QuoteGetPayload<{ select: typeof quoteRowSelect }>;
@@ -25,7 +27,7 @@ export type QuoteGame = QuoteRow["game"];
 
 /**
  * The `where` for the quotes page. Everything goes through the game's
- * owner, so another reader's shelf id or tag in the URL matches nothing.
+ * owner, so another player's shelf id or tag in the URL matches nothing.
  */
 export function buildQuoteWhere(
   userId: string,
@@ -40,9 +42,11 @@ export function buildQuoteWhere(
     },
     ...(p.q && {
       OR: [
-        // The quote itself is matched as a phrase; the game by its words,
-        // accent-insensitively, like the library search.
+        // The quote itself is matched as a phrase, and so are who says it
+        // and your note; the game by its words, accent-insensitively, like
+        // the library search.
         { text: { contains: escapeLike(p.q), mode: "insensitive" as const } },
+        { speaker: { contains: escapeLike(p.q), mode: "insensitive" as const } },
         { note: { contains: escapeLike(p.q), mode: "insensitive" as const } },
         { game: { is: { AND: terms.map((t) => ({ searchText: { contains: t } })) } } },
       ],
@@ -71,9 +75,8 @@ export async function loadQuotes(
     select: {
       id: true,
       gameId: true,
-      page: true,
       createdAt: true,
-      game: { select: { title: true, authors: true } },
+      game: { select: { title: true, developers: true, platform: true } },
     },
     // A fixed input order, so nothing downstream depends on how Postgres
     // happened to return the rows.
@@ -131,9 +134,9 @@ export async function quoteSources(
     }),
     prisma.$queryRaw<{ tag: string }[]>`
       SELECT DISTINCT t AS tag
-      FROM "Game" b, LATERAL unnest(b."tags") AS t
-      WHERE b."userId" = ${userId}
-        AND EXISTS (SELECT 1 FROM "Quote" q WHERE q."gameId" = b."id")`,
+      FROM "Game" g, LATERAL unnest(g."tags") AS t
+      WHERE g."userId" = ${userId}
+        AND EXISTS (SELECT 1 FROM "Quote" q WHERE q."gameId" = g."id")`,
   ]);
   const compare = new Intl.Collator(opts.alphabet).compare;
   return {

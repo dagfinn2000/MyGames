@@ -13,35 +13,35 @@ const game = (
 describe("upNext", () => {
   it("keeps the given order for games outside a series", () => {
     const want = [game("a", WANT_TO_PLAY), game("b", WANT_TO_PLAY)];
-    expect(upNext(want, [], 10).map((b) => b.id)).toEqual(["a", "b"]);
+    expect(upNext(want, [], 10).map((g) => g.id)).toEqual(["a", "b"]);
   });
 
   it("puts the next game of a series under way first", () => {
-    const want = [game("loose", WANT_TO_PLAY), game("mist2", WANT_TO_PLAY, "Mistborn", 2)];
-    const series = [game("mist1", COMPLETED, "Mistborn", 1), want[1]];
-    expect(upNext(want, series, 10).map((b) => b.id)).toEqual(["mist2", "loose"]);
+    const want = [game("loose", WANT_TO_PLAY), game("me2", WANT_TO_PLAY, "Mass Effect", 2)];
+    const series = [game("me1", COMPLETED, "Mass Effect", 1), want[1]];
+    expect(upNext(want, series, 10).map((g) => g.id)).toEqual(["me2", "loose"]);
   });
 
-  it("counts a game being read as under way, so the one after it is next", () => {
-    const want = [game("atuan", WANT_TO_PLAY, "Earthsea", 2)];
-    const series = [game("wizard", PLAYING, "earthsea ", 1), want[0]];
-    expect(upNext(want, series, 10).map((b) => b.id)).toEqual(["atuan"]);
+  it("counts a game being played as under way, so the one after it is next", () => {
+    const want = [game("ds2", WANT_TO_PLAY, "Dark Souls", 2)];
+    const series = [game("ds1", PLAYING, "dark souls ", 1), want[0]];
+    expect(upNext(want, series, 10).map((g) => g.id)).toEqual(["ds2"]);
   });
 
   it("leaves out a game waiting behind an earlier unplayed number", () => {
-    const want = [game("three", WANT_TO_PLAY, "Dune", 3), game("two", WANT_TO_PLAY, "Dune", 2)];
-    const series = [game("one", COMPLETED, "Dune", 1), ...want];
-    expect(upNext(want, series, 10).map((b) => b.id)).toEqual(["two"]);
+    const want = [game("three", WANT_TO_PLAY, "The Witcher", 3), game("two", WANT_TO_PLAY, "The Witcher", 2)];
+    const series = [game("one", COMPLETED, "The Witcher", 1), ...want];
+    expect(upNext(want, series, 10).map((g) => g.id)).toEqual(["two"]);
   });
 
-  it("leaves out a second copy of a number already read", () => {
-    const want = [game("copy", WANT_TO_PLAY, "Dune", 1)];
-    const series = [game("one", COMPLETED, "Dune", 1), want[0]];
+  it("leaves out a second copy of a number already completed", () => {
+    const want = [game("copy", WANT_TO_PLAY, "The Witcher", 1)];
+    const series = [game("one", COMPLETED, "The Witcher", 1), want[0]];
     expect(upNext(want, series, 10)).toEqual([]);
   });
 
   it("stops at the limit", () => {
-    const want = Array.from({ length: 5 }, (_, i) => game(`b${i}`, WANT_TO_PLAY));
+    const want = Array.from({ length: 5 }, (_, i) => game(`g${i}`, WANT_TO_PLAY));
     expect(upNext(want, [], 3)).toHaveLength(3);
   });
 });

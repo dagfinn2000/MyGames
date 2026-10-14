@@ -9,8 +9,8 @@ import { cn } from "@/lib/utils";
 import { DARK_THEME_IDS, THEME_INIT_SCRIPT, parseThemeSetting } from "@/lib/themes";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
-// A game face for the titles on drawn covers and the serif heading choice,
-// and a rounded face for the other heading choice (Preferences). Not
+// A serif for the titles on drawn covers and the serif heading choice, and
+// a rounded face for the other heading choice (Preferences). Not
 // preloaded: the browser only fetches a face once something on the page
 // uses it.
 const literata = Literata({ subsets: ["latin"], variable: "--font-literata", preload: false });
@@ -18,7 +18,7 @@ const nunito = Nunito({ subsets: ["latin"], variable: "--font-nunito", preload: 
 
 export const metadata: Metadata = {
   title: "MyGames",
-  description: "Personal self-hosted library and reading tracker",
+  description: "Personal self-hosted video game library and play tracker",
   // Installed-PWA polish on iOS (the manifest covers Android/desktop).
   appleWebApp: { capable: true, title: "MyGames", statusBarStyle: "default" },
 };

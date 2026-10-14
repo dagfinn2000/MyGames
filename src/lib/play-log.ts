@@ -2,25 +2,25 @@ import { z } from "zod";
 import { calendarDay, dayKey, endOfZonedDay, keyToUtcDate, shiftDayKey } from "@/lib/dates";
 import { formatDayKey, formatShortDay } from "@/lib/display";
 import type { DateFormat } from "@/lib/preferences";
-import { formatPosition, formatUnitValue, unitToPage, type UnitInfo } from "@/lib/progress-units";
+import { MAX_PLAYED_MINUTES } from "@/lib/validation";
 
 /**
- * The rules for logging a page on any day and fixing a log entry, shared by
+ * The rules for logging time on any day and fixing a log entry, shared by
  * the progress actions (lib/actions/progress.ts) and the quick-log row.
  * Pure on purpose: client components import it, so nothing here may touch
  * the database.
  *
- * The log's rules, in brief. A reading pass starts at a page-0 anchor and
- * its positions only go up, because stats credit each increase to the day
- * of the later entry (lib/progress.ts). So a new or fixed entry has to fit
- * between its neighbours: not below the entry before it, not past the entry
- * after it, and not before the pass started. Equal pages are fine (they
- * credit nothing). Only the immediate neighbours are checked, which on an
- * increasing log is the same as checking every entry, and still lets older
- * logs that already contain a downward correction take new entries.
+ * The log's rules, in brief. A playthrough starts at a 0-minute anchor and
+ * its times only go up, because stats credit each increase to the day of
+ * the later entry (lib/progress.ts). So a new or fixed entry has to fit
+ * between its neighbours: not less than the entry before it, not more than
+ * the entry after it, and not before the playthrough started. Equal times
+ * are fine (they credit nothing). Only the immediate neighbours are
+ * checked, which on an increasing log is the same as checking every entry,
+ * and still lets older logs that already contain a downward correction take
+ * new entries. Nothing caps a time at the game's time to beat: playing on
+ * past the usual is normal.
  */
-
-export const MAX_PAGE = 100_000;
 
 /** A record id from the client. Anything else is "not found", never a
  *  database error. */
@@ -36,26 +36,22 @@ export const dayKeySchema = z
 
 export const dayChoiceSchema = z.union([z.literal("today"), z.literal("yesterday"), dayKeySchema]);
 
-const pageField = z.coerce
+/** A logged time, in minutes. 0 is never logged: it is the anchor that
+ *  starts a playthrough. */
+const minutesField = z.coerce
   .number()
-  .int("Log a whole page")
-  .min(1, "Log at least page 1")
-  .max(MAX_PAGE, "That page is too high");
+  .int("Log whole minutes")
+  .min(1, "Log at least a minute")
+  .max(MAX_PLAYED_MINUTES, "That's more than 10,000 hours");
 
-/** The position as typed, in the game's unit, so messages can say it back
- *  as typed. Only ever shown; anything odd is dropped, never refused. */
-const typedValue = z.number().int().min(0).max(1_000_000).optional().catch(undefined);
-
-export const logPageSchema = z.object({
-  page: pageField,
+export const logTimeSchema = z.object({
+  minutes: minutesField,
   day: dayChoiceSchema.default("today"),
-  value: typedValue,
 });
 
 export const editEntrySchema = z.object({
-  page: pageField,
+  minutes: minutesField,
   day: dayKeySchema,
-  value: typedValue,
 });
 
 export const moveTargetSchema = z.enum(["COMPLETED", "DROPPED"]);
@@ -63,21 +59,19 @@ export const moveTargetSchema = z.enum(["COMPLETED", "DROPPED"]);
 /**
  * What the client hands back to undo Finished or Stopped. It only names the
  * move; the server works out the rest from the game. `finishedAt` is the
- * finish moment the move wrote, so an undo can't land on a game finished
- * again since. `page` restores the page of a game with no reading log,
- * which a finish clears and nothing else remembers.
+ * finish moment the move wrote, so an undo can't land on a game completed
+ * again since. The time played needs no remembering: a move keeps it.
  */
 export const undoMoveSchema = z.object({
   from: moveTargetSchema,
   finishedAt: z.string().datetime().nullable(),
-  page: z.number().int().min(1).max(MAX_PAGE).nullable(),
 });
 
 export type UndoMove = z.infer<typeof undoMoveSchema>;
 
-export type LogPageResult =
+export type LogTimeResult =
   | { error: string }
-  | { ok: true; message: string; page: number; lastPage: boolean };
+  | { ok: true; message: string; minutes: number };
 
 export interface EntryEditResult {
   error?: string;
@@ -90,15 +84,15 @@ export type MoveResult =
 
 export interface LogPoint {
   id: string;
-  page: number;
+  minutes: number;
   date: Date;
 }
 
 /**
  * The day a quick log is for, and the moment its entry gets. Today's entry
  * is stamped now. An earlier day's entry goes at the last moment of that day
- * in the reader's zone: "where I was at the end of that day", which also
- * sorts it after anything already logged that day.
+ * in the player's zone: "the time played by the end of that day", which
+ * also sorts it after anything already logged that day.
  */
 export function resolveLogDay(
   choice: string,
@@ -112,8 +106,8 @@ export function resolveLogDay(
 }
 
 /**
- * Where a pass's page-0 anchor goes when the first entry writes it: the
- * Started date, unless the entry is earlier. A typed Started date is
+ * Where a playthrough's 0-minute anchor goes when the first entry writes
+ * it: the Started date, unless the entry is earlier. A typed Started date is
  * midnight UTC, which east of UTC is still in the future on the morning of
  * that day; an anchor after its first entry would cut the entry out of the
  * pass.
@@ -122,10 +116,11 @@ export function anchorMoment(dateStarted: Date | null, at: Date): Date {
   return dateStarted && dateStarted.getTime() < at.getTime() ? dateStarted : at;
 }
 
-/** The last real position in a pass (not its page-0 anchor), or null. */
-export function lastLogged<T extends { page: number }>(pass: T[]): T | null {
+/** The last real time in a playthrough (not its 0-minute anchor), or
+ *  null. */
+export function lastLogged<T extends { minutes: number }>(pass: T[]): T | null {
   const last = pass[pass.length - 1];
-  return last && last.page > 0 ? last : null;
+  return last && last.minutes > 0 ? last : null;
 }
 
 export type Placement<T> =
@@ -133,7 +128,7 @@ export type Placement<T> =
       ok: true;
       before: T | null;
       after: T | null;
-      /** The pass's anchor, when the entry belongs on the pass's first day
+      /** The playthrough's anchor, when the entry belongs on its first day
        *  but before the anchor's moment; the anchor moves back to it. */
       moveAnchor: T | null;
     }
@@ -147,20 +142,20 @@ export type Placement<T> =
     };
 
 /**
- * Whether a position fits a pass at that moment (see the rules at the top).
- * `pass` is sorted by date then page, like the log everywhere else, and
- * `skipId` leaves out the entry being edited. A candidate on the pass's
- * first day but before its anchor's moment fits, and the anchor moves back
- * to it, unless that would pull it over `previous`, the last entry of the
- * pass before.
+ * Whether a time fits a playthrough at that moment (see the rules at the
+ * top). `pass` is sorted by date then minutes, like the log everywhere
+ * else, and `skipId` leaves out the entry being edited. A candidate on the
+ * playthrough's first day but before its anchor's moment fits, and the
+ * anchor moves back to it, unless that would pull it over `previous`, the
+ * last entry of the playthrough before.
  */
 export function placeInLog<T extends LogPoint>(
   pass: T[],
-  candidate: { page: number; date: Date },
+  candidate: { minutes: number; date: Date },
   opts: { timeZone: string; skipId?: string; previous?: T | null },
 ): Placement<T> {
   const list = opts.skipId ? pass.filter((e) => e.id !== opts.skipId) : pass;
-  const anchor = list[0]?.page === 0 ? list[0] : null;
+  const anchor = list[0]?.minutes === 0 ? list[0] : null;
   const at = candidate.date.getTime();
 
   let moveAnchor: T | null = null;
@@ -178,40 +173,41 @@ export function placeInLog<T extends LogPoint>(
   let after: T | null = null;
   for (const e of list) {
     const t = e.date.getTime();
-    if (e === moveAnchor || t < at || (t === at && e.page <= candidate.page)) before = e;
+    if (e === moveAnchor || t < at || (t === at && e.minutes <= candidate.minutes)) before = e;
     else if (!after) after = e;
   }
 
-  if (before && candidate.page < before.page) {
+  if (before && candidate.minutes < before.minutes) {
     return { ok: false, reason: "below", neighbour: before, before, after };
   }
-  if (after && candidate.page > after.page) {
+  if (after && candidate.minutes > after.minutes) {
     return { ok: false, reason: "above", neighbour: after, before, after };
   }
   return { ok: true, before, after, moveAnchor };
 }
 
 /**
- * The pass an entry belongs to: from the latest page-0 anchor at or before
- * it up to the next anchor. `previous` is the entry just before the pass;
- * `isCurrent` is true for the latest pass, the one the game's page follows.
+ * The playthrough an entry belongs to: from the latest 0-minute anchor at
+ * or before it up to the next anchor. `previous` is the entry just before
+ * the playthrough; `isCurrent` is true for the latest one, the one the
+ * game's time played follows.
  */
 export function passAround<T extends LogPoint>(
-  entries: T[], // sorted by date, then page
+  entries: T[], // sorted by date, then minutes
   entryId: string,
 ): { pass: T[]; previous: T | null; nextAnchor: T | null; isCurrent: boolean } | null {
   const i = entries.findIndex((e) => e.id === entryId);
   if (i < 0) return null;
   let start = 0;
   for (let j = i; j >= 0; j--) {
-    if (entries[j].page === 0) {
+    if (entries[j].minutes === 0) {
       start = j;
       break;
     }
   }
   let end = entries.length;
   for (let j = i + 1; j < entries.length; j++) {
-    if (entries[j].page === 0) {
+    if (entries[j].minutes === 0) {
       end = j;
       break;
     }
@@ -223,30 +219,6 @@ export function passAround<T extends LogPoint>(
     nextAnchor,
     isCurrent: nextAnchor === null,
   };
-}
-
-/**
- * Positions for one message, in the game's unit. A position given with the
- * value the reader typed reads as typed, when that value still saves as its
- * page: percent and time don't convert back exactly, and 5:11 shouldn't
- * come back as 5:12. Two different pages that would read the same (42% for
- * both page 173 and page 175) each get their page, so a message never says
- * 42% is before 42%.
- */
-export function positionTexts(
-  info: UnitInfo,
-  ...points: { page: number; value?: number; capital?: boolean }[]
-): string[] {
-  const texts = points.map((p) =>
-    p.value !== undefined && unitToPage(p.value, info) === p.page
-      ? formatUnitValue(p.value, info, p)
-      : formatPosition(p.page, info, p),
-  );
-  return texts.map((t, i) =>
-    points.some((q, j) => texts[j].toLowerCase() === t.toLowerCase() && q.page !== points[i].page)
-      ? `${t} (page ${points[i].page})`
-      : t,
-  );
 }
 
 /** A day in a sentence: "today", "yesterday" or "9 Oct 2026". */
@@ -270,7 +242,7 @@ export function loggedWhen(key: string, todayKey: string, format?: DateFormat): 
 
 /**
  * The days the quick-log menu offers by name: Today, Yesterday and the two
- * days before, none before the read started. `more` says whether earlier
+ * days before, none before the playthrough started. `more` says whether earlier
  * days are left for "Another day…".
  */
 export function recentDays(

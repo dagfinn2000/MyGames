@@ -63,14 +63,17 @@ describe("savePreferences", () => {
     await savePreferences({
       findLinks: [
         { name: "Sneaky", url: "javascript:alert(1)" },
-        { name: " Library ", url: " https://lib.example/search?q={isbn} " },
-        { name: "Unknown", url: "https://lib.example/?q={publisher}" },
+        { name: " PCGamingWiki ", url: " https://www.pcgamingwiki.com/w/index.php?search={title} " },
+        { name: "Unknown", url: "https://shop.example/?q={publisher}" },
+        { name: "Old", url: "https://shop.example/?q={isbn}" },
       ],
       gamePageCards: ["quotes", "bogus"],
     } as unknown as Parameters<typeof savePreferences>[0]);
     expect(await storedPreferences()).toEqual({
-      findLinks: [{ name: "Library", url: "https://lib.example/search?q={isbn}" }],
-      gamePageCards: ["quotes", "shelves", "reading", "history", "lending"],
+      findLinks: [
+        { name: "PCGamingWiki", url: "https://www.pcgamingwiki.com/w/index.php?search={title}" },
+      ],
+      gamePageCards: ["quotes", "shelves", "playing", "history", "lending"],
     });
   });
 
@@ -96,10 +99,10 @@ describe("saveLibraryView", () => {
 
 describe("saved views", () => {
   it("stores the view's query in canonical form", async () => {
-    const { id } = await saveView("Fantasy", "sort=title&tag=fantasy&limit=999");
+    const { id } = await saveView("Metroidvanias", "sort=title&tag=metroidvania&limit=999");
     const view = await prisma.savedView.findUniqueOrThrow({ where: { id } });
     // No direction given: titles open A to Z, as the library would show them.
-    expect(view.query).toBe("tag=fantasy&group=none&sort=title&dir=asc");
+    expect(view.query).toBe("tag=metroidvania&group=none&sort=title&dir=asc");
   });
 
   it("replaces a view saved again under the same name", async () => {
@@ -141,15 +144,16 @@ describe("setPlayGoal", () => {
     return fd;
   }
 
-  it("saves a pages goal that leaves out re-reads", async () => {
-    await setPlayGoal(goalForm({ year: "2026", target: "8000", unit: "PAGES" }));
+  it("saves an hours goal that leaves out replays", async () => {
+    await setPlayGoal(goalForm({ year: "2026", target: "300", unit: "HOURS" }));
     const goal = await prisma.playGoal.findFirstOrThrow({ where: { userId } });
-    expect(goal).toMatchObject({ target: 8000, unit: "PAGES", countReplays: false });
+    expect(goal).toMatchObject({ target: 300, unit: "HOURS", countReplays: false });
   });
 
   it("falls back to a game count for an unknown unit", async () => {
+    // PAGES was a MyReads unit; a game goal has no pages.
     await setPlayGoal(
-      goalForm({ year: "2026", target: "12", unit: "CHAPTERS", countReplays: "on" }),
+      goalForm({ year: "2026", target: "12", unit: "PAGES", countReplays: "on" }),
     );
     const goal = await prisma.playGoal.findFirstOrThrow({ where: { userId } });
     expect(goal).toMatchObject({ target: 12, unit: "GAMES", countReplays: true });

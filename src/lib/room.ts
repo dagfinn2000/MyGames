@@ -1,12 +1,13 @@
-import { GameOwnership, PlayStatus } from "@prisma/client";
+import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
 import { hash } from "@/lib/cover-art";
 
 /**
- * The reading room (components/game-room.tsx): the library drawn as a
- * little pixel-art house, one spine per game, that grows a bookcase at a
- * time and a floor at a time as games are added. This file is the layout,
- * kept free of React so it can be tested: how big each spine is, which
- * shelf it stands on, and where the bookcases and furniture go.
+ * The game room (components/game-room.tsx): the library drawn as a little
+ * pixel-art house, one case per game standing spine out on a shelf, that
+ * grows a shelving unit at a time and a floor at a time as games are
+ * added. This file is the layout, kept free of React so it can be tested:
+ * how big each case is, which shelf it stands on, and where the shelving
+ * units and furniture go.
  *
  * Every size here is in dots, one pixel of the pixel art. The room scales a
  * dot up to two or three screen pixels, always a whole number, so edges
@@ -19,7 +20,7 @@ export const SHELVES_PER_CASE = 5;
 /** Clear height above each shelf board; the tallest spine is 18. */
 export const SHELF_SLOT = 20;
 export const SHELF_BOARD = 3;
-/** The moulding along the top of a bookcase, and the plinth under it. */
+/** The moulding along the top of a shelving unit, and the plinth under it. */
 export const CASE_CROWN = 5;
 export const CASE_PLINTH = 5;
 export const CASE_WIDTH = SHELF_WIDTH + 6;
@@ -31,7 +32,8 @@ export const ROOM_HEIGHT = CASE_HEIGHT + 14;
 export const BEAM = 5;
 export const WALL = 5;
 /** Space between two pieces of furniture, and between one and a wall.
- *  Bookcases next to each other touch, as they would along a real wall. */
+ *  Shelving units next to each other touch, as they would along a real
+ *  wall. */
 export const GAP = 4;
 export const PAD = 4;
 
@@ -39,19 +41,69 @@ export const PAD = 4;
 export interface RoomGame {
   id: string;
   title: string;
-  /** All authors, joined: "Terry Pratchett, Neil Gaiman". */
-  author: string;
+  /** The platform it's played on, as typed: "Nintendo Switch", "PC". */
+  platform: string | null;
+  format: GameFormat;
   coverUrl: string | null;
-  pageCount: number | null;
-  currentPage: number | null;
+  /** Time played so far in this playthrough, in minutes. */
+  playedMinutes: number | null;
+  /** The usual time to beat, in minutes, when it's known. */
+  lengthMinutes: number | null;
   status: PlayStatus;
   ownership: GameOwnership;
   /** Who has it, while it is lent out. */
   lentTo: string | null;
 }
 
+/**
+ * The kinds of case a game stands in on the shelf. Handheld games come in
+ * slim cases (a Switch or 3DS case is about two thirds as thick as a
+ * console's); a boxed PC game is a big box; everything else stands in the
+ * standard case. A digital or subscription game has no box of its own, so
+ * it gets the case its platform would have, short of a big box, which
+ * only a physical PC game comes in.
+ */
+export type CaseKind = "slim" | "standard" | "bigbox";
+
+/** How thick each kind of case stands on the shelf, in dots. */
+export const CASE_THICKNESS: Record<CaseKind, number> = { slim: 3, standard: 4, bigbox: 6 };
+
+/** A pattern matching any of `names` as whole words, in lower case. */
+const anyOf = (names: readonly string[]) => new RegExp(`\\b(${names.join("|")})\\b`);
+
+/** Handhelds whose games come on cartridges or small cards in slim cases.
+ *  The PC Engine is a console, not a PC, and its HuCards come slim too. */
+const HANDHELD = anyOf([
+  "switch",
+  "3ds",
+  "2ds",
+  "ds",
+  "game ?boy",
+  "gba",
+  "gbc",
+  "vita",
+  "psp",
+  "playstation portable",
+  "game gear",
+  "neo ?geo pocket",
+  "wonderswan",
+  "lynx",
+  "pc engine",
+  "turbografx",
+]);
+/** Computers, whose boxed games came in big boxes. */
+const COMPUTER = anyOf(["pc", "windows", "mac", "macos", "os x", "linux", "dos", "amiga", "atari st", "commodore 64", "c64"]);
+
+/** What kind of case a game stands in, from its platform and format. */
+export function caseKind(game: Pick<RoomGame, "platform" | "format">): CaseKind {
+  const platform = (game.platform ?? "").trim().toLowerCase();
+  if (HANDHELD.test(platform)) return "slim";
+  if (COMPUTER.test(platform) && game.format === GameFormat.PHYSICAL) return "bigbox";
+  return "standard";
+}
+
 export interface Spine {
-  /** 3–6 dots: thicker games are wider. */
+  /** 3–6 dots, from the kind of case (CASE_THICKNESS). */
   width: number;
   /** 14–18 dots. */
   height: number;
@@ -59,13 +111,32 @@ export interface Spine {
   pattern: number;
 }
 
-/** A game's spine. The size comes from its page count, the height and
- *  pattern from its title, so a game looks the same on every visit. */
-export function spineFor(game: Pick<RoomGame, "title" | "pageCount">): Spine {
-  const pages = game.pageCount ?? 0;
-  const width = !pages ? 4 : pages < 200 ? 3 : pages < 420 ? 4 : pages < 700 ? 5 : 6;
+/** A game's spine. Its thickness comes from the kind of case it is in,
+ *  the height and pattern from its title, so a game looks the same on
+ *  every visit and the shelves don't look like one long row of the same
+ *  case. */
+export function spineFor(game: Pick<RoomGame, "title" | "platform" | "format">): Spine {
   const h = hash(game.title.trim().toLowerCase());
-  return { width, height: 14 + ((h >>> 3) % 5), pattern: (h >>> 11) % 5 };
+  return { width: CASE_THICKNESS[caseKind(game)], height: 14 + ((h >>> 3) % 5), pattern: (h >>> 11) % 5 };
+}
+
+/**
+ * The games in the order the shelves file them: by platform, A to Z, so a
+ * platform's cases stand together the way they would on a real shelf, and
+ * games without a platform at the end. Within a platform they keep the
+ * order they came in (the page sorts them by developer, series together),
+ * as the sort is stable. Platforms typed in different cases ("PC", "pc")
+ * file together.
+ */
+export function fileByPlatform<T extends { platform: string | null }>(games: readonly T[], alphabet?: string): T[] {
+  const compare = new Intl.Collator(alphabet, { sensitivity: "accent" }).compare;
+  const key = (g: T) => g.platform?.trim() || null;
+  return [...games].sort((a, b) => {
+    const x = key(a);
+    const y = key(b);
+    if (x === null || y === null) return x === y ? 0 : x === null ? 1 : -1;
+    return compare(x, y);
+  });
 }
 
 /** Whether the game is actually on the shelf, rather than wished for, lent
@@ -96,9 +167,9 @@ export function shelve(widths: readonly number[]): number[][] {
   return shelves;
 }
 
-/** Rooms the reader can add to the house (Decorate › Rooms), each a floor
+/** Rooms the player can add to the house (Decorate › Rooms), each a floor
  *  of its own over the library, with its own furniture; the spare room
- *  comes empty, for whatever the reader puts in it. */
+ *  comes empty, for whatever the player puts in it. */
 export const ROOMS = [
   "kitchen",
   "bedroom",
@@ -138,7 +209,7 @@ export const ROOM_LABELS: Record<RoomKind, { name: string; blurb: string }> = {
   bedroom: { name: "Bedroom", blurb: "A big bed under a quilt, a wardrobe and a bedside lamp." },
   music: { name: "Music room", blurb: "An upright piano, a harp and a cello." },
   conservatory: { name: "Conservatory", blurb: "A palm, ferns, a wicker chair and a songbird." },
-  games: { name: "Games room", blurb: "A billiard table, a game of chess and a dartboard." },
+  games: { name: "Billiard room", blurb: "A billiard table, a game of chess and a dartboard." },
   studio: { name: "Studio", blurb: "An easel, a table of paints and a marble bust." },
   bathroom: { name: "Bathroom", blurb: "A claw-foot bath full of bubbles, a washstand and a towel rail." },
   dining: { name: "Dining room", blurb: "A table laid for dinner under a chandelier, a sideboard and a china cabinet." },
@@ -148,7 +219,7 @@ export const ROOM_LABELS: Record<RoomKind, { name: string; blurb: string }> = {
   spare: { name: "Spare room", blurb: "An empty floor, for whatever furniture you like." },
 };
 
-/** Furniture the reader can add from Decorate's catalogue. Each goes
+/** Furniture the player can add from Decorate's catalogue. Each goes
  *  wherever there is room for it, and can be moved like the rest. */
 export const EXTRAS = [
   "sofa",
@@ -192,7 +263,7 @@ export type PieceKind =
 
 /** How wide each piece of furniture stands. The hearth is the fireplace,
  *  armchair, side table and lamp together. The ladder leans on the end of
- *  a row of bookcases and takes a little more room than this. */
+ *  a row of shelving units and takes a little more room than this. */
 export const PIECE_WIDTH: Record<PieceKind, number> = {
   hearth: 104,
   case: CASE_WIDTH,
@@ -258,7 +329,7 @@ export const PIECE_WIDTH: Record<PieceKind, number> = {
 };
 
 /** How many games it takes for each piece of furniture (and the cat) to
- *  move in. The hearth and the first bookcase are always there. */
+ *  move in. The hearth and the first shelving unit are always there. */
 export const MILESTONES = {
   plant: 10,
   cat: 25,
@@ -274,12 +345,13 @@ const FLOOR_STARTERS = ["seat", "study", "gramophone"] as const;
 /** The small ones that fill in wherever there is room. */
 const FILLERS = ["plant", "clock"] as const;
 
-/** Furniture the reader can move about (Decorate › Arrange). Bookcases
- *  keep to the order of the games, and the ladder to the bookcases. */
+/** Furniture the player can move about (Decorate › Arrange). Shelving
+ *  units keep to the order of the games, and the ladder to the shelves. */
 export const MOVABLE = ["hearth", "seat", "study", "gramophone", "plant", "clock", ...ROOM_PIECE_LIST, ...EXTRAS] as const;
 export type Movable = (typeof MOVABLE)[number];
-/** Furniture that can be put away. The hearth stays: it is where the
- *  reading happens. The catalogue's pieces are taken out instead. */
+/** Furniture that can be put away. The hearth stays: the armchair by the
+ *  fire is where the playing happens. The catalogue's pieces are taken
+ *  out instead. */
 export const STOWABLE = ["seat", "study", "gramophone", "plant", "clock", "ladder", ...ROOM_PIECE_LIST] as const;
 export type Stowable = (typeof STOWABLE)[number];
 
@@ -347,9 +419,9 @@ export const FURNITURE_LABELS: Record<Movable | Stowable, string> = {
   dollhouse: "Dollhouse",
 };
 
-/** Where the reader has put a piece: on which floor, counting up from the
+/** Where the player has put a piece: on which floor, counting up from the
  *  ground floor (0), and how many things stand to its left there,
- *  bookcases included and the ladder not. A piece put in one of the added
+ *  shelving units included and the ladder not. A piece put in one of the added
  *  rooms names the room as well, so it stays there when the library
  *  grows a floor underneath. */
 export interface Placement {
@@ -374,8 +446,8 @@ export interface Piece {
   kind: PieceKind;
   /** Left edge, from the inside of the house's left wall. */
   x: number;
-  /** For a bookcase: which one, counting in reading order (top floor
-   *  first, left to right). */
+  /** For a shelving unit: which one, counting the way the page reads
+   *  (top floor first, left to right). */
   caseIndex?: number;
 }
 
@@ -391,7 +463,7 @@ export interface HousePlan {
   cat: boolean;
 }
 
-/** Bookcases stand side by side, and the ladder leans on the last one;
+/** Shelving units stand side by side, and the ladder leans on the last one;
  *  anything else has a gap before it. */
 function touches(kinds: readonly PieceKind[], i: number): boolean {
   return i > 0 && (kinds[i] === "case" || kinds[i] === "ladder") && kinds[i - 1] === "case";
@@ -409,7 +481,7 @@ function rowWidth(kinds: readonly PieceKind[]): number {
 }
 
 /** Where a filler goes in a row: the clock in the middle of the
- *  bookcases, the plant at the end. */
+ *  shelving units, the plant at the end. */
 function withFiller(kinds: readonly PieceKind[], filler: PieceKind): PieceKind[] {
   if (filler === "clock") {
     const cases = kinds.flatMap((k, i) => (k === "case" ? [i] : []));
@@ -429,18 +501,18 @@ function withPins(row: readonly PieceKind[], pins: readonly { kind: PieceKind; s
 }
 
 /**
- * Lays out the house: `caseCount` bookcases (at least one), plus the
+ * Lays out the house: `caseCount` shelving units (at least one), plus the
  * furniture `gameCount` games have earned, in a house no wider inside than
  * `maxInner`.
  *
- * The ground floor has the hearth and as many bookcases as fit beside it.
+ * The ground floor has the hearth and as many shelving units as fit beside it.
  * When it is full a floor is added on top, opening with the next big piece
- * of furniture (a window seat, a study, a gramophone) and then bookcases,
+ * of furniture (a window seat, a study, a gramophone) and then shelving units,
  * so a growing library grows a taller house. A small library gets a
  * cottage only as wide as it needs. Furniture that has arrived but has no
  * room waits for a floor with space.
  *
- * `arrangement` is where the reader has moved furniture to, what they
+ * `arrangement` is where the player has moved furniture to, what they
  * have put away, and the rooms they have added. Each room is a floor over
  * the library with its own furniture. A moved piece keeps its floor and
  * place among its neighbours whenever it fits there; on a screen too
@@ -506,9 +578,9 @@ export function planHouse(
   for (let f = 0; ; f++) {
     const pins = [...(pinsByFloor.get(f) ?? [])];
     const row: PieceKind[] = f === 0 && !pinned.has("hearth") ? ["hearth"] : [];
-    // Moved pieces have to leave room for a bookcase, so a floor can't fill
-    // up with furniture alone; on a ground floor too narrow for the hearth
-    // and a bookcase, they have to leave room for the hearth. The hearth
+    // Moved pieces have to leave room for a shelving unit, so a floor can't
+    // fill up with furniture alone; on a ground floor too narrow for the
+    // hearth and a shelving unit, they have to leave room for the hearth. The hearth
     // moved along the ground floor stays on it.
     const roomy = (kinds: PieceKind[]) =>
       fits([...kinds, ...row, "case"]) || (f === 0 && !fits(["hearth", "case"]) && fits([...kinds, ...row]));
@@ -525,8 +597,8 @@ export function planHouse(
     if (f > 0 && !pins.length && starters.length && fits([starters[0], "case"])) {
       row.push(starters.shift()!);
     }
-    // A floor always takes at least one bookcase unless it already holds
-    // something, so a house narrower than a bookcase still ends.
+    // A floor always takes at least one shelving unit unless it already
+    // holds something, so a house narrower than a shelving unit still ends.
     while (left > 0 && (fits([...fixed, ...row, "case"]) || fixed.length + row.length === 0)) {
       row.push("case");
       left--;
@@ -534,7 +606,7 @@ export function planHouse(
     rows.push(row);
     rowPins.push(pins);
     if (left === 0) {
-      // The bookcases are all in. Furniture moved to a higher floor still
+      // The shelving units are all in. Furniture moved to a higher floor still
       // gets one, up to the floors the house would have had; anything
       // further up finds a place below.
       const higher = [...pinsByFloor.keys()].filter((fl) => fl > f).sort((a, b) => a - b);
@@ -595,7 +667,7 @@ export function planHouse(
   for (let i = 0; i < rows.length; i++) rows[i] = withPins(rows[i], rowPins[i]);
 
   // The ladder leans on the end of the highest row of two or more
-  // bookcases that has room for it.
+  // shelving units that has room for it.
   if (has("ladder")) {
     for (let i = rows.length - 1; i >= 0; i--) {
       const last = rows[i].lastIndexOf("case");
@@ -615,7 +687,7 @@ export function planHouse(
   let caseIndex = 0;
   const floors = rows.map((kinds) => {
     // Spread the spare width evenly over the walls and the gaps between
-    // pieces; bookcases stay together.
+    // pieces; shelving units stay together.
     const flexible = 2 + kinds.filter((_, i) => i > 0 && !touches(kinds, i)).length;
     const spare = inner - rowWidth(kinds);
     let slot = 0;
@@ -752,7 +824,7 @@ export function removeExtra(a: Arrangement, kind: Extra): Arrangement {
   return { ...a, places, extras: (a.extras ?? []).filter((k) => k !== kind) };
 }
 
-/** How many bookcases a list of shelves fills. */
+/** How many shelving units a list of shelves fills. */
 export function caseCount(shelfCount: number): number {
   return Math.max(1, Math.ceil(shelfCount / SHELVES_PER_CASE));
 }

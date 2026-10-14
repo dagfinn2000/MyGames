@@ -24,7 +24,7 @@ describe("periodWindow", () => {
   });
 
   it("ends the rolling windows today, both ends included", () => {
-    // 365 days, the reading calendar's span.
+    // 365 days, the play calendar's span.
     expect(periodWindow("12m", "2026-10-12")).toEqual({ from: "2025-10-13", to: "2026-10-12" });
     expect(periodWindow("12m", "2028-12-31")).toEqual({ from: "2028-01-02", to: "2028-12-31" });
     // 30 days.

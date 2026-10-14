@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   currentPassEntries,
-  dailyPageTotals,
+  dailyMinuteTotals,
   dayKey,
   playStreaks,
 } from "@/lib/progress";
@@ -19,13 +19,13 @@ describe("dayKey", () => {
 });
 
 describe("currentPassEntries", () => {
-  const e = (page: number, date: Date) => ({ page, date });
+  const e = (minutes: number, date: Date) => ({ minutes, date });
 
-  it("slices from the latest page-0 anchor", () => {
+  it("slices from the latest 0-minute anchor", () => {
     const entries = [
-      e(120, day(2026, 1, 1)),
-      e(0, day(2026, 2, 1)), // re-read anchor
-      e(30, day(2026, 2, 3)),
+      e(1200, day(2026, 1, 1)),
+      e(0, day(2026, 2, 1)), // play-again anchor
+      e(90, day(2026, 2, 3)),
     ];
     expect(currentPassEntries(entries, null)).toEqual(entries.slice(1));
   });
@@ -33,81 +33,81 @@ describe("currentPassEntries", () => {
   it("uses the latest anchor when several passes are logged", () => {
     const entries = [
       e(0, day(2026, 1, 1)),
-      e(300, day(2026, 1, 9)),
+      e(2400, day(2026, 1, 9)),
       e(0, day(2026, 3, 1)),
-      e(50, day(2026, 3, 2)),
+      e(150, day(2026, 3, 2)),
     ];
     expect(currentPassEntries(entries, null)).toEqual(entries.slice(2));
   });
 
   it("falls back to the started-date window when no anchor exists", () => {
-    // Upgrade-seeded logs have no page-0 anchor.
+    // A game added part-way through has no 0-minute anchor.
     const entries = [
-      e(80, day(2026, 1, 1)),
-      e(120, day(2026, 2, 1)),
-      e(150, day(2026, 2, 5)),
+      e(480, day(2026, 1, 1)),
+      e(720, day(2026, 2, 1)),
+      e(900, day(2026, 2, 5)),
     ];
     expect(currentPassEntries(entries, day(2026, 2, 1))).toEqual(entries.slice(1));
   });
 
-  it("goes by the start date's calendar day in the reader's zone", () => {
+  it("goes by the start date's calendar day in the player's zone", () => {
     // Started typed as 12 October (midnight UTC); the game was added at
     // 08:30 that morning in Tokyo, still 11 October in UTC.
-    const added = e(50, new Date("2026-10-11T23:30:00Z"));
-    const earlier = e(20, new Date("2026-10-11T12:00:00Z")); // 11 Oct in Tokyo too
+    const added = e(300, new Date("2026-10-11T23:30:00Z"));
+    const earlier = e(120, new Date("2026-10-11T12:00:00Z")); // 11 Oct in Tokyo too
     const started = new Date("2026-10-12T00:00:00Z");
     expect(currentPassEntries([earlier, added], started, "Asia/Tokyo")).toEqual([added]);
     expect(currentPassEntries([earlier, added], started, "UTC")).toEqual([]);
   });
 
   it("returns everything when there is no anchor and no start date", () => {
-    const entries = [e(10, day(2026, 1, 1)), e(20, day(2026, 1, 2))];
+    const entries = [e(60, day(2026, 1, 1)), e(120, day(2026, 1, 2))];
     expect(currentPassEntries(entries, null)).toEqual(entries);
   });
 });
 
-describe("dailyPageTotals", () => {
-  const e = (gameId: string, page: number, date: Date) => ({ gameId, page, date });
+describe("dailyMinuteTotals", () => {
+  const e = (gameId: string, minutes: number, date: Date) => ({ gameId, minutes, date });
 
   it("credits each increase to the later entry's day; the first entry is inert", () => {
-    const totals = dailyPageTotals([
-      e("a", 10, day(2026, 1, 1)), // first entry — no predecessor, no credit
-      e("a", 50, day(2026, 1, 1)), // +40
-      e("a", 80, day(2026, 1, 2)), // +30
+    const totals = dailyMinuteTotals([
+      e("a", 60, day(2026, 1, 1)), // first entry — no predecessor, no credit
+      e("a", 150, day(2026, 1, 1)), // +90
+      e("a", 195, day(2026, 1, 2)), // +45
     ]);
-    expect(totals.get("2026-01-01")).toBe(40);
-    expect(totals.get("2026-01-02")).toBe(30);
+    expect(totals.get("2026-01-01")).toBe(90);
+    expect(totals.get("2026-01-02")).toBe(45);
   });
 
   it("ignores decreases but moves the baseline", () => {
-    const totals = dailyPageTotals([
-      e("a", 100, day(2026, 1, 1)),
-      e("a", 20, day(2026, 1, 2)), // correction/reset — no credit
-      e("a", 50, day(2026, 1, 3)), // +30 from the new baseline
+    const totals = dailyMinuteTotals([
+      e("a", 600, day(2026, 1, 1)),
+      e("a", 120, day(2026, 1, 2)), // correction or a new playthrough — no credit
+      e("a", 180, day(2026, 1, 3)), // +60 from the new baseline
     ]);
     expect(totals.get("2026-01-02")).toBeUndefined();
-    expect(totals.get("2026-01-03")).toBe(30);
+    expect(totals.get("2026-01-03")).toBe(60);
   });
 
   it("sums across games and keeps their logs independent", () => {
-    const totals = dailyPageTotals([
+    const totals = dailyMinuteTotals([
       e("a", 0, day(2026, 1, 1)),
-      e("a", 25, day(2026, 1, 2)), // +25
-      e("b", 200, day(2026, 1, 1)), // first entry of b — inert despite a's log
-      e("b", 260, day(2026, 1, 2)), // +60
+      e("a", 45, day(2026, 1, 2)), // +45
+      e("b", 1200, day(2026, 1, 1)), // first entry of b — inert despite a's log
+      e("b", 1290, day(2026, 1, 2)), // +90
     ]);
-    expect(totals.get("2026-01-02")).toBe(85);
+    expect(totals.get("2026-01-02")).toBe(135);
     expect(totals.get("2026-01-01")).toBeUndefined();
   });
 
   it("sorts each game's log by date before walking it", () => {
-    const totals = dailyPageTotals([
-      e("a", 90, day(2026, 1, 3)),
-      e("a", 30, day(2026, 1, 1)),
-      e("a", 60, day(2026, 1, 2)),
+    const totals = dailyMinuteTotals([
+      e("a", 180, day(2026, 1, 3)),
+      e("a", 60, day(2026, 1, 1)),
+      e("a", 120, day(2026, 1, 2)),
     ]);
-    expect(totals.get("2026-01-02")).toBe(30);
-    expect(totals.get("2026-01-03")).toBe(30);
+    expect(totals.get("2026-01-02")).toBe(60);
+    expect(totals.get("2026-01-03")).toBe(60);
   });
 });
 
@@ -163,7 +163,7 @@ describe("playStreaks", () => {
     });
   });
 
-  it("decides what today is in the reader's zone", () => {
+  it("decides what today is in the player's zone", () => {
     // 23:30 UTC on 3 January: still the 3rd in New York, where the streak
     // is alive (today isn't over), but already the 4th in Oslo, where the
     // 3rd went unplayed.

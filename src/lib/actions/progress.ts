@@ -8,7 +8,7 @@ import { calendarDay, dayKey } from "@/lib/dates";
 import { formatDate } from "@/lib/display";
 import { parsePreferences, serverTimeZone, type Preferences } from "@/lib/preferences";
 import { currentPassEntries } from "@/lib/progress";
-import { formatPosition, pastTheEnd, unitFor } from "@/lib/progress-units";
+import { formatPlaytime } from "@/lib/progress-units";
 import {
   anchorMoment,
   describeDay,
@@ -16,34 +16,35 @@ import {
   idSchema,
   lastLogged,
   loggedWhen,
-  logPageSchema,
+  logTimeSchema,
   moveTargetSchema,
   passAround,
   placeInLog,
-  positionTexts,
   resolveLogDay,
   undoMoveSchema,
   type EntryEditResult,
-  type LogPageResult,
+  type LogTimeResult,
   type MoveResult,
   type UndoMove,
 } from "@/lib/play-log";
 import { settlePlayState } from "@/lib/play-state";
 
 /**
- * The reading log outside the reading form: quick logging for any day,
- * fixing and deleting entries, and Finished / Stopped from Now reading. The
- * rules for where an entry may go live in lib/play-log.ts; the form's
- * own logging is logProgress in actions/games.ts.
+ * The play log outside the play form: quick logging for any day, fixing
+ * and deleting entries, and Finished / Stopped from Now playing. The rules
+ * for where an entry may go live in lib/play-log.ts; the form's own logging
+ * is logProgress in actions/games.ts.
  *
- * Every message is written in the game's unit (page, percent or time), as
- * the reader's preferences say at the time.
+ * Every time is the total played in the playthrough so far, never the
+ * length of one session; messages say both where that helps. No time is
+ * ever refused for being past the game's time to beat.
  */
 
-/** Oldest first; page breaks same-instant ties, so a pass's page-0 anchor
- *  sorts before its first real entry (same order as stats). */
-const LOG_ORDER = [{ date: "asc" as const }, { page: "asc" as const }];
-const LOG_FIELDS = { id: true, page: true, date: true } as const;
+/** Oldest first; minutes break same-instant ties, so a playthrough's
+ *  0-minute anchor sorts before its first real entry (same order as
+ *  stats). */
+const LOG_ORDER = [{ date: "asc" as const }, { minutes: "asc" as const }];
+const LOG_FIELDS = { id: true, minutes: true, date: true } as const;
 
 function revalidatePlaying(gameId: string) {
   revalidatePath(`/games/${gameId}`);
@@ -52,7 +53,7 @@ function revalidatePlaying(gameId: string) {
   revalidatePath("/stats");
 }
 
-/** The reader's preferences with the zone filled in (the same rule as
+/** The player's preferences with the zone filled in (the same rule as
  *  getPreferences, read straight from the row). */
 async function playerPrefs(userId: string): Promise<Preferences> {
   const user = await prisma.user.findUnique({
@@ -63,7 +64,7 @@ async function playerPrefs(userId: string): Promise<Preferences> {
   return { ...prefs, timeZone: prefs.timeZone || serverTimeZone() };
 }
 
-const NOT_PLAYING = "Only games you're reading can log pages. Set this one to Currently Reading first.";
+const NOT_PLAYING = "Only games you're playing can log time. Set this one to Playing first.";
 const FUTURE = "That day hasn't happened yet.";
 const CHANGED = "This game has changed since. Open it to set its status.";
 
@@ -72,44 +73,33 @@ function beforeStarted(dateStarted: Date, prefs: Preferences): string {
 }
 
 /**
- * Log where you are in a game you're reading, for today or an earlier day.
- * The newest entry moves the game's page with it (writing the pass's page-0
- * anchor first if the pass has none, as the reading form does); an earlier
- * day's entry slots in between the entries around it and leaves the page
- * alone.
+ * Log the time played so far in a game you're playing, for today or an
+ * earlier day. The newest entry moves the game's time played with it
+ * (writing the playthrough's 0-minute anchor first if it has none, as the
+ * play form does); an earlier day's entry slots in between the entries
+ * around it and leaves the time played alone.
  */
-export async function logPage(
+export async function logTime(
   gameId: string,
-  /** `value` is the position as typed, in the game's unit, for the message. */
-  input: { page: number; day: string; value?: number },
-): Promise<LogPageResult> {
+  input: { minutes: number; day: string },
+): Promise<LogTimeResult> {
   const userId = await requireUserId();
   const id = idSchema.safeParse(gameId);
   if (!id.success) return { error: "Game not found" };
-  const parsed = logPageSchema.safeParse(input);
+  const parsed = logTimeSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
-  const { page, day, value } = parsed.data;
+  const { minutes, day } = parsed.data;
 
   const game = await prisma.game.findFirst({
     where: { id: id.data, userId },
-    select: {
-      status: true,
-      pageCount: true,
-      dateStarted: true,
-      format: true,
-      lengthMinutes: true,
-    },
+    select: { status: true, dateStarted: true },
   });
   if (!game) return { error: "Game not found" };
   if (game.status !== PlayStatus.PLAYING) return { error: NOT_PLAYING };
-  if (game.pageCount != null && page > game.pageCount) {
-    return { error: pastTheEnd(page, game.pageCount) };
-  }
 
   const prefs = await playerPrefs(userId);
   const tz = prefs.timeZone;
-  const info = unitFor(game, prefs);
-  const [typed] = positionTexts(info, { page, value });
+  const typed = formatPlaytime(minutes);
   const now = new Date();
   const today = dayKey(now, tz);
   const resolved = resolveLogDay(day, now, tz);
@@ -118,8 +108,9 @@ export async function logPage(
   if (game.dateStarted && key < calendarDay(game.dateStarted, tz)) {
     return { error: beforeStarted(game.dateStarted, prefs) };
   }
+  const forDay = describeDay(key, today, prefs.dateFormat);
 
-  const result = await prisma.$transaction(async (tx): Promise<LogPageResult> => {
+  const result = await prisma.$transaction(async (tx): Promise<LogTimeResult> => {
     const all = await tx.progressEntry.findMany({
       where: { gameId: id.data },
       orderBy: LOG_ORDER,
@@ -127,52 +118,58 @@ export async function logPage(
     });
     const pass = currentPassEntries(all, game.dateStarted, tz);
     const previous = pass.length > 0 ? (all[all.indexOf(pass[0]) - 1] ?? null) : null;
-    const placement = placeInLog(pass, { page, date: at }, { timeZone: tz, previous });
+    const placement = placeInLog(pass, { minutes, date: at }, { timeZone: tz, previous });
 
     if (!placement.ok) {
       const n = placement.neighbour;
       if (placement.reason === "beforeStart") {
-        return { error: `That's before this read started (${formatDate(n.date, prefs)}).` };
+        return { error: `That's before this playthrough started (${formatDate(n.date, prefs)}).` };
       }
       const when = loggedWhen(calendarDay(n.date, tz), today, prefs.dateFormat);
-      const [mine, theirs] = positionTexts(info, { page, value, capital: true }, { page: n.page });
-      const subject = `${mine} for ${describeDay(key, today, prefs.dateFormat)}`;
+      const theirs = formatPlaytime(n.minutes);
       return {
         error:
           placement.reason === "below"
-            ? `${subject} is before ${theirs}, which you logged ${when}. If that entry is wrong, fix it with its pencil.`
-            : `${subject} is past ${theirs}, which you logged ${when}. Log it for a later day, or fix that entry.`,
+            ? `${typed} for ${forDay} is less than the ${theirs} you logged ${when}. If that entry is wrong, fix it with its pencil.`
+            : `${typed} for ${forDay} is more than the ${theirs} you logged ${when}. Log it for a later day, or fix that entry.`,
       };
     }
 
     if (placement.moveAnchor) {
       await tx.progressEntry.update({ where: { id: placement.moveAnchor.id }, data: { date: at } });
     }
-    const logged = `Logged ${typed} for ${describeDay(key, today, prefs.dateFormat)}.`;
+    // A fresh playthrough's first entry counts from its anchor, written
+    // below; anything else from the entry it follows.
+    const from = pass.length === 0 ? 0 : (placement.before?.minutes ?? null);
+    const gained = from === null ? 0 : minutes - from;
+    const logged =
+      gained > 0 && gained < minutes
+        ? `Logged ${formatPlaytime(gained)} for ${forDay}, ${typed} in all.`
+        : `Logged ${typed} for ${forDay}.`;
 
     if (placement.after) {
       // An earlier day, between two entries: one more point in the log. The
-      // game's page is still the newest entry's.
-      await tx.progressEntry.create({ data: { gameId: id.data, page, date: at } });
-      return { ok: true, message: logged, page, lastPage: false };
+      // game's time played is still the newest entry's.
+      await tx.progressEntry.create({ data: { gameId: id.data, minutes, date: at } });
+      return { ok: true, message: logged, minutes };
     }
 
-    // The newest entry. Compared with the log rather than Game.currentPage,
-    // which can disagree with it (an entry deleted before deleting resynced
-    // the page): logging the page the bar already shows still has to reach
-    // the log, or that day's pages are never credited.
-    const lastPage = game.pageCount != null && page === game.pageCount;
-    await tx.game.update({ where: { id: id.data }, data: { currentPage: page } });
-    if (lastLogged(pass)?.page === page) {
-      return { ok: true, message: `Already at ${typed}.`, page, lastPage };
+    // The newest entry. Compared with the log rather than
+    // Game.playedMinutes, which can disagree with it (an entry deleted
+    // before deleting resynced the time): logging the time the bar already
+    // shows still has to reach the log, or that day's play is never
+    // credited.
+    await tx.game.update({ where: { id: id.data }, data: { playedMinutes: minutes } });
+    if (lastLogged(pass)?.minutes === minutes) {
+      return { ok: true, message: `Already at ${typed}.`, minutes };
     }
     const entries = [];
     if (pass.length === 0) {
-      entries.push({ gameId: id.data, page: 0, date: anchorMoment(game.dateStarted, at) });
+      entries.push({ gameId: id.data, minutes: 0, date: anchorMoment(game.dateStarted, at) });
     }
-    entries.push({ gameId: id.data, page, date: at });
+    entries.push({ gameId: id.data, minutes, date: at });
     await tx.progressEntry.createMany({ data: entries });
-    return { ok: true, message: logged, page, lastPage };
+    return { ok: true, message: logged, minutes };
   });
 
   if (!("error" in result)) revalidatePlaying(id.data);
@@ -180,55 +177,42 @@ export async function logPage(
 }
 
 /**
- * Fix a log entry's page or day. It has to stay within its own pass and fit
- * between the entries around it; the game's page follows when the entry is
- * the newest of the current read.
+ * Fix a log entry's time or day. It has to stay within its own playthrough
+ * and fit between the entries around it; the game's time played follows
+ * when the entry is the newest of the current playthrough.
  */
 export async function updateProgressEntry(
   entryId: string,
-  /** `value` is the position as typed, in the game's unit, for the message. */
-  input: { page: number; day: string; value?: number },
+  input: { minutes: number; day: string },
 ): Promise<EntryEditResult> {
   const userId = await requireUserId();
   const id = idSchema.safeParse(entryId);
   if (!id.success) return { error: "Entry not found" };
   const parsed = editEntrySchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
-  const { page, day, value } = parsed.data;
+  const { minutes, day } = parsed.data;
 
   const entry = await prisma.progressEntry.findFirst({
     where: { id: id.data, game: { userId } },
     select: {
       id: true,
-      page: true,
+      minutes: true,
       date: true,
       gameId: true,
-      game: {
-        select: {
-          status: true,
-          pageCount: true,
-          dateStarted: true,
-          format: true,
-          lengthMinutes: true,
-        },
-      },
+      game: { select: { status: true, dateStarted: true } },
     },
   });
   if (!entry) return { error: "Entry not found" };
-  // The page-0 anchor marks where a read starts; moving it would hand one
-  // read's pages to another. The log doesn't offer it.
-  if (entry.page === 0) return { error: "The start of a read can't be changed." };
+  // The 0-minute anchor marks where a playthrough starts; moving it would
+  // hand one playthrough's time to another. The log doesn't offer it.
+  if (entry.minutes === 0) return { error: "The start of a playthrough can't be changed." };
   const { game } = entry;
-  if (game.pageCount != null && page > game.pageCount) {
-    return { error: pastTheEnd(page, game.pageCount) };
-  }
 
   const prefs = await playerPrefs(userId);
   const tz = prefs.timeZone;
-  const info = unitFor(game, prefs);
   const now = new Date();
   const today = dayKey(now, tz);
-  // Same day: keep the entry's own moment, so a page fix doesn't reorder it.
+  // Same day: keep the entry's own moment, so a time fix doesn't reorder it.
   let at = entry.date;
   const moved = day !== calendarDay(entry.date, tz);
   if (moved) {
@@ -247,16 +231,16 @@ export async function updateProgressEntry(
     if (!around) return { error: "Entry not found" };
     if (around.nextAnchor && at.getTime() >= around.nextAnchor.date.getTime()) {
       return {
-        error: `That's after you started reading it again (${formatDate(around.nextAnchor.date, prefs)}).`,
+        error: `That's after you started playing it again (${formatDate(around.nextAnchor.date, prefs)}).`,
       };
     }
-    // Without a page-0 anchor the read starts on its Started day, and an
-    // entry moved before that would drop out of it, taking the game's page
-    // with it (placeInLog only knows the anchor).
+    // Without a 0-minute anchor the playthrough starts on its Started day,
+    // and an entry moved before that would drop out of it, taking the
+    // game's time played with it (placeInLog only knows the anchor).
     if (
       moved &&
       around.isCurrent &&
-      around.pass[0]?.page !== 0 &&
+      around.pass[0]?.minutes !== 0 &&
       game.dateStarted &&
       day < calendarDay(game.dateStarted, tz) &&
       currentPassEntries(all, game.dateStarted, tz).some((e) => e.id === entry.id)
@@ -265,35 +249,30 @@ export async function updateProgressEntry(
     }
     const placement = placeInLog(
       around.pass,
-      { page, date: at },
+      { minutes, date: at },
       { timeZone: tz, skipId: entry.id, previous: around.previous },
     );
     if (!placement.ok) {
       if (placement.reason === "beforeStart") {
-        return { error: `That's before this read started (${formatDate(placement.neighbour.date, prefs)}).` };
+        return {
+          error: `That's before this playthrough started (${formatDate(placement.neighbour.date, prefs)}).`,
+        };
       }
-      const hi = placement.after?.page ?? game.pageCount;
-      // Read against what was typed, so 42% isn't "between 42% and 49%".
-      const [, lo, top] = positionTexts(
-        info,
-        { page, value },
-        { page: placement.before?.page ?? 0 },
-        ...(hi == null ? [] : [{ page: hi }]),
-      );
+      const lo = formatPlaytime(placement.before?.minutes ?? 0);
       return {
-        error:
-          hi == null
-            ? `That entry can't be below ${lo}, to fit the days around it.`
-            : `That entry has to stay between ${lo} and ${top}, to fit the days around it.`,
+        error: placement.after
+          ? `That entry has to stay between ${lo} and ${formatPlaytime(placement.after.minutes)}, to fit the days around it.`
+          : `That entry can't be less than ${lo}, to fit the days around it.`,
       };
     }
 
     if (placement.moveAnchor) {
       await tx.progressEntry.update({ where: { id: placement.moveAnchor.id }, data: { date: at } });
     }
-    await tx.progressEntry.update({ where: { id: entry.id }, data: { page, date: at } });
+    await tx.progressEntry.update({ where: { id: entry.id }, data: { minutes, date: at } });
 
-    // The game's page follows the newest entry of the read in progress.
+    // The game's time played follows the newest entry of the playthrough in
+    // progress.
     if (
       around.isCurrent &&
       (game.status === PlayStatus.PLAYING || game.status === PlayStatus.DROPPED)
@@ -306,11 +285,11 @@ export async function updateProgressEntry(
       const pass = currentPassEntries(fresh, game.dateStarted, tz);
       await tx.game.update({
         where: { id: entry.gameId },
-        data: { currentPage: lastLogged(pass)?.page ?? null },
+        data: { playedMinutes: lastLogged(pass)?.minutes ?? null },
       });
     }
-    const [typed] = positionTexts(info, { page, value });
-    return { message: `Fixed: ${typed} for ${describeDay(calendarDay(at, tz), today, prefs.dateFormat)}.` };
+    const forDay = describeDay(calendarDay(at, tz), today, prefs.dateFormat);
+    return { message: `Fixed: ${formatPlaytime(minutes)} for ${forDay}.` };
   });
 
   if (!result.error) revalidatePlaying(entry.gameId);
@@ -318,9 +297,9 @@ export async function updateProgressEntry(
 }
 
 /**
- * Delete a progress log entry (ownership checked through the game). Deleting
- * the newest entry of the read in progress moves the game's page back to the
- * entry before it, so the bar keeps matching the log.
+ * Delete a play log entry (ownership checked through the game). Deleting
+ * the newest entry of the playthrough in progress moves the game's time
+ * played back to the entry before it, so the bar keeps matching the log.
  */
 export async function deleteProgressEntry(entryId: string): Promise<{ error?: string }> {
   const userId = await requireUserId();
@@ -329,11 +308,16 @@ export async function deleteProgressEntry(entryId: string): Promise<{ error?: st
 
   const existing = await prisma.progressEntry.findFirst({
     where: { id: id.data, game: { userId } },
-    select: { id: true, page: true, gameId: true, game: { select: { status: true, dateStarted: true } } },
+    select: {
+      id: true,
+      minutes: true,
+      gameId: true,
+      game: { select: { status: true, dateStarted: true } },
+    },
   });
   if (!existing) return { error: "Entry not found" };
-  // Without its anchor a read would run on into the one before it.
-  if (existing.page === 0) return { error: "The start of a read can't be deleted." };
+  // Without its anchor a playthrough would run on into the one before it.
+  if (existing.minutes === 0) return { error: "The start of a playthrough can't be deleted." };
   const tz = (await playerPrefs(userId)).timeZone;
 
   await prisma.$transaction(async (tx) => {
@@ -351,7 +335,7 @@ export async function deleteProgressEntry(entryId: string): Promise<{ error?: st
     ) {
       await tx.game.update({
         where: { id: existing.gameId },
-        data: { currentPage: lastLogged(pass.slice(0, -1))?.page ?? null },
+        data: { playedMinutes: lastLogged(pass.slice(0, -1))?.minutes ?? null },
       });
     }
   });
@@ -361,11 +345,12 @@ export async function deleteProgressEntry(entryId: string): Promise<{ error?: st
 }
 
 /**
- * Finished or Stopped, from Now reading: the same status change as picking
- * Read or Did Not Finish on the reading card, with the same dates, page and
- * read count (settlePlayState). Finishing a tracked read closes its log
- * at the last page, as the reading form does (logProgress in
- * actions/games.ts); Finished always means today.
+ * Finished or Stopped, from Now playing: the same status change as picking
+ * Completed or Dropped on the playing card, with the same dates and
+ * completion count (settlePlayState). The time played stays on the game
+ * either way ("completed in 42 h", "stopped at 12 h"), and the log gets no
+ * closing entry: a game has no last minute to close it at, so what was
+ * logged is the time it took. Finished always means today.
  */
 export async function moveFromPlaying(gameId: string, to: "COMPLETED" | "DROPPED"): Promise<MoveResult> {
   const userId = await requireUserId();
@@ -379,18 +364,15 @@ export async function moveFromPlaying(gameId: string, to: "COMPLETED" | "DROPPED
     select: {
       title: true,
       status: true,
-      currentPage: true,
-      pageCount: true,
+      playedMinutes: true,
       dateStarted: true,
       dateFinished: true,
-      format: true,
-      lengthMinutes: true,
       _count: { select: { playthroughs: true } },
     },
   });
   if (!game) return { error: "Game not found" };
   if (game.status !== PlayStatus.PLAYING) {
-    return { error: "This game isn't in Currently Reading any more." };
+    return { error: "This game isn't in Playing any more." };
   }
 
   const finishing = target.data === "COMPLETED";
@@ -400,62 +382,43 @@ export async function moveFromPlaying(gameId: string, to: "COMPLETED" | "DROPPED
       status: finishing ? PlayStatus.COMPLETED : PlayStatus.DROPPED,
       dateStarted: game.dateStarted,
       dateFinished: finishing ? null : game.dateFinished,
-      currentPage: game.currentPage,
+      playedMinutes: game.playedMinutes,
     },
     game._count.playthroughs,
   );
-  const prefs = await playerPrefs(userId);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.game.update({
-      where: { id: id.data },
-      data: {
-        status: next.status,
-        dateStarted: next.dateStarted,
-        dateFinished: next.dateFinished,
-        timesCompleted: next.timesCompleted,
-        currentPage: next.currentPage,
-      },
-    });
-    // An untracked read (no entries) logs nothing, as in logProgress.
-    if (finishing && game.pageCount != null) {
-      const all = await tx.progressEntry.findMany({
-        where: { gameId: id.data },
-        orderBy: LOG_ORDER,
-        select: LOG_FIELDS,
-      });
-      const last = currentPassEntries(all, game.dateStarted, prefs.timeZone).at(-1);
-      if (last && last.page < game.pageCount) {
-        await tx.progressEntry.create({
-          data: { gameId: id.data, page: game.pageCount, date: next.dateFinished! },
-        });
-      }
-    }
+  await prisma.game.update({
+    where: { id: id.data },
+    data: {
+      status: next.status,
+      dateStarted: next.dateStarted,
+      dateFinished: next.dateFinished,
+      timesCompleted: next.timesCompleted,
+      playedMinutes: next.playedMinutes,
+    },
   });
 
   revalidatePlaying(id.data);
-  const info = unitFor(game, prefs);
+  const played = next.playedMinutes ? formatPlaytime(next.playedMinutes) : null;
   return {
     ok: true,
     finished: finishing,
     message: finishing
-      ? `${game.title} moved to Read. Finished today.`
-      : next.currentPage != null
-        ? `${game.title} moved to Did Not Finish at ${formatPosition(next.currentPage, info)}.`
-        : `${game.title} moved to Did Not Finish.`,
+      ? `${game.title} moved to Completed. Finished today${played ? `, in ${played}` : ""}.`
+      : `${game.title} moved to Dropped${played ? ` at ${played}` : ""}.`,
     undo: {
       from: target.data,
       finishedAt: finishing ? next.dateFinished!.toISOString() : null,
-      page: game.currentPage || null,
     },
   };
 }
 
 /**
- * Undo Finished or Stopped: back to Currently Reading as it was. Worked out
- * from the game itself, not the client: only while the game is still where
- * the move put it (for Read, finished at that same moment), and the only
- * entry removed is the closing one that move wrote.
+ * Undo Finished or Stopped: back to Playing as it was. Worked out from the
+ * game itself, not the client, and only while the game is still where the
+ * move put it (for Completed, finished at that same moment). The move
+ * changed nothing else, so nothing else needs putting back: the time
+ * played and the log are as they were.
  */
 export async function undoMoveFromPlaying(
   gameId: string,
@@ -466,15 +429,12 @@ export async function undoMoveFromPlaying(
   if (!id.success) return { error: "Game not found" };
   const parsed = undoMoveSchema.safeParse(undo);
   if (!parsed.success) return { error: "Invalid input" };
-  const { from, finishedAt, page } = parsed.data;
+  const { from, finishedAt } = parsed.data;
 
   const game = await prisma.game.findFirst({
     where: { id: id.data, userId },
     select: {
       status: true,
-      currentPage: true,
-      pageCount: true,
-      dateStarted: true,
       dateFinished: true,
       _count: { select: { playthroughs: true } },
     },
@@ -484,43 +444,14 @@ export async function undoMoveFromPlaying(
   if (from === "COMPLETED" && (!game.dateFinished || game.dateFinished.toISOString() !== finishedAt)) {
     return { error: CHANGED };
   }
-  const tz = (await playerPrefs(userId)).timeZone;
 
-  await prisma.$transaction(async (tx) => {
-    let currentPage = game.currentPage;
-    if (from === "COMPLETED") {
-      const all = await tx.progressEntry.findMany({
-        where: { gameId: id.data },
-        orderBy: LOG_ORDER,
-        select: LOG_FIELDS,
-      });
-      let pass = currentPassEntries(all, game.dateStarted, tz);
-      const last = pass.at(-1);
-      // The closing entry Finished wrote: the last page, at the finish moment.
-      if (
-        last &&
-        last.page > 0 &&
-        last.page === game.pageCount &&
-        last.date.getTime() === game.dateFinished!.getTime()
-      ) {
-        await tx.progressEntry.delete({ where: { id: last.id } });
-        pass = pass.slice(0, -1);
-      }
-      // A tracked read goes back to its newest entry. An untracked one has
-      // only the page it had, which Finished cleared; it can't be past the
-      // end, so it is no more than the reading form would accept.
-      const fallback = page != null && (game.pageCount == null || page <= game.pageCount) ? page : null;
-      currentPage = lastLogged(pass)?.page ?? fallback;
-    }
-    await tx.game.update({
-      where: { id: id.data },
-      data: {
-        status: PlayStatus.PLAYING,
-        dateFinished: from === "COMPLETED" ? null : game.dateFinished,
-        currentPage,
-        timesCompleted: game._count.playthroughs,
-      },
-    });
+  await prisma.game.update({
+    where: { id: id.data },
+    data: {
+      status: PlayStatus.PLAYING,
+      dateFinished: from === "COMPLETED" ? null : game.dateFinished,
+      timesCompleted: game._count.playthroughs,
+    },
   });
 
   revalidatePlaying(id.data);

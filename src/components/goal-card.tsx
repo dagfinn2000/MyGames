@@ -1,7 +1,16 @@
 import Link from "next/link";
 import type { GoalUnit } from "@prisma/client";
 import { formatDayKey, formatNumber } from "@/lib/display";
-import { describePace, unitWord, type GoalPace, type YearClock } from "@/lib/goals";
+import {
+  describePace,
+  doneWords,
+  goalAmount,
+  goalTarget,
+  targetWords,
+  unitWord,
+  type GoalPace,
+  type YearClock,
+} from "@/lib/goals";
 import type { DateFormat, NumberFormat } from "@/lib/preferences";
 import { cn } from "@/lib/utils";
 import { GoalForm } from "@/components/goal-form";
@@ -17,9 +26,10 @@ interface Goal {
 }
 
 /**
- * The reading goal on the stats page, for one year at a time: this year
- * with a "today" tick on the bar and how the pace is going, next year to
- * set ahead, or a past year opened from its Edit link.
+ * The play goal on the stats page, for one year at a time: this year with
+ * a "today" tick on the bar and how the pace is going, next year to set
+ * ahead, or a past year opened from its Edit link. Progress (`done`) is in
+ * the goal's counting unit: games, or minutes for an hours goal.
  */
 export function GoalCard({
   year,
@@ -37,7 +47,7 @@ export function GoalCard({
   year: number;
   currentYear: number;
   goal: Goal | null;
-  /** Progress toward `goal` (see goalProgress). */
+  /** Progress toward `goal` (see goalProgress): games, or minutes. */
   done: number;
   pace: GoalPace | null;
   clock: YearClock;
@@ -50,14 +60,13 @@ export function GoalCard({
     editHref: string;
   })[];
   yearOptions: { year: number; href: string }[];
-  /** What a pages goal counts, by the "What counts" preferences. */
+  /** What an hours goal counts, by the "What counts" preferences. */
   ruleLine: string;
   prefs: { dateFormat: DateFormat; numberFormat: NumberFormat };
 }) {
   const fmt = (n: number) => formatNumber(n, prefs);
-  const amount = (n: number, unit: GoalUnit) => `${fmt(n)} ${unitWord(unit, n)}`;
   const startsOn = formatDayKey(`${year}-01-01`, prefs.dateFormat);
-  const met = goal !== null && clock.when !== "future" && done >= goal.target;
+  const met = goal !== null && clock.when !== "future" && done >= goalTarget(goal);
 
   return (
     <Card id="goal">
@@ -77,7 +86,7 @@ export function GoalCard({
         {clock.when === "future" ? (
           <p className={cn("text-sm", !goal && "text-muted-foreground")}>
             {goal
-              ? `${amount(goal.target, goal.unit)} · starts counting on ${startsOn}.`
+              ? `${targetWords(goal.target, goal.unit, prefs)} · starts counting on ${startsOn}.`
               : `No goal for ${year} yet. It starts counting on ${startsOn}.`}
           </p>
         ) : goal && pace ? (
@@ -92,9 +101,9 @@ export function GoalCard({
               ))}
             <div className="min-w-56 flex-1">
               <p className="text-2xl font-semibold tabular-nums">
-                {fmt(done)}{" "}
+                {doneWords(done, goal.unit, prefs)}{" "}
                 <span className="text-base font-normal text-muted-foreground">
-                  of {fmt(goal.target)} {unitWord(goal.unit, goal.target)}
+                  of {targetWords(goal.target, goal.unit, prefs)}
                 </span>
               </p>
               <GoalBar
@@ -102,7 +111,7 @@ export function GoalCard({
                 goal={goal}
                 met={met}
                 today={clock.when === "current" ? clock.fraction : null}
-                fmt={fmt}
+                prefs={prefs}
               />
               <p
                 className={cn(
@@ -112,30 +121,26 @@ export function GoalCard({
                     : "text-muted-foreground",
                 )}
               >
-                {describePace(pace, goal.unit, fmt, startsOn)}
+                {describePace(pace, goal.unit, prefs, startsOn)}
               </p>
               {((clock.when === "current" && !met) || !goal.countReplays) && (
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {clock.when === "current" && !met && (
-                    <>
-                      {fmt(goal.target - done)} more {unitWord(goal.unit, goal.target - done)} to
-                      go.
-                    </>
-                  )}
-                  {!goal.countReplays && " Re-reads don't count toward this goal."}
+                  {clock.when === "current" && !met && toGo(goalTarget(goal) - done, goal.unit, prefs)}
+                  {!goal.countReplays && " Replays don't count toward this goal."}
                 </p>
               )}
             </div>
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Set a goal for the year: finish that many games (or pages) and earn a gold medal.
+            Set a goal for the year: complete that many games (or play that many hours) and earn
+            a gold medal.
           </p>
         )}
 
         {year === currentYear && nextYear && (
           <p className="text-sm text-muted-foreground">
-            Next year: {amount(nextYear.target, nextYear.unit)} ·{" "}
+            Next year: {targetWords(nextYear.target, nextYear.unit, prefs)} ·{" "}
             <Link
               href={nextYear.href}
               scroll={false}
@@ -172,7 +177,8 @@ export function GoalCard({
               <div key={g.year} className="flex items-center gap-3 text-sm">
                 <span className="w-12 text-muted-foreground">{g.year}</span>
                 <span className="tabular-nums">
-                  {amount(g.target, g.unit)} · read {fmt(g.done)}
+                  {targetWords(g.target, g.unit, prefs)} ·{" "}
+                  {g.unit === "HOURS" ? "played" : "completed"} {doneWords(g.done, g.unit, prefs)}
                 </span>
                 {g.met && <GoldMedal className="h-6 w-[18px]" />}
                 <Link
@@ -197,18 +203,18 @@ function GoalBar({
   goal,
   met,
   today,
-  fmt,
+  prefs,
 }: {
   done: number;
   goal: Goal;
   met: boolean;
   /** How far through the year today is, 0–1; null for a past year. */
   today: number | null;
-  fmt: (n: number) => string;
+  prefs: { numberFormat: NumberFormat };
 }) {
-  const share = done / goal.target;
+  const share = done / goalTarget(goal);
   const label =
-    `${fmt(done)} of ${fmt(goal.target)} ${unitWord(goal.unit, goal.target)}, ` +
+    `${doneWords(done, goal.unit, prefs)} of ${targetWords(goal.target, goal.unit, prefs)}, ` +
     `${Math.round(share * 100)}% of the goal.` +
     (today === null ? "" : ` Today is ${Math.round(today * 100)}% of the way through the year.`);
   // Keep the "today" label inside the card near either end of the year.
@@ -242,4 +248,11 @@ function GoalBar({
       )}
     </div>
   );
+}
+
+/** What's left this year: "3 more games to go.", "158 hours to go." */
+function toGo(left: number, unit: GoalUnit, prefs: { numberFormat: NumberFormat }): string {
+  return unit === "HOURS"
+    ? `${goalAmount(left, unit, prefs)} to go.`
+    : `${formatNumber(left, prefs)} more ${unitWord(unit, left)} to go.`;
 }

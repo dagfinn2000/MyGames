@@ -35,7 +35,7 @@ const renameOptions = z.object({ remember: z.boolean().optional() }).optional().
 const deleteOptions = z.object({ neverImport: z.boolean().optional() }).optional().catch(undefined);
 
 /**
- * Changes the user's rules for imported subjects (Preferences, New games).
+ * Changes the user's rules for imported genres (Preferences, New games).
  * The row is locked while it is read and written, so two quick rule edits
  * can't each start from the same list and drop the other's change; the
  * write is the same jsonb merge as savePreferences, so other settings are
@@ -59,8 +59,8 @@ async function editTagRules(userId: string, change: (rules: TagRules) => TagRule
 /**
  * Renames a tag on every game that carries it. Renaming to a tag that
  * already exists merges the two (the array is deduped per game). With
- * `remember`, catalogue subjects by the old name are imported under the
- * new one from now on, even if no game carried it yet.
+ * `remember`, catalogue genres by the old name are imported under the new
+ * one from now on, even if no game carried it yet.
  */
 export async function renameTag(
   from: string,
@@ -104,7 +104,7 @@ export async function renameTag(
 
 /**
  * Removes a tag from every game that carries it. Games are untouched
- * otherwise. With `neverImport`, catalogue subjects by that name are left
+ * otherwise. With `neverImport`, catalogue genres by that name are left
  * out of future imports.
  */
 export async function deleteTag(

@@ -38,12 +38,14 @@ export interface FilterValues {
   shelf: string;
   shelfId: string;
   q: string;
-  author: string;
+  developer: string;
   /** Comma-joined, like every list in the URL. */
   tag: string;
   tagMatch: string;
   notTag: string;
   format: string;
+  /** One platform as written on the games, or "" for all. */
+  platform: string;
   /** Ownership filter: "all" | "owned" | "wishlist" | "borrowed" |
    *  "given_away" | "lent". Keeps the `owned` name so old links still work. */
   owned: string;
@@ -59,19 +61,20 @@ export interface FilterValues {
 const SORT_OPTIONS = [
   { value: "createdAt", label: "Date added" },
   { value: "title", label: "Title" },
-  { value: "author", label: "Author" },
+  { value: "developer", label: "Developer" },
   { value: "rating", label: "Rating" },
   { value: "dateFinished", label: "Date finished" },
   { value: "dateStarted", label: "Date started" },
-  { value: "pageCount", label: "Page count" },
-  { value: "published", label: "Year published" },
+  { value: "length", label: "Time to beat" },
+  { value: "released", label: "Release date" },
   { value: "updatedAt", label: "Recently edited" },
 ];
 
 /** `short` is what the closed menu shows on a phone, next to its icon. */
 const GROUP_OPTIONS = [
   { value: "none", label: "No grouping", short: "No grouping" },
-  { value: "author", label: "Group by author", short: "Author" },
+  { value: "developer", label: "Group by developer", short: "Developer" },
+  { value: "platform", label: "Group by platform", short: "Platform" },
   { value: "series", label: "Group by series", short: "Series" },
   { value: "yearFinished", label: "Group by year finished", short: "Year finished" },
   { value: "status", label: "Group by status", short: "Status" },
@@ -83,7 +86,7 @@ const GROUP_OPTIONS = [
 ];
 
 /** Sorts by words: their direction reads A to Z, and the icon shows letters. */
-const TEXT_SORTS = new Set(["title", "author"]);
+const TEXT_SORTS = new Set(["title", "developer"]);
 
 const LETTERS = { asc: "Sorted A to Z. Click for Z to A.", desc: "Sorted Z to A. Click for A to Z." };
 const DATES = {
@@ -95,7 +98,7 @@ const DATES = {
  *  click does, in that sort's own words. */
 const DIR_LABELS: Record<string, { asc: string; desc: string }> = {
   title: LETTERS,
-  author: LETTERS,
+  developer: LETTERS,
   rating: {
     asc: "Sorted lowest rated first. Click for highest first.",
     desc: "Sorted highest rated first. Click for lowest first.",
@@ -103,11 +106,11 @@ const DIR_LABELS: Record<string, { asc: string; desc: string }> = {
   createdAt: DATES,
   dateFinished: DATES,
   dateStarted: DATES,
-  published: {
-    asc: "Sorted oldest published first. Click for newest first.",
-    desc: "Sorted newest published first. Click for oldest first.",
+  released: {
+    asc: "Sorted oldest release first. Click for newest first.",
+    desc: "Sorted newest release first. Click for oldest first.",
   },
-  pageCount: {
+  length: {
     asc: "Sorted shortest first. Click for longest first.",
     desc: "Sorted longest first. Click for shortest first.",
   },
@@ -144,6 +147,7 @@ export function FilterBar({
   values,
   allTags,
   tagCounts,
+  platforms,
   display,
   ratingStyle,
   finishedYears,
@@ -152,6 +156,8 @@ export function FilterBar({
   allTags: string[];
   /** Games per tag, for the tag list and the manage-tags dialog. */
   tagCounts: Record<string, number>;
+  /** Every platform in the library, in the player's alphabet. */
+  platforms: string[];
   /** Card size, layout and card details, for the View menu. */
   display: LibraryDisplay;
   ratingStyle: RatingStyle;
@@ -193,11 +199,12 @@ export function FilterBar({
     if (next.shelf && next.shelf !== "all") params.set("shelf", next.shelf);
     if (next.shelfId) params.set("shelfId", next.shelfId);
     if (next.q) params.set("q", next.q);
-    if (next.author) params.set("author", next.author);
+    if (next.developer) params.set("developer", next.developer);
     if (next.tag && next.tag !== "all") params.set("tag", next.tag);
     if (next.tag && next.tagMatch === "all") params.set("tagMatch", "all");
     if (next.notTag) params.set("notTag", next.notTag);
     if (next.format && next.format !== "all") params.set("format", next.format);
+    if (next.platform) params.set("platform", next.platform);
     if (next.owned && next.owned !== "all") params.set("owned", next.owned);
     if (next.minRating && next.minRating !== "all")
       params.set("minRating", next.minRating);
@@ -235,6 +242,12 @@ export function FilterBar({
   }, [search]);
 
   const chips = activeFilterChips(current, (v) => minRatingLabel(v, ratingStyle));
+  // A platform from a link or saved view stays pickable even when no game
+  // has it any more, so the active filter never hides.
+  const platformOptions =
+    current.platform && !platforms.includes(current.platform)
+      ? [current.platform, ...platforms]
+      : platforms;
   const group = GROUP_OPTIONS.find((o) => o.value === current.group);
   const asc = current.dir === "asc";
 
@@ -271,6 +284,27 @@ export function FilterBar({
           className={`${HALF_ROW} sm:w-36`}
         />
         <ManageTagsDialog tagCounts={tagCounts} />
+
+        {/* Only once some game has a platform: until then it would be a
+            menu with nothing in it. */}
+        {platformOptions.length > 0 && (
+          <Select
+            value={current.platform || "all"}
+            onValueChange={(v) => navigate({ platform: v === "all" ? "" : v })}
+          >
+            <SelectTrigger className={`${HALF_ROW} sm:w-40`} aria-label="Platform">
+              <SelectValue placeholder="Platform" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All platforms</SelectItem>
+              {platformOptions.map((p) => (
+                <SelectItem key={p} value={p}>
+                  {p}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         <Select
           value={current.format || "all"}
@@ -384,7 +418,7 @@ export function FilterBar({
         onRemove={(chip) => navigate(chip.clear)}
         onClearAll={() =>
           navigate({
-            author: "",
+            developer: "",
             tag: "",
             tagMatch: "",
             notTag: "",

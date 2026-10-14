@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AVATAR_W, HELD_GAME, SEAT_OFFSET, avatarArt, seatedTop } from "@/components/avatar-art";
+import { AVATAR_W, HELD_CONTROLLER, SEAT_OFFSET, avatarArt, seatedTop } from "@/components/avatar-art";
 import { armchairArt } from "@/components/room-art";
 import type { Art } from "@/components/room-art";
 import {
@@ -130,16 +130,16 @@ describe("avatarArt", () => {
     expect(wrong).toEqual([]);
   });
 
-  it("holds the game where the room puts its link", () => {
+  it("holds the controller where the room puts its link", () => {
     const { sit } = avatarArt(DEFAULT_AVATAR);
-    const game = [...cells(sit)].filter(([, paint]) => paint.startsWith("game") || paint.startsWith("paper"));
-    expect(game.length).toBeGreaterThan(20);
-    for (const [key] of game) {
+    const controller = [...cells(sit)].filter(([, paint]) => paint.startsWith("game") || paint.startsWith("paper"));
+    expect(controller.length).toBeGreaterThan(20);
+    for (const [key] of controller) {
       const [x, y] = key.split(",").map(Number);
-      expect(x).toBeGreaterThanOrEqual(HELD_GAME.x);
-      expect(x).toBeLessThan(HELD_GAME.x + HELD_GAME.w);
-      expect(y).toBeGreaterThanOrEqual(HELD_GAME.y);
-      expect(y).toBeLessThan(HELD_GAME.y + HELD_GAME.h);
+      expect(x).toBeGreaterThanOrEqual(HELD_CONTROLLER.x);
+      expect(x).toBeLessThan(HELD_CONTROLLER.x + HELD_CONTROLLER.w);
+      expect(y).toBeGreaterThanOrEqual(HELD_CONTROLLER.y);
+      expect(y).toBeLessThan(HELD_CONTROLLER.y + HELD_CONTROLLER.h);
     }
   });
 
@@ -185,7 +185,7 @@ describe("avatarArt", () => {
     expect(h("short").sit.h).toBeLessThan(h("tall").sit.h);
   });
 
-  it("puts down what it carries to read", () => {
+  it("puts down what it carries to play", () => {
     const sit = (held: AvatarLook["held"]) => JSON.stringify(avatarArt({ ...DEFAULT_AVATAR, held }).sit);
     expect(new Set(AVATAR_HELD.map(sit)).size).toBe(1);
   });

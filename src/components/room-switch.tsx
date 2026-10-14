@@ -8,7 +8,7 @@ import type { HideableNav } from "@/lib/preferences";
 import { Button } from "@/components/ui/button";
 
 /**
- * Turns the reading room on or off. Off, the Room tab goes from the top bar
+ * Turns the game room on or off. Off, the Room tab goes from the top bar
  * and the Room page offers to bring it back; the same switch is in
  * Preferences.
  */
@@ -40,7 +40,7 @@ export function RoomSwitch({
     <>
       <Button size="sm" variant={on ? "default" : "ghost"} className={className} disabled={pending} onClick={flip}>
         <Power aria-hidden="true" />
-        {on ? "Turn the reading room on" : "Turn off the reading room"}
+        {on ? "Turn the game room on" : "Turn off the game room"}
       </Button>
       {failed && (
         <p role="alert" className="text-xs text-destructive">

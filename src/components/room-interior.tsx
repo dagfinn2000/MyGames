@@ -80,7 +80,7 @@ export function InteriorControls({ decor, onChange }: { decor: RoomDecor; onChan
       </Tiles>
       <Tiles
         label="Along the ceilings"
-        hint="In every room, over the bookcases. Fairy lights twinkle at night."
+        hint="In every room, over the shelves. Fairy lights twinkle at night."
         options={ROOM_CEILINGS}
         labels={ROOM_CEILING_LABELS}
         chosen={(ceiling) => decor.ceiling === ceiling}

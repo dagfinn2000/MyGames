@@ -3,16 +3,16 @@ import { calendarDay, dayKey, keyToUtcDate } from "@/lib/dates";
 import type { DateFormat, NumberFormat } from "@/lib/preferences";
 
 export const STATUS_LABELS: Record<PlayStatus, string> = {
-  WANT_TO_PLAY: "Want to Read",
-  PLAYING: "Currently Reading",
-  COMPLETED: "Read",
-  DROPPED: "Did Not Finish",
+  WANT_TO_PLAY: "Want to Play",
+  PLAYING: "Playing",
+  COMPLETED: "Completed",
+  DROPPED: "Dropped",
 };
 
 export const FORMAT_LABELS: Record<GameFormat, string> = {
   PHYSICAL: "Physical",
-  EBOOK: "Ebook",
-  AUDIOBOOK: "Audiobook",
+  DIGITAL: "Digital",
+  SUBSCRIPTION: "Subscription",
 };
 
 export const OWNERSHIP_LABELS: Record<GameOwnership, string> = {
@@ -28,10 +28,10 @@ export const OWNERSHIP_BADGE_LABELS: Record<GameOwnership, string> = {
   OWNED: "Owned",
   WISHLIST: "Wishlist",
   BORROWED: "Borrowed",
-  GIVEN_AWAY: "Given away",
+  GIVEN_AWAY: "Sold or traded",
 };
 
-/** Badge tint per reading status (light + dark variants). */
+/** Badge tint per play status (light + dark variants). */
 export const STATUS_BADGE_CLASS: Record<PlayStatus, string> = {
   WANT_TO_PLAY:
     "status-badge bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200 border-transparent",
@@ -91,7 +91,7 @@ const NUMBER_LOCALES: Record<NumberFormat, string> = {
 
 const numberFormatters = new Map<NumberFormat, Intl.NumberFormat>();
 
-/** "1,234" (or the chosen grouping). Whole numbers only — counts and pages. */
+/** "1,234" (or the chosen grouping). Whole numbers only — counts and hours. */
 export function formatNumber(n: number, prefs?: FormatPrefs): string {
   const format = prefs?.numberFormat ?? "comma";
   let f = numberFormatters.get(format);
@@ -121,7 +121,7 @@ function monthFirst(format: DateFormat | undefined): boolean {
 }
 
 /** Today as a heading: "Monday 12 October", or "Monday, October 12" for the
- *  month-first date styles. The day is the reader's, in their zone. */
+ *  month-first date styles. The day is the player's, in their zone. */
 export function formatWeekdayDay(d: Date, prefs?: FormatPrefs): string {
   const key = dayKey(d, prefs?.timeZone);
   const [, m, day] = key.split("-").map(Number);

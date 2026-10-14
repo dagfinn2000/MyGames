@@ -1,8 +1,9 @@
 import { coverArt } from "@/lib/cover-art";
 
 /**
- * The colour of a game's spine in the reading room: the main colour of its
- * cover, as a real spine usually carries on the cover's background.
+ * The colour of a game's spine in the game room: the main colour of its
+ * cover, as the spine of a real game case usually carries on the cover's
+ * background.
  *
  * The room draws the cover small on a canvas and hands the pixels here.
  * Each pixel lands in one of 512 colour buckets; the bucket with the most

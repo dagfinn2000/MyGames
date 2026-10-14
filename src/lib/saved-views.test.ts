@@ -4,8 +4,8 @@ import { canonicalViewQuery, canonicalViewQueryFromString } from "@/lib/saved-vi
 describe("canonicalViewQuery", () => {
   it("keeps filters in a fixed order with the view last", () => {
     expect(
-      canonicalViewQuery({ sort: "title", tag: "fantasy", shelf: "COMPLETED", dir: "asc" }),
-    ).toBe("shelf=COMPLETED&tag=fantasy&group=none&sort=title&dir=asc");
+      canonicalViewQuery({ sort: "title", tag: "roguelike", shelf: "COMPLETED", dir: "asc" }),
+    ).toBe("shelf=COMPLETED&tag=roguelike&group=none&sort=title&dir=asc");
   });
 
   it("leaves out defaults and parameters the library doesn't know", () => {
@@ -15,8 +15,8 @@ describe("canonicalViewQuery", () => {
   });
 
   it("gives the same string for the same view however it was written", () => {
-    expect(canonicalViewQueryFromString("dir=asc&sort=title&q=+dune+&group=none")).toBe(
-      canonicalViewQuery({ q: "dune", sort: "title", dir: "asc" }),
+    expect(canonicalViewQueryFromString("dir=asc&sort=title&q=+zelda+&group=none")).toBe(
+      canonicalViewQuery({ q: "zelda", sort: "title", dir: "asc" }),
     );
   });
 
@@ -26,17 +26,19 @@ describe("canonicalViewQuery", () => {
         missing: "cover",
         finished: "2024",
         notTag: "horror",
+        platform: "Nintendo Switch",
         tagMatch: "all",
-        tag: "fantasy,classic",
-        author: "Ursula K. Le Guin",
+        tag: "platformer,classic",
+        developer: "Team Cherry",
         minRating: "unrated",
-        q: "sea",
+        q: "knight",
         sort: "rating",
         dir: "desc",
       }),
     ).toBe(
-      "q=sea&author=Ursula+K.+Le+Guin&tag=classic%2Cfantasy&tagMatch=all&notTag=horror" +
-        "&minRating=unrated&finished=2024&missing=cover&group=none&sort=rating&dir=desc",
+      "q=knight&developer=Team+Cherry&tag=classic%2Cplatformer&tagMatch=all&notTag=horror" +
+        "&platform=Nintendo+Switch&minRating=unrated&finished=2024&missing=cover" +
+        "&group=none&sort=rating&dir=desc",
     );
   });
 
@@ -55,7 +57,8 @@ describe("canonicalViewQuery", () => {
 
   it("opens a sort without a direction its natural way round, like the library", () => {
     expect(canonicalViewQuery({ sort: "title" })).toBe("group=none&sort=title&dir=asc");
-    expect(canonicalViewQuery({ sort: "pageCount" })).toBe("group=none&sort=pageCount&dir=desc");
+    expect(canonicalViewQuery({ sort: "length" })).toBe("group=none&sort=length&dir=desc");
+    expect(canonicalViewQuery({ sort: "developer" })).toBe("group=none&sort=developer&dir=asc");
     expect(canonicalViewQuery({ sort: "constructor" })).toBe("group=none&sort=createdAt&dir=desc");
   });
 });

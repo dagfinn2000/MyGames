@@ -4,24 +4,22 @@ import JSZip from "jszip";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { BACKUP_FORMAT, BACKUP_VERSION } from "@/lib/backup";
 import { coverFilePath } from "@/lib/covers";
 import { parsePreferences } from "@/lib/preferences";
 
 /**
  * GET /api/export — downloads the signed-in user's entire library as a zip:
- * `library.json` (every game with its shelf names, quotes, read history,
- * reading log and lending records, every shelf, reading goals, saved views,
- * and the account's theme, library view and preferences) plus
- * `covers/<file>` for each
- * locally cached cover image, so a restore into a fresh instance brings the
- * covers back too.
+ * `library.json` (every game with its shelf names, quotes, past
+ * playthroughs, play log and lending records, every shelf, play goals,
+ * saved views, and the account's theme, library view and preferences) plus
+ * `covers/<file>` for each locally cached cover image, so a restore into a
+ * fresh instance brings the covers back too. lib/import.ts reads it back.
  *
- * The JSON inside is still the version-1 export format — quotes, reads,
- * progress, loans, settings, saved views and pages goals are additive
- * fields (as are a goal's `countReplays`, a game's `lengthMinutes` and a
- * past read's `note`), and `owned` is still written
- * alongside the newer `ownership` — so unzipping and feeding `library.json`
- * to an older instance keeps working.
+ * Each game goes out with every column of its row bar the account id and
+ * the derived search text, so a column added later is backed up without
+ * anyone remembering to list it here (the round-trip test then says
+ * whether the restore reads it).
  *
  * Once the client has read the whole zip, the account's `lastBackupAt` is
  * set, so the Backup card can say when the newest copy was made. A download
@@ -41,7 +39,7 @@ export async function GET() {
       include: {
         shelves: { select: { name: true } },
         quotes: {
-          select: { text: true, page: true, note: true, createdAt: true },
+          select: { text: true, speaker: true, note: true, createdAt: true },
           orderBy: { createdAt: "asc" },
         },
         playthroughs: {
@@ -49,14 +47,15 @@ export async function GET() {
             dateStarted: true,
             dateFinished: true,
             rating: true,
+            playedMinutes: true,
             note: true,
             createdAt: true,
           },
           orderBy: { createdAt: "asc" },
         },
         progress: {
-          select: { page: true, date: true },
-          orderBy: [{ date: "asc" }, { page: "asc" }],
+          select: { minutes: true, date: true },
+          orderBy: [{ date: "asc" }, { minutes: "asc" }],
         },
         loans: {
           select: {
@@ -100,20 +99,14 @@ export async function GET() {
     ids.flatMap((id) => names.get(id) ?? []);
 
   const payload = {
-    format: "mygames-export",
-    version: 1,
+    format: BACKUP_FORMAT,
+    version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
     username: session.user.name ?? null,
     counts: { games: games.length, shelves: shelves.length },
     shelves: shelves.map(({ id: _id, ...shelf }) => shelf),
-    // Pages goals get a list of their own: an older MyGames reads every
-    // entry of playGoals as a number of games.
-    playGoals: playGoals
-      .filter((g) => g.unit === "GAMES")
-      .map(({ unit: _unit, ...goal }) => goal),
-    pageGoals: playGoals
-      .filter((g) => g.unit === "PAGES")
-      .map(({ unit: _unit, ...goal }) => goal),
+    // Each with its unit: a goal of 300 is games or hours.
+    playGoals,
     // The account's own settings: theme, library view and Preferences. A
     // restore fills these in only where the account has none yet. The
     // default saved view, and the shelf and view orders, are kept by name.
@@ -139,13 +132,6 @@ export async function GET() {
       ...game
     }) => ({
       ...game,
-      // `owned` no longer exists on the row, but the export format promises
-      // that an older instance can still read this file. Emitting the boolean
-      // alongside the richer field keeps that promise: an old build sees the
-      // shelf/wishlist split it understands, a current one prefers
-      // `ownership`. A borrowed or given-away game reads as "not owned"
-      // there, which is the closest true statement that vocabulary has.
-      owned: game.ownership === "OWNED",
       shelves: game.shelves.map((s) => s.name),
     })),
   };
@@ -159,7 +145,7 @@ export async function GET() {
   // layout stays deterministic.
   const coverFiles = await Promise.all(
     games
-      .filter((b) => b.coverUrl?.startsWith("/api/covers/"))
+      .filter((game) => game.coverUrl?.startsWith("/api/covers/"))
       .map(async (game) => {
         const filename = path.basename(game.coverUrl!);
         try {

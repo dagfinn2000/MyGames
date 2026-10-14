@@ -21,7 +21,10 @@ npm run dev                # http://localhost:3000
 
 Outside Docker the app reads `DATABASE_URL` from `.env`. Make sure its
 password matches `POSTGRES_PASSWORD`. Every setting is described in
-[.env.example](../.env.example).
+[.env.example](../.env.example). Game search works without any keys
+(Wikipedia and Steam); set `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` to
+search IGDB as well. The tests never reach the catalogues: they answer
+`fetch` with sample responses.
 
 ## Scripts
 
@@ -41,20 +44,25 @@ password matches `POSTGRES_PASSWORD`. Every setting is described in
 ## Tests
 
 - **`npm test`** covers the pure logic that is easiest to break without
-  noticing: ISBN-10/13 conversion, reading pace and streaks, which day a date
-  falls on in each time zone, sorting authors by surname and series in
-  order, the sorting rules and alphabets, saved library views, reading
-  goals, reading preferences and themes, the colours of drawn covers,
-  the reading room's shelves and spine colours, lending, the rate
-  limiter, the
-  guard that stops cover downloads from reaching private addresses, image
-  type detection, and the size limits on uploads and backup files.
+  noticing: parsing typed times ("12:30", "12h 30m", "1.5h") and showing
+  them, the play log, pace, forecasts and streaks, what changing a status
+  does to dates and time played, which day a date falls on in each time
+  zone, parsing each catalogue's answers (IGDB, Wikipedia and Wikidata,
+  Steam) from sample responses and merging the rows for one game, platform
+  names, catalogue links, sorting and grouping the library and series in
+  order, the sorting rules and alphabets, saved library views, counting
+  stats and play goals, preferences and themes, the colours of drawn
+  covers, the game room's shelves, cases and spine colours, the avatar and
+  pets, lending, the rate limiter, the guard that stops cover downloads
+  from reaching private addresses, image type detection, and the size
+  limits on uploads and backup files.
 - **`npm run test:db:docker`** starts a `postgres:16-alpine` container, runs
   the database tests, and removes it. They cover backup and restore (the
-  round trip, merging, duplicates, and settings), re-read counts, the game
-  form and the reading log it writes, library search, bulk edit, saving
-  preferences and saved views, and the checks that stop one user from
-  touching another user's games.
+  round trip, merging, duplicates, and settings), replay counts and the
+  time each playthrough keeps, the game form and the play log it writes,
+  logging and fixing time, library search and filters, bulk edit, stats
+  and goals, quotes, saving preferences and saved views, and the checks
+  that stop one user from touching another user's games.
 
 These run against a real database because a stand-in would copy Postgres's
 behaviour wrongly in exactly the places that matter, and because restore is
@@ -80,26 +88,34 @@ src/
 ├─ app/
 │  ├─ (auth)/          login and register pages
 │  ├─ (app)/           pages behind login: games (the library), games/new,
-│  │                   games/[id], games/[id]/edit, games/check, quotes,
-│  │                   room (the reading room), stats, stats/year/[year],
-│  │                   account
+│  │                   games/[id], games/[id]/edit, playing (Now
+│  │                   playing), quotes, room (the game room), stats,
+│  │                   stats/year/[year], account
 │  └─ api/             Auth.js, register, metadata search/details/covers,
-│                      library check, cover upload and serving,
-│                      backup export and import
+│                      cover upload and serving, backup export and import
 ├─ components/         UI components (shadcn/ui primitives in components/ui);
-│                      game-room.tsx, room-art.tsx, room-shells.ts,
-│                      room-rooms.tsx (the added rooms' furniture) and
-│                      room-extras.tsx (the furniture catalogue) draw the
-│                      reading room, with its colours in
-│                      game-room.css; room-view.tsx is its Decorate panel;
-│                      avatar-art.ts draws the reader's avatar,
-│                      room-avatar.tsx walks it about and avatar-maker.tsx
-│                      is its maker
+│                      game-form.tsx with time-to-beat-field.tsx is the
+│                      add and edit form; playing-card.tsx ("My
+│                      playthrough"), quick-log.tsx, progress-log.tsx and
+│                      playthrough-history-card.tsx are the play
+│                      tracking on a game's page; game-room.tsx,
+│                      room-art.tsx, room-shells.ts, room-rooms.tsx (the
+│                      added rooms' furniture) and room-extras.tsx (the
+│                      furniture catalogue) draw the game room, with its
+│                      colours in game-room.css; room-view.tsx is its
+│                      Decorate panel; avatar-art.ts draws the player's
+│                      avatar, room-avatar.tsx walks it about and
+│                      avatar-maker.tsx is its maker
 ├─ lib/
 │  ├─ actions/         server actions for every change, each checking that
 │  │                   the data belongs to the signed-in user
-│  ├─ metadata/        Open Library, Google Games and nb.no clients, plus
-│  │                   the database cache
+│  ├─ metadata/        IGDB, Wikipedia (with Wikidata) and Steam clients,
+│  │                   index.ts asking them together and merging the rows
+│  │                   for one game (match.ts), links.ts turning a
+│  │                   catalogueId back into its catalogue and page,
+│  │                   plus the database cache
+│  ├─ catalogue-values.ts
+│  │                   a catalogue's game as the form's values
 │  ├─ cover-art.ts     colours and layout of drawn covers
 │  ├─ cover-flight.ts  a game's cover flying to its page, and back to the
 │  │                   library when the page is closed
@@ -111,16 +127,28 @@ src/
 │  ├─ avatar.ts        the avatar's choices and their colours
 │  ├─ motion.ts        whether animations may run right now
 │  ├─ net-guard.ts     blocks cover downloads from private addresses
+│  ├─ pace.ts          time played a day, and when the usual time to
+│  │                   beat will be reached
+│  ├─ platforms.ts     catalogue platform names as everyday ones, and the
+│  │                   platform field's suggestions
+│  ├─ play-log.ts      where a logged time goes in the play log
+│  ├─ play-state.ts    what a status change does to dates, time played
+│  │                   and the completed count
 │  ├─ preferences.ts   the Preferences settings and their defaults
+│  ├─ progress-units.ts
+│  │                   parsing typed times and showing them ("12:30",
+│  │                   "12 h 30 min of about 40 h · 31%")
 │  ├─ rate-limit.ts    in-memory limits for sign-in, registration,
 │  │                   catalogue lookups and cover uploads
-│  ├─ room.ts          the reading room's layout: spine sizes, shelves,
-│  │                   and where bookcases and furniture go as it grows
-│  │                   or as the reader moves it
-│  ├─ room-styles.ts   the reading room's house styles and colours
+│  ├─ room.ts          the game room's layout: case sizes, shelves,
+│  │                   and where shelving units and furniture go as it
+│  │                   grows or as the player moves it
+│  ├─ room-styles.ts   the game room's house styles and colours
 │  ├─ sky.ts           the Sky background: how high the sun is where
-│  │                   the reader's time zone is, as colours
-│  ├─ spine-colour.ts  a spine's colour, picked from its cover
+│  │                   the player's time zone is, as colours
+│  ├─ spine-colour.ts  a case's colour, picked from its cover
+│  ├─ stats-count.ts   what counts as a game completed or an hour played,
+│  │                   by the stats preferences
 │  └─ validation.ts    Zod schemas shared by actions and API routes
 ├─ auth.config.ts      Auth.js config that is safe to run in proxy.ts
 ├─ auth.ts             full Auth.js config (credentials, Prisma, bcrypt)
@@ -130,10 +158,55 @@ src/
 
 ## Design decisions
 
-- **Reading data lives on the Game row.** Each game belongs to one user, so
-  a separate "reading entry" table would add nothing. The Game row holds the
-  latest read; earlier reads are archived in the `Read` table, and
-  `timesCompleted` is worked out from both.
+- **Play data lives on the Game row.** Each game belongs to one user, so
+  a separate "play entry" table would add nothing. The Game row holds the
+  current or latest playthrough; earlier ones are archived in the
+  `Playthrough` table, and `timesCompleted` is worked out from both.
+- **Time played is the position.** Progress is one number, the minutes
+  played so far in the current playthrough (`Game.playedMinutes`), and
+  each play-log entry is that total at the moment it was logged
+  (`ProgressEntry.minutes`), the way a save screen shows it. The time
+  played on a day is the difference between consecutive entries, so the
+  play calendar, the pace, hours played and hours goals all count the same
+  thing. A new playthrough starts with a 0-minute entry as its anchor, so
+  the first time logged after it counts in full. There are no pages,
+  percentages or per-format units: a digital or subscription game is
+  tracked like a boxed one. Typed times are parsed in one place,
+  [progress-units.ts](../src/lib/progress-units.ts): "12:30" and "12.30"
+  are twelve and a half hours, "1.5h" is an hour and a half, and a bare
+  "90" is minutes.
+- **The time to beat is optional, and never a limit.** `Game.lengthMinutes`
+  is a yardstick. When it's known, progress shows as a share of it (a bar
+  stays full past 100%) and the forecast counts down to it; when it isn't,
+  the game page just says how long you've played. Time played can run past
+  it, and nothing refuses, clamps or asks "finished?" when it's reached:
+  plenty of players play on, and Finished is there when they're done. Only
+  IGDB knows times to beat, so when IGDB is set up, a game picked from
+  Wikipedia or Steam, or looked up after being typed in by hand, gets
+  IGDB's time for the game with exactly the same title, and none when
+  there is no such game.
+- **Playthroughs keep their time.** Completing a game keeps
+  `playedMinutes` as the time that playthrough took ("Completed in 42 h"),
+  and dropping it keeps where you stopped; only putting a game back on
+  Want to Play clears it. "Play it again" archives the playthrough into
+  `Playthrough` with its dates, rating and time, then starts a new one
+  from zero. One function, `settlePlayState` in
+  [play-state.ts](../src/lib/play-state.ts), applies these rules for the
+  game page, the add form and bulk edit alike. The stats read the same
+  minutes either way: hours played can count the time logged, day by day,
+  or each completed playthrough's whole time on the day it was completed
+  (the `statsHoursPlayed` preference).
+- **Catalogue entries are remembered by a prefixed id.** `Game.catalogueId`
+  says which catalogue a game came from and which entry it is:
+  `igdb:<slug>`, `steam:<app id>` or `wikidata:<item id>` (Wikipedia
+  articles are found through the Wikidata item behind them, which is
+  stable when an article is renamed). "Look up details" asks that entry's
+  own catalogue again, the game page links to it
+  ([links.ts](../src/lib/metadata/links.ts)), and a restore treats a game
+  with the same id on the same platform as one it already has. IGDB needs
+  Twitch credentials (`IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`); its access
+  token is kept in memory until a minute before it expires. Without them
+  IGDB is simply not asked, and the other two need no keys.
 - **Ratings are stored as whole numbers from 1 to 10**, in half stars. `7`
   shows as 3.5 stars, or as 7/10 for someone who rates out of 10. Changing
   the rating style only changes how ratings look and are entered, never the
@@ -167,10 +240,10 @@ src/
   generator so the server and the browser agree. When animations may not
   play, or "Moving backgrounds" is off, rain, snow and stars hold still
   where they are, and aurora and ripples show their still textures. The
-  Sky background is worked out from the sun's height where the reader's
+  Sky background is worked out from the sun's height where the player's
   time zone is ([sky.ts](../src/lib/sky.ts)), on the server for the first
   paint and then once a minute in the browser.
-- **The reading room is drawn in code**, with no image files. Its pixel art
+- **The game room is drawn in code**, with no image files. Its pixel art
   is rectangles ([room-art.tsx](../src/components/room-art.tsx)), each
   naming a paint whose colour lives in
   [game-room.css](../src/components/game-room.css), which has a day
@@ -206,12 +279,12 @@ src/
 - **Typed dates and moments are read differently.** A date typed into a date
   field is stored as midnight UTC and means that day everywhere. Anything
   else, like "finished today" or a play-log entry, is a moment, and
-  counts on the day it was in the reader's time zone. `calendarDay` in
+  counts on the day it was in the player's time zone. `calendarDay` in
   [dates.ts](../src/lib/dates.ts) applies the rule. The time zone is taken
   from the browser on the first visit and can be changed in Preferences.
 - **Catalogue lookups are cached** in the `MetadataCache` table for a week,
   keyed by source and query. If a source is down, the last good answer is
-  used, so a flaky Open Library doesn't break lookups that worked before.
+  used, so a flaky catalogue doesn't break lookups that worked before.
 - **Cover images are stored locally.** After a save, the cover is downloaded
   to `COVERS_DIR` in the background (with `after()`, so saving never waits
   for it) and the game is pointed at `/api/covers/<id>-<hash>.<ext>`. The
@@ -222,8 +295,8 @@ src/
 - **Changes go through server actions** that check ownership, and pages
   are server components that query Prisma directly. API routes are used
   only where the browser has to call the server itself: sign-in and
-  registration, metadata search, the "Do I own this?" check, cover upload
-  and serving, and backup download and restore.
+  registration, metadata search, cover upload and serving, and backup
+  download and restore.
 - **Migrations run when the container starts** (`prisma migrate deploy` in
   [docker-entrypoint.sh](../docker-entrypoint.sh)). The first start creates
   the tables, later starts apply anything new, and an up-to-date database is

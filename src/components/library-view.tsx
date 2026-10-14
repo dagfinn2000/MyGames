@@ -47,7 +47,7 @@ export interface LibraryGroup {
   games: GameCardGame[];
   /** The section's real size, which may exceed what's rendered. */
   total: number;
-  /** Shown instead of the count: "5 games · 3 read · next #4". */
+  /** Shown instead of the count: "5 games · 3 completed · next #4". */
   detail?: string;
   /** A warning after it: "#3 missing". */
   note?: string;
@@ -67,8 +67,8 @@ const GRID_COLUMNS: Record<LibraryDisplay["cardSize"], string> = {
   large: "grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4",
 };
 
-/** Space between cards. A bookshelf has none across, so its ledges join
- *  up; its slots pad the covers apart instead (globals.css). */
+/** Space between cards. The shelf style has none across, so its ledges
+ *  join up; its slots pad the covers apart instead (globals.css). */
 const GRID_GAPS: Record<LibraryDisplay["cardSize"], string> = {
   small: "gap-2 sm:gap-3",
   medium: "gap-3 sm:gap-4",
@@ -208,7 +208,7 @@ export function LibraryView({
   }
 
   /** Random pick from the current tab and filters, narrowed by the Pick for
-   *  me switches; the All tab prefers Want to Read (actions/pick.ts).
+   *  me switches; the All tab prefers Want to Play (actions/pick.ts).
    *
    *  Runs on the server: the page no longer ships the whole library, so
    *  picking from `games` would silently narrow the shuffle to the loaded
@@ -311,7 +311,7 @@ export function LibraryView({
         "grid",
         list && "gap-2",
         !list && GRID_COLUMNS[display.cardSize],
-        style === "shelf" ? "bookshelf gap-y-6" : !list && GRID_GAPS[display.cardSize],
+        style === "shelf" ? "game-shelf gap-y-6" : !list && GRID_GAPS[display.cardSize],
         selectMode && "no-lift",
       )}
     >
@@ -635,7 +635,7 @@ export function LibraryView({
           <DialogHeader>
             <DialogTitle>Delete {gamesLabel(selCount)}?</DialogTitle>
             <DialogDescription>
-              They leave your library with their reading history, quotes and
+              They leave your library with their play history, quotes and
               loans. This can&apos;t be undone, so{" "}
               <a href="/api/export">download a backup</a> first if you might
               want them back.

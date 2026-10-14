@@ -1,5 +1,5 @@
 /**
- * Whether an animation started from script may play: the reader hasn't
+ * Whether an animation started from script may play: the player hasn't
  * turned Animations off in Preferences (`data-motion="off"` on <html>, set by
  * the root layout) and the device doesn't ask for reduced motion.
  *

@@ -7,7 +7,7 @@ import {
 } from "./library-return";
 
 describe("isLibraryHref", () => {
-  it("accepts the library, with or without a query, and the reading room", () => {
+  it("accepts the library, with or without a query, and the game room", () => {
     expect(isLibraryHref("/games")).toBe(true);
     expect(isLibraryHref("/games?sort=title&shelf=COMPLETED")).toBe(true);
     expect(isLibraryHref("/room")).toBe(true);
@@ -16,7 +16,7 @@ describe("isLibraryHref", () => {
   it("rejects game pages, other pages and other sites", () => {
     expect(isLibraryHref("/games/abc123")).toBe(false);
     expect(isLibraryHref("/games/new")).toBe(false);
-    expect(isLibraryHref("/booksx")).toBe(false);
+    expect(isLibraryHref("/gamesx")).toBe(false);
     expect(isLibraryHref("/playing")).toBe(false);
     expect(isLibraryHref("/room/x")).toBe(false);
     expect(isLibraryHref("//evil.example/games")).toBe(false);
@@ -25,7 +25,7 @@ describe("isLibraryHref", () => {
 });
 
 describe("noteAction", () => {
-  it("writes a note when a game is opened from the library or the reading room", () => {
+  it("writes a note when a game is opened from the library or the game room", () => {
     expect(noteAction("/games")).toBe("write");
     expect(noteAction("/room")).toBe("write");
   });
@@ -38,7 +38,6 @@ describe("noteAction", () => {
     expect(noteAction("/playing")).toBe("forget");
     expect(noteAction("/stats/year/2026")).toBe("forget");
     expect(noteAction("/games/new")).toBe("forget");
-    expect(noteAction("/games/check")).toBe("forget");
     expect(noteAction("/games/abc123/edit")).toBe("forget");
   });
 });
@@ -81,7 +80,7 @@ describe("previousEntryIs", () => {
   });
 
   function stubHistory(urls: string[], index: number, withNavigation = true) {
-    vi.stubGlobal("location", { origin: "https://reads.example" });
+    vi.stubGlobal("location", { origin: "https://games.example" });
     vi.stubGlobal(
       "window",
       withNavigation
@@ -91,22 +90,22 @@ describe("previousEntryIs", () => {
   }
 
   it("is true when the entry before this one is that library page", () => {
-    stubHistory(["https://reads.example/games?sort=title", "https://reads.example/games/b1"], 1);
+    stubHistory(["https://games.example/games?sort=title", "https://games.example/games/b1"], 1);
     expect(previousEntryIs("/games?sort=title")).toBe(true);
   });
 
   it("is false when the library's filters were different", () => {
-    stubHistory(["https://reads.example/games?sort=author", "https://reads.example/games/b1"], 1);
+    stubHistory(["https://games.example/games?sort=developer", "https://games.example/games/b1"], 1);
     expect(previousEntryIs("/games?sort=title")).toBe(false);
   });
 
   it("is false when something came in between, like the edit page", () => {
     stubHistory(
       [
-        "https://reads.example/games",
-        "https://reads.example/games/b1",
-        "https://reads.example/games/b1/edit",
-        "https://reads.example/games/b1",
+        "https://games.example/games",
+        "https://games.example/games/b1",
+        "https://games.example/games/b1/edit",
+        "https://games.example/games/b1",
       ],
       3,
     );
@@ -114,9 +113,9 @@ describe("previousEntryIs", () => {
   });
 
   it("is false on the first entry, or without the Navigation API", () => {
-    stubHistory(["https://reads.example/games/b1"], 0);
+    stubHistory(["https://games.example/games/b1"], 0);
     expect(previousEntryIs("/games")).toBe(false);
-    stubHistory(["https://reads.example/games", "https://reads.example/games/b1"], 1, false);
+    stubHistory(["https://games.example/games", "https://games.example/games/b1"], 1, false);
     expect(previousEntryIs("/games")).toBe(false);
   });
 });

@@ -1,17 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { GameFormat } from "@prisma/client";
 import { dayKey, zonedDayStart } from "@/lib/dates";
-import { unitFor } from "@/lib/progress-units";
 import {
   anchorMoment,
   describeDay,
   editEntrySchema,
   lastLogged,
-  logPageSchema,
+  logTimeSchema,
   loggedWhen,
   passAround,
   placeInLog,
-  positionTexts,
   recentDays,
   resolveLogDay,
   subjectDay,
@@ -28,7 +25,7 @@ describe("resolveLogDay", () => {
     expect(resolveLogDay("today", now, OSLO)).toEqual({ key: "2026-10-12", at: now });
   });
 
-  it("puts yesterday's entry at the last moment of yesterday in the reader's zone", () => {
+  it("puts yesterday's entry at the last moment of yesterday in the player's zone", () => {
     const r = resolveLogDay("yesterday", now, OSLO);
     expect(r).toEqual({
       key: "2026-10-11",
@@ -45,7 +42,7 @@ describe("resolveLogDay", () => {
     expect(resolveLogDay("2026-10-13", now, OSLO)).toEqual({ error: "future" });
   });
 
-  it("decides what today is in the reader's zone", () => {
+  it("decides what today is in the player's zone", () => {
     const lateUtc = new Date("2026-10-12T23:30:00.000Z");
     expect(resolveLogDay("today", lateUtc, "America/Los_Angeles")).toMatchObject({ key: "2026-10-12" });
     expect(resolveLogDay("today", lateUtc, "Asia/Tokyo")).toMatchObject({ key: "2026-10-13" });
@@ -54,86 +51,88 @@ describe("resolveLogDay", () => {
   });
 });
 
-const e = (id: string, page: number, iso: string) => ({ id, page, date: new Date(iso) });
+const e = (id: string, minutes: number, iso: string) => ({ id, minutes, date: new Date(iso) });
 
 describe("placeInLog", () => {
   const pass = [
     e("a", 0, "2026-10-05T00:00:00.000Z"),
     e("b", 120, "2026-10-08T18:00:00.000Z"),
-    e("c", 161, "2026-10-10T18:00:00.000Z"),
+    e("c", 165, "2026-10-10T18:00:00.000Z"),
     e("d", 210, "2026-10-12T07:00:00.000Z"),
   ];
   const opts = { timeZone: OSLO };
 
   it("fits a backdated entry between its neighbours", () => {
-    const r = placeInLog(pass, { page: 140, date: new Date("2026-10-09T21:59:59.999Z") }, opts);
+    const r = placeInLog(pass, { minutes: 140, date: new Date("2026-10-09T21:59:59.999Z") }, opts);
     expect(r).toMatchObject({ ok: true, before: pass[1], after: pass[2], moveAnchor: null });
   });
 
-  it("refuses a page below the entry before", () => {
-    const r = placeInLog(pass, { page: 100, date: new Date("2026-10-09T21:59:59.999Z") }, opts);
+  it("refuses less time than the entry before", () => {
+    const r = placeInLog(pass, { minutes: 100, date: new Date("2026-10-09T21:59:59.999Z") }, opts);
     expect(r).toMatchObject({ ok: false, reason: "below", neighbour: pass[1] });
   });
 
-  it("refuses a page past the entry after", () => {
-    const r = placeInLog(pass, { page: 170, date: new Date("2026-10-09T21:59:59.999Z") }, opts);
+  it("refuses more time than the entry after", () => {
+    const r = placeInLog(pass, { minutes: 170, date: new Date("2026-10-09T21:59:59.999Z") }, opts);
     expect(r).toMatchObject({ ok: false, reason: "above", neighbour: pass[2] });
   });
 
-  it("allows equal pages on both sides", () => {
-    expect(placeInLog(pass, { page: 120, date: new Date("2026-10-09T12:00:00Z") }, opts).ok).toBe(true);
-    expect(placeInLog(pass, { page: 161, date: new Date("2026-10-09T12:00:00Z") }, opts).ok).toBe(true);
+  it("allows equal times on both sides", () => {
+    expect(placeInLog(pass, { minutes: 120, date: new Date("2026-10-09T12:00:00Z") }, opts).ok).toBe(true);
+    expect(placeInLog(pass, { minutes: 165, date: new Date("2026-10-09T12:00:00Z") }, opts).ok).toBe(true);
   });
 
-  it("is the newest entry when nothing comes after", () => {
-    const r = placeInLog(pass, { page: 230, date: new Date("2026-10-12T09:00:00Z") }, opts);
+  it("is the newest entry when nothing comes after, however long", () => {
+    const r = placeInLog(pass, { minutes: 230, date: new Date("2026-10-12T09:00:00Z") }, opts);
     expect(r).toMatchObject({ ok: true, before: pass[3], after: null });
-    const low = placeInLog(pass, { page: 200, date: new Date("2026-10-12T09:00:00Z") }, opts);
+    const long = placeInLog(pass, { minutes: 600_000, date: new Date("2026-10-12T09:00:00Z") }, opts);
+    expect(long).toMatchObject({ ok: true, before: pass[3], after: null });
+    const low = placeInLog(pass, { minutes: 200, date: new Date("2026-10-12T09:00:00Z") }, opts);
     expect(low).toMatchObject({ ok: false, reason: "below", neighbour: pass[3] });
   });
 
   it("refuses a day before the anchor's day", () => {
-    const r = placeInLog(pass, { page: 50, date: new Date("2026-10-03T12:00:00Z") }, opts);
+    const r = placeInLog(pass, { minutes: 50, date: new Date("2026-10-03T12:00:00Z") }, opts);
     expect(r).toMatchObject({ ok: false, reason: "beforeStart", neighbour: pass[0] });
   });
 
   it("never reports beforeStart for a log with no anchor", () => {
-    const seeded = pass.slice(1);
-    const r = placeInLog(seeded, { page: 100, date: new Date("2026-10-01T12:00:00Z") }, opts);
-    expect(r).toMatchObject({ ok: true, before: null, after: seeded[0] });
+    const added = pass.slice(1);
+    const r = placeInLog(added, { minutes: 100, date: new Date("2026-10-01T12:00:00Z") }, opts);
+    expect(r).toMatchObject({ ok: true, before: null, after: added[0] });
   });
 
   it("moves the anchor back for an entry earlier on the start day", () => {
     // Tokyo, 08:00 on the 12th: before the typed Started date's midnight UTC.
     const tokyo = [e("a", 0, "2026-10-12T00:00:00.000Z")];
-    const r = placeInLog(tokyo, { page: 30, date: new Date("2026-10-11T23:00:00Z") }, { timeZone: "Asia/Tokyo" });
+    const r = placeInLog(tokyo, { minutes: 30, date: new Date("2026-10-11T23:00:00Z") }, { timeZone: "Asia/Tokyo" });
     expect(r).toMatchObject({ ok: true, before: tokyo[0], after: null, moveAnchor: tokyo[0] });
   });
 
-  it("won't move the anchor over the pass before", () => {
+  it("won't move the anchor over the playthrough before", () => {
     const tokyo = [e("a", 0, "2026-10-12T00:00:00.000Z")];
-    const previous = e("z", 300, "2026-10-11T23:30:00.000Z");
+    const previous = e("z", 2400, "2026-10-11T23:30:00.000Z");
     const r = placeInLog(
       tokyo,
-      { page: 30, date: new Date("2026-10-11T23:00:00Z") },
+      { minutes: 30, date: new Date("2026-10-11T23:00:00Z") },
       { timeZone: "Asia/Tokyo", previous },
     );
     expect(r).toMatchObject({ ok: false, reason: "beforeStart" });
   });
 
   it("skips the entry being edited", () => {
-    const r = placeInLog(pass, { page: 200, date: pass[2].date }, { ...opts, skipId: "c" });
+    const r = placeInLog(pass, { minutes: 200, date: pass[2].date }, { ...opts, skipId: "c" });
     expect(r).toMatchObject({ ok: true, before: pass[1], after: pass[3] });
   });
 
-  it("breaks same-instant ties by page, like the reading calendar", () => {
+  it("breaks same-instant ties by minutes, like the play calendar", () => {
     const at = pass[2].date;
-    expect(placeInLog(pass, { page: 150, date: at }, opts)).toMatchObject({
+    expect(placeInLog(pass, { minutes: 150, date: at }, opts)).toMatchObject({
       ok: true,
       before: pass[1],
       after: pass[2],
     });
-    expect(placeInLog(pass, { page: 170, date: at }, opts)).toMatchObject({
+    expect(placeInLog(pass, { minutes: 170, date: at }, opts)).toMatchObject({
       ok: true,
       before: pass[2],
       after: pass[3],
@@ -144,15 +143,15 @@ describe("placeInLog", () => {
 describe("passAround", () => {
   const log = [
     e("a0", 0, "2025-01-01T10:00:00Z"),
-    e("a1", 300, "2025-02-01T10:00:00Z"),
+    e("a1", 2400, "2025-02-01T10:00:00Z"),
     e("b0", 0, "2025-06-01T10:00:00Z"),
-    e("b1", 100, "2025-06-05T10:00:00Z"),
-    e("b2", 300, "2025-07-01T10:00:00Z"),
+    e("b1", 600, "2025-06-05T10:00:00Z"),
+    e("b2", 2700, "2025-07-01T10:00:00Z"),
     e("c0", 0, "2026-03-01T10:00:00Z"),
-    e("c1", 50, "2026-03-02T10:00:00Z"),
+    e("c1", 90, "2026-03-02T10:00:00Z"),
   ];
 
-  it("finds a middle pass with its neighbours", () => {
+  it("finds a middle playthrough with its neighbours", () => {
     expect(passAround(log, "b1")).toEqual({
       pass: log.slice(2, 5),
       previous: log[1],
@@ -161,41 +160,14 @@ describe("passAround", () => {
     });
   });
 
-  it("marks the last pass as current", () => {
+  it("marks the last playthrough as current", () => {
     expect(passAround(log, "c1")).toMatchObject({ pass: log.slice(5), isCurrent: true, nextAnchor: null });
   });
 
-  it("treats a log with no anchors as one pass", () => {
-    const seeded = [e("x", 40, "2025-01-01T10:00:00Z"), e("y", 90, "2025-01-03T10:00:00Z")];
-    expect(passAround(seeded, "x")).toEqual({ pass: seeded, previous: null, nextAnchor: null, isCurrent: true });
-    expect(passAround(seeded, "nope")).toBeNull();
-  });
-});
-
-describe("positionTexts", () => {
-  const prefs = { ebookUnit: "percent", audiobookUnit: "time" } as const;
-  const ebook = unitFor({ format: GameFormat.EBOOK, pageCount: 412, lengthMinutes: null }, prefs);
-  const audio = unitFor({ format: GameFormat.AUDIOBOOK, pageCount: 400, lengthMinutes: 700 }, prefs);
-  const paper = unitFor({ format: GameFormat.PHYSICAL, pageCount: 300, lengthMinutes: null }, prefs);
-
-  it("says a typed value back as typed", () => {
-    // 5:11 saves as page 178, which reads back as 5:12.
-    expect(positionTexts(audio, { page: 178 })).toEqual(["5:12"]);
-    expect(positionTexts(audio, { page: 178, value: 311 })).toEqual(["5:11"]);
-    // A value that isn't that page is ignored.
-    expect(positionTexts(audio, { page: 100, value: 311 })).toEqual(["2:55"]);
-  });
-
-  it("adds pages when two different pages would read the same", () => {
-    expect(positionTexts(ebook, { page: 173, value: 42, capital: true }, { page: 175 })).toEqual([
-      "42% (page 173)",
-      "42% (page 175)",
-    ]);
-    expect(positionTexts(ebook, { page: 173, value: 42 }, { page: 180 })).toEqual(["42%", "44%"]);
-    expect(positionTexts(paper, { page: 120, capital: true }, { page: 130 })).toEqual([
-      "Page 120",
-      "page 130",
-    ]);
+  it("treats a log with no anchors as one playthrough", () => {
+    const added = [e("x", 240, "2025-01-01T10:00:00Z"), e("y", 390, "2025-01-03T10:00:00Z")];
+    expect(passAround(added, "x")).toEqual({ pass: added, previous: null, nextAnchor: null, isCurrent: true });
+    expect(passAround(added, "nope")).toBeNull();
   });
 });
 
@@ -208,10 +180,10 @@ describe("anchorMoment and lastLogged", () => {
     expect(anchorMoment(null, early)).toBe(early);
   });
 
-  it("finds the last real position", () => {
-    expect(lastLogged([{ page: 0 }])).toBeNull();
+  it("finds the last real time", () => {
+    expect(lastLogged([{ minutes: 0 }])).toBeNull();
     expect(lastLogged([])).toBeNull();
-    expect(lastLogged([{ page: 0 }, { page: 40 }])).toEqual({ page: 40 });
+    expect(lastLogged([{ minutes: 0 }, { minutes: 40 }])).toEqual({ minutes: 40 });
   });
 });
 
@@ -229,7 +201,7 @@ describe("day words", () => {
     expect(loggedWhen("2026-10-09", today)).toBe("for 9 Oct 2026");
   });
 
-  it("offers recent days back to the start of the read", () => {
+  it("offers recent days back to the start of the playthrough", () => {
     expect(recentDays(today, null)).toEqual({
       days: [
         { value: "today", label: "Today" },
@@ -258,33 +230,36 @@ describe("day words", () => {
 
 describe("schemas", () => {
   it("checks a quick log", () => {
-    expect(logPageSchema.parse({ page: 212 })).toEqual({ page: 212, day: "today" });
-    expect(logPageSchema.parse({ page: "212", day: "2026-10-09" })).toEqual({
-      page: 212,
+    expect(logTimeSchema.parse({ minutes: 750 })).toEqual({ minutes: 750, day: "today" });
+    expect(logTimeSchema.parse({ minutes: "750", day: "2026-10-09" })).toEqual({
+      minutes: 750,
       day: "2026-10-09",
     });
+    // Ten thousand hours is the most one playthrough can hold.
+    expect(logTimeSchema.safeParse({ minutes: 600_000 }).success).toBe(true);
     for (const bad of [
-      { page: 0 },
-      { page: 1.5 },
-      { page: 100001 },
-      { page: 10, day: "2026-02-30" },
-      { page: 10, day: "tomorrow" },
+      { minutes: 0 },
+      { minutes: 1.5 },
+      { minutes: 600_001 },
+      { minutes: 10, day: "2026-02-30" },
+      { minutes: 10, day: "tomorrow" },
     ]) {
-      expect(logPageSchema.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+      expect(logTimeSchema.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
     }
+    expect(logTimeSchema.safeParse({ minutes: 0 }).error?.issues[0]?.message).toBe("Log at least a minute");
   });
 
   it("wants a real day for an entry fix", () => {
-    expect(editEntrySchema.safeParse({ page: 5, day: "today" }).success).toBe(false);
-    expect(editEntrySchema.safeParse({ page: 5, day: "2026-10-01" }).success).toBe(true);
+    expect(editEntrySchema.safeParse({ minutes: 5, day: "today" }).success).toBe(false);
+    expect(editEntrySchema.safeParse({ minutes: 5, day: "2026-10-01" }).success).toBe(true);
   });
 
   it("checks an undo", () => {
-    const ok = { from: "COMPLETED", finishedAt: "2026-10-12T08:00:00.000Z", page: 200 };
+    const ok = { from: "COMPLETED", finishedAt: "2026-10-12T08:00:00.000Z" };
     expect(undoMoveSchema.safeParse(ok).success).toBe(true);
+    expect(undoMoveSchema.safeParse({ from: "DROPPED", finishedAt: null }).success).toBe(true);
     expect(undoMoveSchema.safeParse({ ...ok, from: "WANT_TO_PLAY" }).success).toBe(false);
     expect(undoMoveSchema.safeParse({ ...ok, finishedAt: "last Tuesday" }).success).toBe(false);
-    expect(undoMoveSchema.safeParse({ ...ok, page: 0 }).success).toBe(false);
   });
 });
 

@@ -6,9 +6,10 @@ import type { FilterChip } from "@/lib/library-filters";
 import { Button } from "@/components/ui/button";
 
 /**
- * The filters in play that have no control of their own on the bar (author,
- * tags in or out, year, rating, missing detail, series), one removable chip
- * each, plus "Clear all" when there are several. Nothing at all when none.
+ * The filters in play that have no control of their own on the bar
+ * (developer, tags in or out, year, rating, missing detail, series), one
+ * removable chip each, plus "Clear all" when there are several. Nothing at
+ * all when none.
  *
  * Removing a chip re-renders the bar from the server, so the button that
  * had focus is gone: focus moves to the chip that took its place, or to

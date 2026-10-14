@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BookCopy, Check, Dices, Search } from "lucide-react";
+import { Check, Dices, Layers, Search } from "lucide-react";
 import { savePreferences } from "@/lib/actions/preferences";
 import type { QuoteOrder } from "@/lib/preferences";
 import { newSeed, quotesHref, type QuotesParams } from "@/lib/quote-order";
@@ -107,7 +107,7 @@ export function QuotesToolbar({
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search quotes, notes, games…"
+          placeholder="Search quotes, speakers, games…"
           aria-label="Search quotes"
           className="w-full pl-8"
         />
@@ -184,7 +184,7 @@ export function QuotesToolbar({
                 "border-primary bg-primary/10 hover:bg-primary/15 dark:border-primary dark:bg-primary/15 dark:hover:bg-primary/20",
             )}
           >
-            {params.group ? <Check data-slot="icon" /> : <BookCopy data-slot="icon" />}
+            {params.group ? <Check data-slot="icon" /> : <Layers data-slot="icon" />}
             Group by game
           </Button>
         </div>

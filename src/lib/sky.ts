@@ -3,11 +3,11 @@ import { zoneOffset } from "@/lib/dates";
 
 /**
  * The Sky background (globals.css): a wash of colour behind the pages that
- * follows the time of day where the reader is. Dawn is rose, day is blue,
+ * follows the time of day where the player is. Dawn is rose, day is blue,
  * dusk is amber, and night is deep blue with stars.
  *
  * It works out how high the sun is from the clock, the date and roughly
- * where the reader's time zone is on the globe, so winter days are short
+ * where the player's time zone is on the globe, so winter days are short
  * and summer evenings stay light. A zone in the table below uses its own
  * city's latitude and longitude; any other zone is placed at 45° in its
  * hemisphere, on the meridian its clock keeps. That is close enough for

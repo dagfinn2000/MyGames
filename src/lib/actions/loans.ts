@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { GameOwnership } from "@prisma/client";
+import { GameFormat, GameOwnership } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { loanSchema } from "@/lib/validation";
 import { requireUserId } from "@/lib/actions/helpers";
@@ -20,7 +20,7 @@ import type { ActionState } from "@/lib/actions/helpers";
  */
 
 /** Lend the game out. Refuses if it's already out — two open loans would make
- *  "who has it?" unanswerable — and unless the copy is yours to lend (the
+ *  "who has it?" unanswerable — and unless it is a physical copy you own (the
  *  card hides the button for the rest). */
 export async function lendGame(
   gameId: string,
@@ -31,11 +31,14 @@ export async function lendGame(
 
   const game = await prisma.game.findFirst({
     where: { id: gameId, userId },
-    select: { id: true, ownership: true },
+    select: { id: true, ownership: true, format: true },
   });
   if (!game) return { error: "Game not found" };
   if (game.ownership !== GameOwnership.OWNED) {
     return { error: "Only a copy you own can be lent out." };
+  }
+  if (game.format !== GameFormat.PHYSICAL) {
+    return { error: "Only a physical copy can be lent out." };
   }
 
   const parsed = loanSchema.safeParse(Object.fromEntries(formData));

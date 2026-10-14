@@ -6,7 +6,7 @@ import { getCurrentUser, getPreferences } from "@/lib/current-user";
 import { backupStatusText } from "@/lib/backup";
 import { formatDate, formatNumber } from "@/lib/display";
 import { orderByIds } from "@/lib/library-order";
-import { googleBooksEnabled } from "@/lib/metadata/googlebooks";
+import { igdbEnabled } from "@/lib/metadata";
 import { DEFAULT_PREFERENCES, serverTimeZone } from "@/lib/preferences";
 import { BackupDownloadButton, BackupReminderSetting } from "@/components/backup-download";
 import { ChangePasswordForm } from "@/components/change-password-form";
@@ -77,7 +77,7 @@ export default async function AccountPage() {
             initial={stored}
             serverTimeZone={serverTimeZone()}
             timeZones={timeZones}
-            googleAvailable={googleBooksEnabled()}
+            igdbAvailable={igdbEnabled()}
             savedViews={orderByIds(savedViews, prefs.savedViewOrder)}
           />
         </CardContent>
@@ -100,10 +100,10 @@ export default async function AccountPage() {
         </CardHeader>
         <CardContent className="grid gap-3">
           <p className="text-sm text-muted-foreground">
-            Download your library (games, quotes, shelves, goals — cover
-            images included) as a zip, or restore a backup (zip, or JSON
-            from older versions). Restoring merges: games you already have
-            are skipped.
+            Download your library (games, playthroughs, quotes, shelves,
+            goals — cover images included) as a zip, or restore a backup
+            (the zip, or the library.json inside it). Restoring merges: games
+            you already have are skipped.
           </p>
           <p className="text-sm" aria-live="polite">
             {backupStatusText(user.lastBackupAt, new Date(), prefs)}

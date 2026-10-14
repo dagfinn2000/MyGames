@@ -3,10 +3,18 @@ import path from "node:path";
 import { GameFormat, GameOwnership, GoalUnit, Prisma, PlayStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { BACKUP_FORMAT, BACKUP_VERSION } from "@/lib/backup";
 import { coverFilePath, coversDir } from "@/lib/covers";
 import { sniffImageKind } from "@/lib/image-type";
 import { buildSearchText, foldForSearch } from "@/lib/utils";
-import { isAllowedCoverUrl, shelfNameSchema } from "@/lib/validation";
+import {
+  CATALOGUE_ID_PATTERN,
+  MAX_LENGTH_MINUTES,
+  MAX_PLAYED_MINUTES,
+  MAX_SPEAKER_LENGTH,
+  isAllowedCoverUrl,
+  shelfNameSchema,
+} from "@/lib/validation";
 import { cleanLibraryViewPatch } from "@/lib/library-view";
 import { cleanPreferencesPatch } from "@/lib/preferences";
 import {
@@ -17,16 +25,21 @@ import {
 import { parseThemeSetting, serializeThemeSetting } from "@/lib/themes";
 
 /**
- * Restore of a MyGames export — either the `library.json` from a zip backup
- * (with `getCoverFile` supplying the bundled cover images) or a legacy plain
- * JSON export.
+ * Restore of a MyGames backup: the `library.json` from the zip (with
+ * `getCoverFile` supplying the bundled cover images), or that same file on
+ * its own, unzipped.
  *
- * Semantics: merge into the current user's library. Games already present —
- * same ISBN, or same title + first author (case-insensitive) — are skipped,
- * so restoring on top of a live library is safe and restoring into a fresh
+ * Semantics: merge into the current user's library. Games already present
+ * are skipped (see duplicateFinder for what counts as the same game), so
+ * restoring on top of a live library is safe and restoring into a fresh
  * instance brings everything back. A game's local cover path is kept when
  * the file already exists (same instance) or can be restored from the
  * backup, otherwise cleared.
+ *
+ * Every field goes through the same limits as the form that would have
+ * saved it, so a hand-edited backup can't store what the app itself
+ * couldn't. A bad value (a cover URL, a catalogue id, one quote) is dropped
+ * on its own; only a game without a usable title is refused whole.
  *
  * Account settings (theme, library view, Preferences) are filled in only
  * where this account hasn't set them: a restore onto a fresh account brings
@@ -35,24 +48,31 @@ import { parseThemeSetting, serializeThemeSetting } from "@/lib/themes";
  */
 
 /**
- * Shelf names, taken the way the shelf form takes them (trimmed, 1 to 50
- * characters) one by one, so a name that won't do is dropped on its own
- * rather than taking the game's other shelves with it.
+ * A list taken one item at a time: an item that won't do is dropped on its
+ * own, rather than taking the rest of the list with it. Anything that isn't
+ * a list reads as empty, so a backup missing a list still restores.
  */
-const shelfNames = z
-  .array(z.unknown())
-  .catch([])
-  .transform((names) =>
-    names.flatMap((name) => {
-      const parsed = shelfNameSchema.safeParse(name);
-      return parsed.success ? [parsed.data] : [];
-    }),
-  );
+function eachValid<T extends z.ZodTypeAny>(item: T) {
+  return z
+    .array(z.unknown())
+    .catch([])
+    .transform((list) =>
+      list.flatMap((x): z.output<T>[] => {
+        const parsed = item.safeParse(x);
+        return parsed.success ? [parsed.data] : [];
+      }),
+    );
+}
+
+/** Shelf names, taken the way the shelf form takes them (trimmed, 1 to 50
+ *  characters). */
+const shelfNames = eachValid(shelfNameSchema);
 
 /** Shelves are matched by name in any case, as the shelf form matches them:
  *  a backup's "favourites" is the "Favourites" shelf already here. */
 const shelfKey = (name: string) => name.toLowerCase();
 
+/** An ISO date, or null for a missing or unreadable one. */
 const dateField = z
   .string()
   .nullable()
@@ -61,86 +81,126 @@ const dateField = z
     if (!s) return null;
     const d = new Date(s);
     return Number.isNaN(d.getTime()) ? null : d;
-  });
+  })
+  .catch(null);
 
-/** Quotes are additive (version-1 exports without them parse to []). */
+/** Trimmed text up to `max` characters; blank is null, as in the forms. */
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .nullable()
+    .optional()
+    .transform((s) => s || null);
+
+/** A whole number of minutes in range, or null. A bad value is dropped
+ *  rather than refusing what it belongs to. */
+const minutesField = (min: number, max: number) =>
+  z.number().int().min(min).max(max).nullable().optional().catch(null);
+
+/** 1–10 in half-star units, as the rating control saves it. */
+const ratingField = z.number().int().min(1).max(10).nullable().optional().catch(null);
+
+/** A favourite line, with who says it. */
 const importedQuoteSchema = z.object({
   text: z.string().trim().min(1).max(5000),
-  page: z.number().int().min(0).max(100000).nullable().optional().catch(null),
-  note: z.string().trim().max(2000).nullable().optional(),
+  speaker: optionalText(MAX_SPEAKER_LENGTH).catch(null),
+  note: optionalText(2000).catch(null),
   createdAt: dateField,
 });
 
-/** Past reads are additive too (exports without them parse to []). */
+/** A past playthrough. Everything is optional, as on the play history card. */
 const importedPlaythroughSchema = z.object({
   dateStarted: dateField,
   dateFinished: dateField,
-  rating: z.number().int().min(1).max(10).nullable().optional().catch(null),
-  /** Additive: older exports have no notes on past reads. */
-  note: z.string().trim().max(2000).nullable().optional().catch(null),
+  rating: ratingField,
+  playedMinutes: minutesField(0, MAX_PLAYED_MINUTES),
+  note: optionalText(2000).catch(null),
   createdAt: dateField,
 });
 
-/** Lending records are additive too (exports without them parse to []). */
+/** A lending record. Without a borrower it says nothing, so it's dropped. */
 const importedLoanSchema = z.object({
   borrower: z.string().trim().min(1).max(100),
   lentAt: dateField,
   returnedAt: dateField,
-  note: z.string().trim().max(500).nullable().optional(),
+  note: optionalText(500).catch(null),
   createdAt: dateField,
 });
 
-/** Reading-log entries are additive too; an entry without a usable date is
- *  meaningless (every consumer is time-based) and gets dropped. */
+/** A play-log entry: minutes played as of a date. 0 is a real value (the
+ *  anchor that starts a playthrough). An entry without a usable date is
+ *  meaningless (every consumer is time-based) and is dropped. */
 const importedProgressSchema = z.object({
-  page: z.number().int().min(0).max(100000),
+  minutes: z.number().int().min(0).max(MAX_PLAYED_MINUTES),
   date: dateField,
 });
 
+/** Developer names, trimmed, each kept or dropped on its own. */
+const developerNames = eachValid(z.string().trim().min(1).max(200));
+
+/** Tags as the tag form leaves them: lower case, at most 50 characters,
+ *  each once. Split at commas too, since the library's tag filter lists
+ *  tags comma-separated and a tag can't hold one. */
+const tagList = eachValid(z.string()).transform((tags) => [
+  ...new Set(
+    tags
+      .flatMap((t) => t.split(","))
+      .map((t) => t.trim().toLowerCase())
+      .filter((t) => t && t.length <= 50),
+  ),
+]);
+
 const importedGameSchema = z.object({
   title: z.string().trim().min(1).max(500),
-  authors: z.array(z.string().trim().max(200)).catch([]),
-  isbn: z.string().trim().max(20).nullable().optional(),
-  description: z.string().max(10000).nullable().optional(),
+  developers: developerNames,
+  publisher: optionalText(200).catch(null),
+  platform: optionalText(100).catch(null),
+  description: z.string().max(10000).nullable().optional().catch(null),
   // Same rule as the game form; a bad value drops the cover, not the game.
   coverUrl: z.string().max(2000).refine(isAllowedCoverUrl).nullable().optional().catch(null),
-  pageCount: z.number().int().min(1).max(100000).nullable().optional().catch(null),
-  /** Additive: an audiobook's running time in minutes. */
-  lengthMinutes: z.number().int().min(1).max(60000).nullable().optional().catch(null),
-  publishedDate: z.string().trim().max(20).nullable().optional(),
-  // Split at commas: the library's tag filter lists tags comma-separated,
-  // so "science, fiction" from an older backup becomes two tags.
-  tags: z
-    .array(z.string().trim().toLowerCase().max(50))
-    .catch([])
-    .transform((tags) => tags.flatMap((t) => t.split(",").map((s) => s.trim())).filter(Boolean)),
+  lengthMinutes: minutesField(1, MAX_LENGTH_MINUTES),
+  releaseDate: optionalText(20).catch(null),
+  tags: tagList,
   format: z.nativeEnum(GameFormat).catch(GameFormat.PHYSICAL),
-  /** Legacy field, still written by exports for older instances to read. */
-  owned: z.boolean().nullable().optional().catch(null),
-  /** Present in exports from this version onward. */
-  ownership: z.nativeEnum(GameOwnership).nullable().optional().catch(null),
-  seriesName: z.string().trim().max(200).nullable().optional(),
+  ownership: z.nativeEnum(GameOwnership).catch(GameOwnership.OWNED),
+  seriesName: optionalText(200).catch(null),
   seriesNumber: z.number().min(0).max(10000).nullable().optional().catch(null),
-  openLibraryId: z.string().trim().max(50).nullable().optional(),
+  // Only ids the catalogue clients write, so "Look up details" and the
+  // catalogue link never chase something else.
+  catalogueId: z
+    .string()
+    .trim()
+    .max(200)
+    .regex(CATALOGUE_ID_PATTERN)
+    .nullable()
+    .optional()
+    .catch(null),
   status: z.nativeEnum(PlayStatus).catch(PlayStatus.WANT_TO_PLAY),
-  rating: z.number().int().min(1).max(10).nullable().optional().catch(null),
-  review: z.string().max(20000).nullable().optional(),
+  rating: ratingField,
+  review: z.string().max(20000).nullable().optional().catch(null),
   dateStarted: dateField,
   dateFinished: dateField,
   timesCompleted: z.number().int().min(0).max(1000).catch(0),
-  currentPage: z.number().int().min(0).max(100000).nullable().optional().catch(null),
+  playedMinutes: minutesField(0, MAX_PLAYED_MINUTES),
   shelves: shelfNames,
-  quotes: z.array(importedQuoteSchema).catch([]),
-  playthroughs: z.array(importedPlaythroughSchema).catch([]),
-  progress: z.array(importedProgressSchema).catch([]),
-  loans: z.array(importedLoanSchema).catch([]),
+  quotes: eachValid(importedQuoteSchema),
+  playthroughs: eachValid(importedPlaythroughSchema),
+  progress: eachValid(importedProgressSchema),
+  loans: eachValid(importedLoanSchema),
   createdAt: dateField,
+  updatedAt: dateField,
 });
+
+type ImportedGame = z.infer<typeof importedGameSchema>;
 
 const goalSchema = z.object({
   year: z.number().int().min(1900).max(2200),
-  target: z.number().int().min(1).max(1_000_000),
-  // Additive: goals from older exports count re-reads.
+  // The goal form's own limits (actions/goals.ts).
+  target: z.number().int().min(1).max(10_000),
+  // No default: a target read in the wrong unit would be a different goal.
+  unit: z.nativeEnum(GoalUnit),
   countReplays: z.boolean().catch(true),
 });
 
@@ -148,18 +208,13 @@ const goalSchema = z.object({
 const nameList = z.array(z.string().max(100)).max(500).optional().catch([]);
 
 const exportPayloadSchema = z.object({
-  format: z.literal("mygames-export"),
-  version: z.literal(1),
+  format: z.literal(BACKUP_FORMAT),
+  version: z.literal(BACKUP_VERSION),
   shelves: z
     .array(z.unknown())
     .catch([])
     .transform((list) => shelfNames.parse(list.map((s) => (s as { name?: unknown } | null)?.name))),
-  /** Goals counted in games. */
-  playGoals: z.array(goalSchema).catch([]),
-  /** Goals counted in pages. Additive, and kept apart so an older MyGames
-   *  doesn't read them as game counts. */
-  pageGoals: z.array(goalSchema).catch([]),
-  /** Additive, like everything after `games` was in version 1. */
+  playGoals: eachValid(goalSchema),
   settings: z
     .object({
       theme: z.string().max(100).nullable().catch(null),
@@ -174,17 +229,15 @@ const exportPayloadSchema = z.object({
     .nullable()
     .optional()
     .catch(null),
-  savedViews: z
-    .array(
-      z.object({
-        name: z.string().trim().min(1).max(SAVED_VIEW_NAME_MAX),
-        query: z.string().max(4000),
-        /** The shelf the query's `shelfId` named, since the id doesn't
-         *  survive a move. Additive: older backups don't have it. */
-        shelfName: z.string().trim().min(1).max(50).optional().catch(undefined),
-      }),
-    )
-    .catch([]),
+  savedViews: eachValid(
+    z.object({
+      name: z.string().trim().min(1).max(SAVED_VIEW_NAME_MAX),
+      query: z.string().max(4000),
+      /** The shelf the query's `shelfId` named, since the id doesn't
+       *  survive a move. */
+      shelfName: z.string().trim().min(1).max(50).optional().catch(undefined),
+    }),
+  ),
   games: z.array(z.unknown()),
 });
 
@@ -210,10 +263,10 @@ export interface ImportSummary {
 }
 
 /** How many game creates are in flight at once. Each game is a single nested
- *  write (game + its quotes, reads and progress), so per-game atomicity is
- *  already guaranteed by the database; this only bounds how many of those
- *  round-trips overlap. Sequential made a 1000-game restore 1000 waits long;
- *  unbounded would open 1000 connections. */
+ *  write (game + its quotes, playthroughs and play log), so per-game
+ *  atomicity is already guaranteed by the database; this only bounds how
+ *  many of those round-trips overlap. Sequential made a 1000-game restore
+ *  1000 waits long; unbounded would open 1000 connections. */
 const IMPORT_CONCURRENCY = 10;
 
 /**
@@ -260,22 +313,57 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
+/** Text as duplicate detection compares it: case, accents and spacing
+ *  aside, so "Ōkami" and "okami " are the same title. */
+function fold(s: string | null | undefined): string {
+  return foldForSearch(s ?? "").replace(/\s+/g, " ").trim();
+}
+
+/** The fields that say which game a row is. */
+type GameIdentity = {
+  title: string;
+  developers: string[];
+  platform: string | null;
+  catalogueId: string | null;
+};
+
+/** Title, platform and developers (in any order), folded. JSON keeps the
+ *  parts apart whatever characters they hold. */
+function titleKey(g: GameIdentity): string {
+  return JSON.stringify([fold(g.title), fold(g.platform), g.developers.map(fold).sort()]);
+}
+
+/** The catalogue entry and the platform. The platform is part of it
+ *  because one catalogue entry covers every system a game came out on, and
+ *  a copy on the Switch and another on PC are two games in a library. */
+function catalogueKey(catalogueId: string, platform: string | null): string {
+  return JSON.stringify([catalogueId, fold(platform)]);
+}
+
 /**
- * Ownership from a backup, whichever era it came from.
- *
- * Exports written before the ownership states existed carry only
- * `owned: boolean`, and that boolean meant exactly two things: true = on my
- * shelf, false = on the wishlist. Reading it that way keeps an old backup
- * restoring to what it said, and never invents BORROWED or GIVEN_AWAY for a
- * library that had no way to express them.
+ * The games already in a library, for telling whether a backup's game is
+ * one of them: by catalogue id where both have one, since that survives a
+ * title edited on either side and tells a remake from the original of the
+ * same name; otherwise by title, platform and developers.
  */
-function resolveOwnership(b: {
-  ownership?: GameOwnership | null;
-  owned?: boolean | null;
-}): GameOwnership {
-  if (b.ownership) return b.ownership;
-  if (b.owned === false) return GameOwnership.WISHLIST;
-  return GameOwnership.OWNED;
+function duplicateFinder(existing: GameIdentity[]) {
+  const byCatalogue = new Set<string>();
+  const byTitle = new Set<string>();
+  /** Title keys of the games without a catalogue id: the only ones a
+   *  catalogued game can match by title. */
+  const byTitleUncatalogued = new Set<string>();
+  const add = (g: GameIdentity) => {
+    const key = titleKey(g);
+    byTitle.add(key);
+    if (g.catalogueId) byCatalogue.add(catalogueKey(g.catalogueId, g.platform));
+    else byTitleUncatalogued.add(key);
+  };
+  existing.forEach(add);
+  return (g: GameIdentity): boolean =>
+    g.catalogueId
+      ? byCatalogue.has(catalogueKey(g.catalogueId, g.platform)) ||
+        byTitleUncatalogued.has(titleKey(g))
+      : byTitle.has(titleKey(g));
 }
 
 /** Reads a cover image bundled with the backup (zip imports supply this). */
@@ -323,15 +411,22 @@ async function resolveCoverUrl(
   return { url: null, restored: false };
 }
 
+/** Why a file was refused, in words that say what to do about it. */
+function notABackup(payload: unknown): string {
+  const head = (payload ?? {}) as { format?: unknown; version?: unknown };
+  if (head.format === BACKUP_FORMAT && typeof head.version === "number" && head.version > BACKUP_VERSION) {
+    return "This backup is from a newer version of MyGames. Update this one, then restore it again.";
+  }
+  return "That isn't a MyGames backup.";
+}
+
 export async function importLibrary(
   userId: string,
   payload: unknown,
   getCoverFile?: CoverFileReader,
 ): Promise<ImportSummary | { error: string }> {
   const parsed = exportPayloadSchema.safeParse(payload);
-  if (!parsed.success) {
-    return { error: "Not a MyGames export file (or an unsupported version)." };
-  }
+  if (!parsed.success) return { error: notABackup(payload) };
   const data = parsed.data;
 
   // Shelves: create the missing ones, map every name to an id.
@@ -371,11 +466,9 @@ export async function importLibrary(
     for (const s of refreshed) shelfIdByName.set(shelfKey(s.name), s.id);
   }
 
-  // Reading goals: upsert per year, concurrently — they're independent.
-  const goals = [
-    ...data.playGoals.map((g) => ({ ...g, unit: GoalUnit.GAMES })),
-    ...data.pageGoals.map((g) => ({ ...g, unit: GoalUnit.PAGES })),
-  ];
+  // Play goals: upsert per year, concurrently — they're independent. A
+  // year listed twice keeps its last entry, as saving it twice would.
+  const goals = [...new Map(data.playGoals.map((g) => [g.year, g])).values()];
   await mapWithConcurrency(goals, IMPORT_CONCURRENCY, (goal) =>
     prisma.playGoal.upsert({
       where: { userId_year: { userId, year: goal.year } },
@@ -394,8 +487,8 @@ export async function importLibrary(
   // Queries are rebuilt the same way saving one does, so a hand-edited
   // backup can't store parameters the library doesn't know. A view kept to
   // one shelf is pointed at that shelf here, found by name; when there's no
-  // such shelf (or an older backup gave only an id from elsewhere), the
-  // shelf is dropped rather than left naming one that matches nothing.
+  // such shelf (or the backup gave only an id from elsewhere), the shelf is
+  // dropped rather than left naming one that matches nothing.
   const ownShelfIds = new Set(shelfIdByName.values());
   const restoredQuery = (view: { query: string; shelfName?: string }) => {
     const params = new URLSearchParams(view.query);
@@ -422,46 +515,48 @@ export async function importLibrary(
   const settingsRestored = data.settings ? await restoreSettings(userId, data.settings) : false;
 
   // Existing games, for duplicate detection.
-  const existing = await prisma.game.findMany({
-    where: { userId },
-    select: { title: true, authors: true, isbn: true },
-  });
-  const existingIsbns = new Set(existing.map((b) => b.isbn).filter(Boolean));
-  const existingTitleAuthor = new Set(
-    existing.map(
-      (b) => `${b.title.toLowerCase()}|${(b.authors[0] ?? "").toLowerCase()}`,
-    ),
+  const isDuplicate = duplicateFinder(
+    await prisma.game.findMany({
+      where: { userId },
+      select: { title: true, developers: true, platform: true, catalogueId: true },
+    }),
   );
 
   let gamesSkipped = 0;
   let gamesInvalid = 0;
 
-  // Pass 1 — decide, sequentially. A game already in the library (same
-  // ISBN, or same title and first author) is skipped, so a restore can be
-  // re-run. Within the file itself only a true repeat is skipped: the same
-  // ISBN, or with no ISBN the same title, author and format. Two editions
-  // of one game (a hardback and its audiobook) both come back, as the
-  // library had them. Each accepted game is folded into `seen` as the file
-  // is walked; that ordering dependency is why the decisions stay serial;
-  // only the slow database work below is parallelised.
+  // Pass 1 — decide, sequentially. A game already in the library is
+  // skipped, so a restore can be re-run. Within the file itself only a true
+  // repeat is skipped: the same game (by the same rule) in the same format.
+  // So a physical copy and a digital one of the same game both come back,
+  // as the library had them. Each accepted game is folded into `seen` as
+  // the file is walked; that ordering dependency is why the decisions stay
+  // serial; only the slow database work below is parallelised.
   const seen = new Set<string>();
-  const accepted: { b: z.infer<typeof importedGameSchema>; isbn: string | null }[] = [];
+  const accepted: ImportedGame[] = [];
   for (const raw of data.games) {
     const parsedGame = importedGameSchema.safeParse(raw);
     if (!parsedGame.success) {
       gamesInvalid++;
       continue;
     }
-    const b = parsedGame.data;
-    const isbn = b.isbn?.replace(/[\s-]/g, "") || null;
-    const key = `${b.title.toLowerCase()}|${(b.authors[0] ?? "").toLowerCase()}`;
-    const repeat = isbn ? `isbn|${isbn}` : `${key}|${b.format}`;
-    if ((isbn && existingIsbns.has(isbn)) || existingTitleAuthor.has(key) || seen.has(repeat)) {
+    const g = parsedGame.data;
+    const identity = {
+      title: g.title,
+      developers: g.developers,
+      platform: g.platform,
+      catalogueId: g.catalogueId ?? null,
+    };
+    const repeat = JSON.stringify([
+      identity.catalogueId ? catalogueKey(identity.catalogueId, identity.platform) : titleKey(identity),
+      g.format,
+    ]);
+    if (isDuplicate(identity) || seen.has(repeat)) {
       gamesSkipped++;
       continue;
     }
     seen.add(repeat);
-    accepted.push({ b, isbn });
+    accepted.push(g);
   }
 
   let gamesCreated = 0;
@@ -473,104 +568,99 @@ export async function importLibrary(
   let incomplete: ImportSummary["incomplete"];
 
   // Pass 2 — write, with bounded concurrency. Each game is one nested create,
-  // so a game and its quotes/reads/progress can never land half-written.
-  const createOne = async ({ b, isbn }: (typeof accepted)[number]) => {
-    const cover = await resolveCoverUrl(b.coverUrl, getCoverFile);
+  // so a game and its quotes, playthroughs and play log can never land
+  // half-written.
+  const createOne = async (g: ImportedGame) => {
+    const cover = await resolveCoverUrl(g.coverUrl, getCoverFile);
 
-    // Read history. Older exports have no `reads` — materialize the history
-    // that timesCompleted implies as undated past reads (the finished pass itself
-    // lives on the Game row), exactly like the migration backfill. Either
-    // way timesCompleted ends up consistent with the restored rows.
-    const isCompleted = b.status === PlayStatus.COMPLETED;
-    const pastPlaythroughs: {
-      dateStarted: Date | null;
-      dateFinished: Date | null;
-      rating: number | null;
-      note: string | null;
-      createdAt: Date | null;
-    }[] =
-      b.playthroughs.length > 0
-        ? b.playthroughs.map((r) => ({
-            dateStarted: r.dateStarted,
-            dateFinished: r.dateFinished,
-            rating: r.rating ?? null,
-            note: r.note || null,
-            createdAt: r.createdAt,
-          }))
-        : Array.from(
-            { length: Math.max(b.timesCompleted - (isCompleted ? 1 : 0), 0) },
-            () => ({ dateStarted: null, dateFinished: null, rating: null, note: null, createdAt: null }),
-          );
+    // Play history. A file that gives a count without the playthroughs
+    // behind it (one put together by hand, say) gets that many undated past
+    // playthroughs, less the current one, which lives on the Game row.
+    // Either way timesCompleted ends up consistent with the rows created.
+    const isCompleted = g.status === PlayStatus.COMPLETED;
+    const pastPlaythroughs =
+      g.playthroughs.length > 0
+        ? g.playthroughs
+        : Array.from({ length: Math.max(g.timesCompleted - (isCompleted ? 1 : 0), 0) }, () => ({
+            dateStarted: null,
+            dateFinished: null,
+            rating: null,
+            playedMinutes: null,
+            note: null,
+            createdAt: null,
+          }));
     const timesCompleted = pastPlaythroughs.length + (isCompleted ? 1 : 0);
+    const progress = g.progress.filter((e) => e.date != null);
 
     await prisma.game.create({
       data: {
         userId,
-        title: b.title,
-        authors: b.authors,
-        isbn,
-        description: b.description ?? null,
+        title: g.title,
+        developers: g.developers,
+        publisher: g.publisher,
+        platform: g.platform,
+        description: g.description || null,
         coverUrl: cover.url,
-        pageCount: b.pageCount ?? null,
-        lengthMinutes: b.lengthMinutes ?? null,
-        publishedDate: b.publishedDate ?? null,
-        tags: [...new Set(b.tags)],
-        format: b.format,
-        ownership: resolveOwnership(b),
-        seriesName: b.seriesName ?? null,
-        seriesNumber: b.seriesNumber ?? null,
-        openLibraryId: b.openLibraryId ?? null,
-        status: b.status,
-        rating: b.rating ?? null,
-        review: b.review ?? null,
-        reviewSearchText: foldForSearch(b.review ?? ""),
-        dateStarted: b.dateStarted,
-        dateFinished: b.dateFinished,
+        lengthMinutes: g.lengthMinutes ?? null,
+        releaseDate: g.releaseDate,
+        tags: g.tags,
+        format: g.format,
+        ownership: g.ownership,
+        seriesName: g.seriesName,
+        seriesNumber: g.seriesNumber ?? null,
+        catalogueId: g.catalogueId ?? null,
+        status: g.status,
+        rating: g.rating ?? null,
+        review: g.review || null,
+        reviewSearchText: foldForSearch(g.review ?? ""),
+        dateStarted: g.dateStarted,
+        dateFinished: g.dateFinished,
         timesCompleted,
-        currentPage: b.currentPage ?? null,
-        searchText: buildSearchText(b.title, b.authors, b.seriesName),
-        // Preserve "date added" ordering from the original library.
-        ...(b.createdAt && { createdAt: b.createdAt }),
+        playedMinutes: g.playedMinutes ?? null,
+        searchText: buildSearchText(g.title, g.developers, g.seriesName, g.platform),
+        // Preserve "date added" and "recently edited" from the original
+        // library, so both sorts still mean something after a restore.
+        ...(g.createdAt && { createdAt: g.createdAt }),
+        ...(g.updatedAt && { updatedAt: g.updatedAt }),
         shelves: {
           connect: [
             ...new Set(
-              b.shelves
+              g.shelves
                 .map((name) => shelfIdByName.get(shelfKey(name)))
                 .filter((id): id is string => !!id),
             ),
           ].map((id) => ({ id })),
         },
         quotes: {
-          create: b.quotes.map((q) => ({
+          create: g.quotes.map((q) => ({
             text: q.text,
-            page: q.page ?? null,
-            note: q.note ?? null,
+            speaker: q.speaker,
+            note: q.note,
             ...(q.createdAt && { createdAt: q.createdAt }),
           })),
         },
         playthroughs: {
-          create: pastPlaythroughs.map((r) => ({
-            dateStarted: r.dateStarted,
-            dateFinished: r.dateFinished,
-            rating: r.rating,
-            note: r.note,
-            ...(r.createdAt && { createdAt: r.createdAt }),
+          create: pastPlaythroughs.map((p) => ({
+            dateStarted: p.dateStarted,
+            dateFinished: p.dateFinished,
+            rating: p.rating ?? null,
+            playedMinutes: p.playedMinutes ?? null,
+            note: p.note,
+            ...(p.createdAt && { createdAt: p.createdAt }),
           })),
         },
         progress: {
-          create: b.progress
-            .filter((e) => e.date != null)
-            .map((e) => ({ page: e.page, date: e.date! })),
+          create: progress.map((e) => ({ minutes: e.minutes, date: e.date! })),
         },
         loans: {
           // An undated loan cannot be reasoned about (how long has it been
           // out?), so lentAt falls back to the record's creation date and
           // finally to now rather than dropping the borrower entirely.
-          create: b.loans.map((l) => ({
+          create: g.loans.map((l) => ({
             borrower: l.borrower,
             lentAt: l.lentAt ?? l.createdAt ?? new Date(),
             returnedAt: l.returnedAt,
-            note: l.note ?? null,
+            note: l.note,
             ...(l.createdAt && { createdAt: l.createdAt }),
           })),
         },
@@ -581,10 +671,10 @@ export async function importLibrary(
     // the database rejected.
     if (cover.restored) coversRestored++;
     gamesCreated++;
-    quotesRestored += b.quotes.length;
+    quotesRestored += g.quotes.length;
     playthroughsRestored += pastPlaythroughs.length;
-    progressRestored += b.progress.filter((e) => e.date != null).length;
-    loansRestored += b.loans.length;
+    progressRestored += progress.length;
+    loansRestored += g.loans.length;
   };
 
   try {

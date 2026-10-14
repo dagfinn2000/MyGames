@@ -1,49 +1,49 @@
 import { PlayStatus, type Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { GameDayPages, StatsInputs } from "@/lib/stats-count";
+import type { GameDayMinutes, StatsInputs } from "@/lib/stats-count";
 
 /** The game fields the stats page and the year in review use. */
 export const statsGameSelect = {
   id: true,
   title: true,
-  authors: true,
+  developers: true,
   coverUrl: true,
-  pageCount: true,
   tags: true,
+  platform: true,
   format: true,
   status: true,
   rating: true,
   dateStarted: true,
   dateFinished: true,
-  currentPage: true,
+  playedMinutes: true,
 } as const satisfies Prisma.GameSelect;
 
 export type StatsGame = Prisma.GameGetPayload<{ select: typeof statsGameSelect }>;
 
 /**
- * Pages logged per game per day, computed in the database, and whether each
- * day's pages belong to the game's current reading pass.
+ * Minutes played per game per day, computed in the database, and whether
+ * each day's minutes belong to the game's current playthrough.
  *
- * The deltas are exactly those of `dailyPageTotalsForUser` in
+ * The deltas are exactly those of `dailyMinuteTotalsForUser` in
  * lib/progress-query.ts (rises between consecutive entries of a game,
- * ordered by date then page, bucketed in the reader's zone), only not summed
- * across games: summed per day they give the reading calendar's totals,
- * which stats-query.db.test.ts checks. If the delta rule there changes, this
- * must change with it.
+ * ordered by date then minutes, bucketed in the player's zone), only not
+ * summed across games: summed per day they give the play calendar's
+ * totals, which stats-query.db.test.ts checks. If the delta rule there
+ * changes, this must change with it.
  *
- * The current pass starts at the latest page-0 anchor, else on the game's
- * start date (that calendar day in the reader's zone, or later), else at
+ * The current pass starts at the latest 0-minute anchor, else on the game's
+ * start date (that calendar day in the player's zone, or later), else at
  * the first entry: the rule currentPassEntries in lib/progress.ts uses.
- * Earlier pages belong to archived passes, which is what keeps a re-read's
- * pages off the pass before it.
+ * Earlier time belongs to archived playthroughs, which is what keeps a
+ * replay's hours off the playthrough before it.
  */
-export async function gameDayPageTotalsForUser(
+export async function gameDayMinuteTotalsForUser(
   userId: string,
-  /** The reader's zone (Preferences). */
+  /** The player's zone (Preferences). */
   timeZone: string,
-): Promise<GameDayPages[]> {
+): Promise<GameDayMinutes[]> {
   const rows = await prisma.$queryRaw<
-    { gameId: string; day: string; current: boolean; pages: number }[]
+    { gameId: string; day: string; current: boolean; minutes: number }[]
   >`
     SELECT
       t."gameId",
@@ -57,47 +57,54 @@ export async function gameDayPageTotalsForUser(
         ELSE t."date" >= t."dateStarted"
           OR to_char((t."date" AT TIME ZONE 'UTC') AT TIME ZONE ${timeZone}, 'YYYY-MM-DD') >= t."startDay"
       END) AS "current",
-      SUM(t.delta)::int AS pages
+      SUM(t.delta)::int AS minutes
     FROM (
       SELECT
         pe."gameId",
         pe."date",
-        pe."page" - LAG(pe."page") OVER (
+        pe."minutes" - LAG(pe."minutes") OVER (
           PARTITION BY pe."gameId"
-          ORDER BY pe."date" ASC, pe."page" ASC
+          ORDER BY pe."date" ASC, pe."minutes" ASC
         ) AS delta,
-        MAX(pe."date") FILTER (WHERE pe."page" = 0) OVER (PARTITION BY pe."gameId") AS "anchor",
-        b."dateStarted",
+        MAX(pe."date") FILTER (WHERE pe."minutes" = 0) OVER (PARTITION BY pe."gameId") AS "anchor",
+        g."dateStarted",
         -- calendarDay: a typed date (midnight UTC) is that day anywhere.
         CASE
-          WHEN b."dateStarted" = date_trunc('day', b."dateStarted")
-            THEN to_char(b."dateStarted", 'YYYY-MM-DD')
-          ELSE to_char((b."dateStarted" AT TIME ZONE 'UTC') AT TIME ZONE ${timeZone}, 'YYYY-MM-DD')
+          WHEN g."dateStarted" = date_trunc('day', g."dateStarted")
+            THEN to_char(g."dateStarted", 'YYYY-MM-DD')
+          ELSE to_char((g."dateStarted" AT TIME ZONE 'UTC') AT TIME ZONE ${timeZone}, 'YYYY-MM-DD')
         END AS "startDay"
       FROM "ProgressEntry" pe
-      JOIN "Game" b ON b."id" = pe."gameId"
-      WHERE b."userId" = ${userId}
+      JOIN "Game" g ON g."id" = pe."gameId"
+      WHERE g."userId" = ${userId}
     ) t
     WHERE t.delta > 0
     GROUP BY 1, 2, 3
   `;
-  return rows.map((r) => ({ gameId: r.gameId, day: r.day, pages: r.pages, current: r.current }));
+  return rows.map((r) => ({ gameId: r.gameId, day: r.day, minutes: r.minutes, current: r.current }));
 }
 
-/** Everything lib/stats-count.ts needs for one reader, scoped to them. */
+/** Everything lib/stats-count.ts needs for one player, scoped to them. */
 export async function loadStatsInputs(
   userId: string,
   timeZone: string,
 ): Promise<StatsInputs<StatsGame>> {
   const [games, playthroughs, logDays, lastLogs] = await Promise.all([
     prisma.game.findMany({ where: { userId }, select: statsGameSelect }),
-    // Archived passes from the read history: re-reads and pre-app reads.
+    // Archived passes from the play history: replays and playthroughs from
+    // before the app.
     prisma.playthrough.findMany({
       where: { game: { userId } },
-      select: { gameId: true, dateStarted: true, dateFinished: true, rating: true },
+      select: {
+        gameId: true,
+        dateStarted: true,
+        dateFinished: true,
+        rating: true,
+        playedMinutes: true,
+      },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     }),
-    gameDayPageTotalsForUser(userId, timeZone),
+    gameDayMinuteTotalsForUser(userId, timeZone),
     prisma.progressEntry.groupBy({
       by: ["gameId"],
       where: { game: { userId, status: PlayStatus.DROPPED } },

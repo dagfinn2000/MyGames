@@ -65,7 +65,7 @@ export interface ShelfRenameResult {
 }
 
 /**
- * Rename a shelf. A name another of the reader's shelves already has (in
+ * Rename a shelf. A name another of the player's shelves already has (in
  * any case) merges the two: the games join that shelf, this one goes, and
  * saved views that filtered on it follow the games. Changing only the case
  * of a shelf's own name just renames it.

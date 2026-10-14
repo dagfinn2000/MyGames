@@ -1,21 +1,22 @@
 "use client";
 
-import { useActionState, useEffect, useEffectEvent, useRef, useState } from "react";
+import { useActionState, useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
-import { BookOpen } from "lucide-react";
+import { Gamepad2 } from "lucide-react";
 import type { ActionState } from "@/lib/actions/helpers";
 import type { CatalogueDiffRow, CatalogueValues } from "@/lib/catalogue-values";
 import { FORMAT_LABELS, OWNERSHIP_LABELS, STATUS_LABELS, toDateInputValue } from "@/lib/display";
+import { COMMON_PLATFORMS } from "@/lib/platforms";
 import type { AfterAdd } from "@/lib/preferences";
 import type { TagImportSettings } from "@/lib/tag-rules";
 import { submitKeepingInput } from "@/lib/submit-form";
-import { AudiobookLengthField } from "@/components/audiobook-length-field";
 import { CoverPicker } from "@/components/cover-picker";
 import { FinishedDateField } from "@/components/finished-date-field";
 import { LookupDetails } from "@/components/lookup-details";
 import { usePreferences } from "@/components/preferences-provider";
 import { StarRatingInput } from "@/components/star-rating-input";
+import { TimeToBeatField } from "@/components/time-to-beat-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,20 +32,20 @@ import {
 /** String-typed initial values — everything a game form can prefill. */
 export interface GameFormValues {
   title?: string;
-  authors?: string; // comma-separated
-  isbn?: string;
+  developers?: string; // comma-separated
+  publisher?: string;
+  platform?: string;
   description?: string;
   coverUrl?: string;
-  pageCount?: string;
-  lengthMinutes?: string; // audiobooks only
-  publishedDate?: string;
+  lengthMinutes?: string; // time to beat, whole minutes
+  releaseDate?: string;
   tags?: string; // comma-separated
   seriesName?: string;
   seriesNumber?: string;
   format?: GameFormat;
   ownership?: GameOwnership;
   status?: PlayStatus;
-  openLibraryId?: string;
+  catalogueId?: string;
 }
 
 /** The add form's submit buttons, by where each goes afterwards. */
@@ -55,13 +56,27 @@ const ADD_BUTTON_LABELS: Record<AfterAdd, string> = {
 };
 
 /**
+ * The platform field's suggestions: the catalogue's platforms for this game
+ * first, then the common ones, each once whatever its case.
+ */
+function platformSuggestions(fromCatalogue: string[]): string[] {
+  const seen = new Set<string>();
+  return [...fromCatalogue, ...COMMON_PLATFORMS].filter((name) => {
+    const key = name.trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
  * Shared add/edit game form. The caller supplies the server action —
  * `createGame` for the add flow, a bound `updateGame` for editing.
  * `showStatus` is on for creation only; after that, status is managed from
- * the reading panel on the detail page. It also brings the shelf's own
- * fields (a finish date and rating for Read, a start date and page for
- * Currently Reading) and the add buttons that follow "After adding a game"
- * in Preferences.
+ * the playing card on the detail page. It also brings each status's own
+ * fields (a finish date and rating for Completed, a start date and time
+ * played for Playing, the time played for Dropped) and the add buttons
+ * that follow "After adding a game" in Preferences.
  */
 export function GameForm({
   action,
@@ -69,6 +84,7 @@ export function GameForm({
   submitLabel = "Save changes",
   showStatus = false,
   seriesNames = [],
+  platformOptions = [],
   onAdded,
   autoFocusTitle = false,
   lookup,
@@ -80,23 +96,25 @@ export function GameForm({
   showStatus?: boolean;
   /** Existing series names, offered as autocomplete suggestions. */
   seriesNames?: string[];
+  /** Platforms to suggest before the common ones: the catalogue's for the
+   *  game being added, or the library's own on the edit page. */
+  platformOptions?: string[];
   /** Called with the new game after "Add and add another". */
   onAdded?: (game: { id: string; title: string }) => void;
   autoFocusTitle?: boolean;
-  /** Offers "Look up details" (the edit page), with the reader's settings
-   *  for catalogue subjects. */
+  /** Offers "Look up details" (the edit page), with the player's settings
+   *  for catalogue genres. */
   lookup?: TagImportSettings;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   const formRef = useRef<HTMLFormElement>(null);
   // Controlled so the cover picker and upload can set it programmatically.
   const [coverUrl, setCoverUrl] = useState(initial.coverUrl ?? "");
-  // Format, ownership and shelf are controlled, each with a plain hidden
+  // Format, ownership and status are controlled, each with a plain hidden
   // input carrying it: the Radix Select's own hidden select reverts to its
   // mount-time value whenever the form is reset (see playing-card.tsx),
-  // while the trigger keeps showing the reader's choice. Format also
-  // decides whether the audiobook length shows (and is sent), and the shelf
-  // which reading fields show.
+  // while the trigger keeps showing the player's choice. The status also
+  // decides which play fields show.
   const [format, setFormat] = useState<GameFormat>(
     initial.format ?? GameFormat.PHYSICAL,
   );
@@ -104,10 +122,18 @@ export function GameForm({
     initial.ownership ?? GameOwnership.OWNED,
   );
 
-  // Kept on every save (editing used to drop it), and filled in by Look up
-  // details when the catalogue knows the work.
-  const [openLibraryId, setOpenLibraryId] = useState(initial.openLibraryId ?? "");
+  // Kept on every save, and filled in by Look up details when the catalogue
+  // knows the game.
+  const [catalogueId, setCatalogueId] = useState(initial.catalogueId ?? "");
   const [status, setStatus] = useState<PlayStatus>(initial.status ?? PlayStatus.WANT_TO_PLAY);
+  // The time to beat as Look up details last set it. Its boxes keep their
+  // own state, so a new value remounts them (the key) rather than being
+  // written into the hidden field they control.
+  const [timeToBeat, setTimeToBeat] = useState({
+    minutes: initial.lengthMinutes ?? "",
+    key: 0,
+  });
+  const platforms = platformSuggestions(platformOptions);
 
   // Each save returns a new state object, so this runs once per game added.
   const reportAdded = useEffectEvent((game: { id: string; title: string }) => onAdded?.(game));
@@ -124,26 +150,29 @@ export function GameForm({
     };
     return {
       title: value("title"),
-      authors: value("authors"),
-      isbn: value("isbn"),
+      developers: value("developers"),
+      publisher: value("publisher"),
+      platform: value("platform"),
       description: value("description"),
       coverUrl,
-      pageCount: value("pageCount"),
-      publishedDate: value("publishedDate"),
+      lengthMinutes: value("lengthMinutes"),
+      releaseDate: value("releaseDate"),
       tags: value("tags"),
-      openLibraryId,
+      seriesName: value("seriesName"),
+      catalogueId,
     };
   }
 
   /** Puts ticked catalogue values into the form. The text fields are
    *  uncontrolled, so this sets them directly; saving reads whatever is in
    *  them then, edits after filling included. Tags are added to the
-   *  reader's own, never replace them. */
+   *  player's own, never replace them. */
   function fillFields(rows: CatalogueDiffRow[]) {
     const form = formRef.current;
     for (const { field, value } of rows) {
       if (field === "coverUrl") setCoverUrl(value);
-      else if (field === "openLibraryId") setOpenLibraryId(value);
+      else if (field === "catalogueId") setCatalogueId(value);
+      else if (field === "lengthMinutes") setTimeToBeat((t) => ({ minutes: value, key: t.key + 1 }));
       else {
         const el = form?.elements.namedItem(field);
         if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) continue;
@@ -173,7 +202,7 @@ export function GameForm({
             />
           ) : (
             <div className="flex h-full items-center justify-center">
-              <BookOpen className="size-10 text-muted-foreground/40" />
+              <Gamepad2 className="size-10 text-muted-foreground/40" />
             </div>
           )}
         </div>
@@ -191,7 +220,7 @@ export function GameForm({
         <CoverPicker selected={coverUrl} onSelect={setCoverUrl} />
       </div>
 
-      {/* Bibliographic fields */}
+      {/* The game's own details */}
       <div className="grid content-start gap-4">
         {lookup && <LookupDetails settings={lookup} read={readForm} onFill={fillFields} />}
         <div className="grid gap-2">
@@ -205,45 +234,61 @@ export function GameForm({
           />
         </div>
         <div className="grid gap-2">
-          <Label htmlFor="authors">Author(s)</Label>
+          <Label htmlFor="developers">Developer(s)</Label>
           <Input
-            id="authors"
-            name="authors"
+            id="developers"
+            name="developers"
             placeholder="Comma-separated"
-            defaultValue={initial.authors ?? ""}
+            defaultValue={initial.developers ?? ""}
           />
         </div>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
-            <Label htmlFor="isbn">ISBN</Label>
-            <Input id="isbn" name="isbn" defaultValue={initial.isbn ?? ""} />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="pageCount">Pages</Label>
+            <Label htmlFor="publisher">Publisher</Label>
             <Input
-              id="pageCount"
-              name="pageCount"
-              type="number"
-              min={1}
-              defaultValue={initial.pageCount ?? ""}
+              id="publisher"
+              name="publisher"
+              maxLength={200}
+              defaultValue={initial.publisher ?? ""}
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="publishedDate">Published</Label>
+            <Label htmlFor="platform">Platform</Label>
             <Input
-              id="publishedDate"
-              name="publishedDate"
-              placeholder="1999"
-              defaultValue={initial.publishedDate ?? ""}
+              id="platform"
+              name="platform"
+              placeholder="e.g. Nintendo Switch"
+              maxLength={100}
+              defaultValue={initial.platform ?? ""}
+              list="platform-suggestions"
+            />
+            <datalist id="platform-suggestions">
+              {platforms.map((p) => (
+                <option key={p} value={p} />
+              ))}
+            </datalist>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="releaseDate">Released</Label>
+            <Input
+              id="releaseDate"
+              name="releaseDate"
+              placeholder="2017"
+              className="w-32"
+              maxLength={20}
+              defaultValue={initial.releaseDate ?? ""}
             />
           </div>
+          <TimeToBeatField key={timeToBeat.key} initialMinutes={timeToBeat.minutes} />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="tags">Genres / tags</Label>
           <Input
             id="tags"
             name="tags"
-            placeholder="fantasy, sci-fi, …"
+            placeholder="metroidvania, co-op, …"
             defaultValue={initial.tags ?? ""}
           />
         </div>
@@ -253,7 +298,7 @@ export function GameForm({
             <Input
               id="seriesName"
               name="seriesName"
-              placeholder="e.g. Mistborn Era 1"
+              placeholder="e.g. The Legend of Zelda"
               defaultValue={initial.seriesName ?? ""}
               list="series-suggestions"
             />
@@ -304,13 +349,9 @@ export function GameForm({
               </SelectContent>
             </Select>
           </div>
-          <AudiobookLengthField
-            initialMinutes={initial.lengthMinutes}
-            hidden={format !== GameFormat.AUDIOBOOK}
-          />
           {showStatus && (
             <div className="grid gap-2">
-              <Label htmlFor="status">Shelf</Label>
+              <Label htmlFor="status">Status</Label>
               <input type="hidden" name="status" value={status} />
               <Select value={status} onValueChange={(v) => setStatus(v as PlayStatus)}>
                 <SelectTrigger id="status" className="w-44">
@@ -344,11 +385,11 @@ export function GameForm({
           </div>
         </div>
 
-        {/* Keyed on the shelf, so switching shelves starts its fields
+        {/* Keyed on the status, so switching status starts its fields
             afresh. */}
-        {showStatus && <ShelfFields key={status} status={status} />}
+        {showStatus && <StatusFields key={status} status={status} />}
 
-        <input type="hidden" name="openLibraryId" value={openLibraryId} />
+        <input type="hidden" name="catalogueId" value={catalogueId} />
 
         {state.error && (
           <p role="alert" className="text-sm text-destructive">
@@ -370,12 +411,12 @@ export function GameForm({
 }
 
 /**
- * What a new game on this shelf brings with it. Read: when it was finished
- * (or "Don't remember") and a rating. Currently Reading: when it was
- * started and the page reached. Want to Read and Did Not Finish need
- * nothing more.
+ * What a new game with this status brings with it. Completed: when it was
+ * finished (or "Don't remember") and a rating. Playing: when it was started
+ * and the time played so far. Dropped: the time played before stopping.
+ * Want to Play needs nothing more.
  */
-function ShelfFields({ status }: { status: PlayStatus }) {
+function StatusFields({ status }: { status: PlayStatus }) {
   const { addedAsCompletedFinished, ratingStyle, timeZone } = usePreferences();
   const [today] = useState(() => toDateInputValue(new Date(), timeZone));
 
@@ -395,35 +436,52 @@ function ShelfFields({ status }: { status: PlayStatus }) {
       </div>
     );
   }
-  if (status === PlayStatus.PLAYING) {
+  if (status === PlayStatus.PLAYING || status === PlayStatus.DROPPED) {
     return (
       <div className="flex flex-wrap items-end gap-4">
-        <div className="grid gap-2">
-          <Label htmlFor="dateStarted">Started</Label>
-          <Input
-            id="dateStarted"
-            name="dateStarted"
-            type="date"
-            className="w-40"
-            defaultValue={today}
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="currentPage">Current page</Label>
-          <Input
-            id="currentPage"
-            name="currentPage"
-            type="number"
-            min={0}
-            max={100000}
-            className="w-28"
-            placeholder="0"
-          />
-        </div>
+        {status === PlayStatus.PLAYING && (
+          <div className="grid gap-2">
+            <Label htmlFor="dateStarted">Started</Label>
+            <Input
+              id="dateStarted"
+              name="dateStarted"
+              type="date"
+              className="w-40"
+              defaultValue={today}
+            />
+          </div>
+        )}
+        <PlayedSoFarField />
       </div>
     );
   }
   return null;
+}
+
+/**
+ * Time played so far, typed the way the playing card takes it: "12:30",
+ * "12h 30m" or "45m". A phone's decimal keypad is enough ("12.30"). The
+ * server reads it and says so if it isn't a time.
+ */
+function PlayedSoFarField() {
+  const hintId = useId();
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor="playedMinutes">Time played so far</Label>
+      <Input
+        id="playedMinutes"
+        name="playedMinutes"
+        inputMode="decimal"
+        autoComplete="off"
+        className="w-28"
+        placeholder="0:00"
+        aria-describedby={hintId}
+      />
+      <p id={hintId} className="sr-only">
+        Hours and minutes, like 12:30
+      </p>
+    </div>
+  );
 }
 
 /**

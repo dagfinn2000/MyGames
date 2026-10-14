@@ -7,7 +7,7 @@ import { startTransition, type FormEvent } from "react";
  * With only `<form action={…}>`, React resets every uncontrolled field once
  * the action has run, and it does that after a failed save too: a finish
  * date before the start date wiped the review typed beside it, and a bad
- * cover URL wiped the add form's title and authors. This sends the form
+ * cover URL wiped the add form's title and developers. This sends the form
  * from onSubmit instead, which React takes as "already handled": it skips
  * the reset but still reports the form as pending to useFormStatus. Keep
  * the `action` prop as well, for a form sent before the page's script has

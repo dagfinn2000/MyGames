@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GameOwnership } from "@prisma/client";
+import { GameFormat, GameOwnership } from "@prisma/client";
 import {
   CASE_WIDTH,
   EXTRAS,
@@ -14,7 +14,9 @@ import {
   addRoom,
   bringOut,
   caseCount,
+  caseKind,
   dressShelf,
+  fileByPlatform,
   isOnShelf,
   moveTo,
   nudge,
@@ -32,25 +34,92 @@ import {
 const kinds = (plan: HousePlan) => plan.floors.map((floor) => floor.map((p) => p.kind));
 const all = (plan: HousePlan): PieceKind[] => kinds(plan).flat();
 
+describe("caseKind", () => {
+  const kind = (platform: string | null, format: GameFormat = GameFormat.PHYSICAL) => caseKind({ platform, format });
+
+  it("puts handheld games in slim cases, digital or not", () => {
+    const handhelds = ["Nintendo Switch", "Nintendo Switch 2", "Nintendo 3DS", "Nintendo DS", "PS Vita", "PSP", "Game Boy Advance"];
+    for (const platform of handhelds) {
+      expect(kind(platform)).toBe("slim");
+      expect(kind(platform, GameFormat.DIGITAL)).toBe("slim");
+    }
+  });
+
+  it("puts a boxed computer game in a big box, and a digital one in the standard case", () => {
+    expect(kind("PC")).toBe("bigbox");
+    expect(kind("Mac")).toBe("bigbox");
+    expect(kind("PC (Microsoft Windows)")).toBe("bigbox");
+    expect(kind("PC", GameFormat.DIGITAL)).toBe("standard");
+    expect(kind("PC", GameFormat.SUBSCRIPTION)).toBe("standard");
+  });
+
+  it("stands everything else in the standard case", () => {
+    for (const platform of ["PlayStation 5", "Xbox Series X|S", "Wii U", "GameCube", "Steam Deck", "", null]) {
+      expect(kind(platform)).toBe("standard");
+    }
+    // A console, for all its name, with slim HuCards.
+    expect(kind("PC Engine")).toBe("slim");
+  });
+});
+
 describe("spineFor", () => {
-  it("makes thicker games wider", () => {
-    expect(spineFor({ title: "A", pageCount: 120 }).width).toBe(3);
-    expect(spineFor({ title: "A", pageCount: 300 }).width).toBe(4);
-    expect(spineFor({ title: "A", pageCount: 550 }).width).toBe(5);
-    expect(spineFor({ title: "A", pageCount: 1200 }).width).toBe(6);
-    expect(spineFor({ title: "A", pageCount: null }).width).toBe(4);
+  it("makes thicker cases wider", () => {
+    const width = (platform: string | null, format: GameFormat = GameFormat.PHYSICAL) =>
+      spineFor({ title: "Celeste", platform, format }).width;
+    expect(width("Nintendo Switch")).toBe(3);
+    expect(width("PlayStation 5")).toBe(4);
+    expect(width(null)).toBe(4);
+    expect(width("PC", GameFormat.DIGITAL)).toBe(4);
+    expect(width("PC")).toBe(6);
   });
 
   it("gives a title the same height and pattern every time", () => {
-    expect(spineFor({ title: "Sult", pageCount: 200 })).toEqual(
-      spineFor({ title: " sult ", pageCount: 300 }),
+    const digital = GameFormat.DIGITAL;
+    expect(spineFor({ title: "Hollow Knight", platform: "PC", format: digital })).toEqual(
+      spineFor({ title: " hollow knight ", platform: "pc", format: digital }),
     );
+    // Only the thickness comes from the case.
+    const { height, pattern } = spineFor({ title: "Hollow Knight", platform: "Nintendo Switch", format: digital });
+    expect(spineFor({ title: "Hollow Knight", platform: "PC", format: GameFormat.PHYSICAL })).toMatchObject({
+      height,
+      pattern,
+    });
     for (let i = 0; i < 100; i++) {
-      const spine = spineFor({ title: `Game ${i}`, pageCount: 300 });
+      const spine = spineFor({ title: `Game ${i}`, platform: "PlayStation 5", format: GameFormat.PHYSICAL });
       expect(spine.height).toBeGreaterThanOrEqual(14);
       expect(spine.height).toBeLessThanOrEqual(18);
       expect([0, 1, 2, 3, 4]).toContain(spine.pattern);
     }
+  });
+});
+
+describe("fileByPlatform", () => {
+  const game = (title: string, platform: string | null) => ({ title, platform });
+
+  it("files games by platform, A to Z, keeping their order within one", () => {
+    const filed = fileByPlatform([
+      game("Portal 2", "PC"),
+      game("Hollow Knight", "Nintendo Switch"),
+      game("Half-Life 2", "PC"),
+      game("Celeste", "Nintendo Switch"),
+      game("Astro Bot", "PlayStation 5"),
+    ]);
+    expect(filed.map((g) => g.title)).toEqual(["Hollow Knight", "Celeste", "Portal 2", "Half-Life 2", "Astro Bot"]);
+  });
+
+  it("puts games without a platform at the end", () => {
+    const filed = fileByPlatform([
+      game("Tetris", null),
+      game("Outer Wilds", "Xbox One"),
+      game("Doom", "  "),
+      game("Hades", "PC"),
+    ]);
+    expect(filed.map((g) => g.title)).toEqual(["Hades", "Outer Wilds", "Tetris", "Doom"]);
+  });
+
+  it("files a platform typed in different cases together", () => {
+    const filed = fileByPlatform([game("Portal 2", "PC"), game("Ori", "Mac"), game("Hades", "pc")]);
+    expect(filed.map((g) => g.title)).toEqual(["Ori", "Portal 2", "Hades"]);
   });
 });
 
@@ -91,14 +160,14 @@ describe("shelve", () => {
 });
 
 describe("planHouse", () => {
-  it("starts as a cottage with the hearth and one bookcase", () => {
+  it("starts as a cottage with the hearth and one shelving unit", () => {
     const plan = planHouse(1, 0, 400);
     expect(kinds(plan)).toEqual([["hearth", "case"]]);
     expect(plan.inner).toBeLessThan(400);
     expect(plan.cat).toBe(false);
   });
 
-  it("grows wider, then taller, as bookcases are added", () => {
+  it("grows wider, then taller, as shelving units are added", () => {
     const wide = planHouse(4, 160, 400);
     expect(wide.floors).toHaveLength(1);
     const tall = planHouse(20, 900, 400);
@@ -108,7 +177,7 @@ describe("planHouse", () => {
     expect(all(tall).filter((k) => k === "case")).toHaveLength(20);
   });
 
-  it("numbers the bookcases in reading order, top floor first", () => {
+  it("numbers the shelving units in page order, top floor first", () => {
     const plan = planHouse(12, 500, 300);
     const order = plan.floors.flat().flatMap((p) => (p.caseIndex === undefined ? [] : [p.caseIndex]));
     expect(order).toEqual(order.map((_, i) => i));
@@ -134,13 +203,13 @@ describe("planHouse", () => {
     }
   });
 
-  it("stands bookcases side by side", () => {
+  it("stands shelving units side by side", () => {
     const plan = planHouse(4, 40, 400);
     const cases = plan.floors[0].filter((p) => p.kind === "case");
     cases.slice(1).forEach((c, i) => expect(c.x).toBe(cases[i].x + CASE_WIDTH));
   });
 
-  it("puts a house too narrow for the hearth and a bookcase on two floors", () => {
+  it("puts a house too narrow for the hearth and a shelving unit on two floors", () => {
     const plan = planHouse(1, 3, 130);
     expect(kinds(plan)).toEqual([["case"], ["hearth"]]);
   });
@@ -157,7 +226,7 @@ describe("planHouse", () => {
     }
   });
 
-  it("leans the ladder on the end of a row of bookcases", () => {
+  it("leans the ladder on the end of a row of shelving units", () => {
     const plan = planHouse(3, MILESTONES.ladder, 400);
     const floor = kinds(plan)[0];
     const at = floor.indexOf("ladder");
@@ -263,7 +332,7 @@ describe("arranging the furniture", () => {
   it("nudges a piece to about the same place on the floor above", () => {
     const plan = planHouse(10, MILESTONES.plant, 335);
     expect(plan.floors.length).toBeGreaterThan(1);
-    // The hearth's middle is over the gap after the first bookcase above.
+    // The hearth's middle is over the gap after the first shelving unit above.
     expect(nudge(plan, "hearth", "up")).toEqual({ floor: 1, slot: 1 });
   });
 });

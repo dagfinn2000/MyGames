@@ -3,16 +3,16 @@ import { findLinksFor } from "@/lib/find-links";
 import type { FindLink } from "@/lib/preferences";
 
 /**
- * The reader's own "Find it at" links on a game's page (Preferences > Game
+ * The player's own "Find it at" links on a game's page (Preferences > Game
  * page), with the game's details filled in. Each opens in a new tab and
- * sends no referrer, so the library or shop doesn't learn this server's
+ * sends no referrer, so the shop or site doesn't learn this server's
  * address. Renders nothing when no link fits the game.
  */
 export function FindItAt({
   game,
   links,
 }: {
-  game: { isbn: string | null; title: string; authors: string[] };
+  game: { title: string; developers: string[]; platform: string | null };
   links: FindLink[];
 }) {
   const filled = findLinksFor(links, game);

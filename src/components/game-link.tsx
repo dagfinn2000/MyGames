@@ -4,17 +4,17 @@ import { useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { canFlyCover, flyCover } from "@/lib/cover-flight";
-import { noteBookOpened } from "@/lib/library-return";
+import { noteGameOpened } from "@/lib/library-return";
 
 /**
  * A link to a game's page whose cover flies across to the game page when
  * clicked (lib/cover-flight.ts). The cover is the first GameCover inside
  * the link, or the link itself when it carries `data-flight-cover` (a
- * spine in the reading room). A ctrl- or middle-click still opens a new
+ * game case in the game room). A ctrl- or middle-click still opens a new
  * tab, and without view transitions or with animations off it is an
  * ordinary link.
  *
- * Followed from the library or the reading room, it also notes the way
+ * Followed from the library or the game room, it also notes the way
  * back for the game page's X (lib/library-return.ts), and `data-game-link`
  * is how that X finds the card to fly the cover back into.
  *
@@ -48,7 +48,7 @@ export function GameLink({
         const cover =
           link?.querySelector<HTMLElement>(".game-cover") ??
           (link?.hasAttribute("data-flight-cover") ? link : null);
-        noteBookOpened(gameId, cover);
+        noteGameOpened(gameId, cover);
         if (!cover || !canFlyCover()) return;
         e.preventDefault();
         flyCover(cover, gameId, () => router.push(href));

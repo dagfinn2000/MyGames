@@ -141,7 +141,7 @@ export function BackgroundScene({
 }: {
   /** The saved background, for the server's render. */
   background: string;
-  /** The reader's zone from Preferences; empty = the browser's own. */
+  /** The player's zone from Preferences; empty = the browser's own. */
   timeZone: string;
   /** The sky as the server worked it out, so the first paint is right. */
   sky?: Record<string, string>;

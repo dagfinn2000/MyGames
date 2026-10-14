@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 
 /**
  * The quote actions, now that the quotes page edits and deletes too: each
- * one only ever touches the signed-in reader's own quotes.
+ * one only ever touches the signed-in player's own quotes.
  */
 const prisma = new PrismaClient();
 
@@ -30,9 +30,9 @@ function form(fields: Record<string, string>) {
 
 async function makeQuote(owner: string, text = "Original") {
   const game = await prisma.game.create({
-    data: { userId: owner, title: "Game", searchText: "game" },
+    data: { userId: owner, title: "Hollow Knight", searchText: "hollow knight" },
   });
-  return prisma.quote.create({ data: { gameId: game.id, text, page: 10, note: "n" } });
+  return prisma.quote.create({ data: { gameId: game.id, text, speaker: "Elderbug", note: "n" } });
 }
 
 beforeEach(async () => {
@@ -52,18 +52,27 @@ afterEach(async () => {
 });
 
 describe("quote actions", () => {
-  it("updateQuote saves text, page and note, and refreshes the quotes page", async () => {
+  it("updateQuote saves text, speaker and note, and refreshes the quotes page", async () => {
     const q = await makeQuote(userId);
-    const res = await updateQuote(q.id, {}, form({ text: "Edited", page: "0", note: "" }));
+    const res = await updateQuote(q.id, {}, form({ text: "Edited", speaker: "Zote", note: "" }));
     expect(res).toEqual({ success: true });
 
     const saved = await prisma.quote.findUniqueOrThrow({ where: { id: q.id } });
-    expect(saved).toMatchObject({ text: "Edited", page: null, note: null });
+    expect(saved).toMatchObject({ text: "Edited", speaker: "Zote", note: null });
     expect(revalidated).toContain("/quotes");
     expect(revalidated).toContain(`/games/${q.gameId}`);
   });
 
-  it("updateQuote refuses another reader's quote and leaves it alone", async () => {
+  it("updateQuote clears who says it when the box is emptied", async () => {
+    const q = await makeQuote(userId);
+    expect(await updateQuote(q.id, {}, form({ text: "Original", speaker: "  ", note: "n" }))).toEqual({
+      success: true,
+    });
+    const saved = await prisma.quote.findUniqueOrThrow({ where: { id: q.id } });
+    expect(saved.speaker).toBeNull();
+  });
+
+  it("updateQuote refuses another player's quote and leaves it alone", async () => {
     const theirs = await makeQuote(otherUserId, "Theirs");
     const res = await updateQuote(theirs.id, {}, form({ text: "Hijacked" }));
     expect(res).toEqual({ error: "Quote not found" });
@@ -78,38 +87,44 @@ describe("quote actions", () => {
     expect(revalidated).toContain("/quotes");
   });
 
-  it("deleteQuote does nothing to another reader's quote", async () => {
+  it("deleteQuote does nothing to another player's quote", async () => {
     const theirs = await makeQuote(otherUserId);
     await deleteQuote(theirs.id);
     expect(await prisma.quote.findUnique({ where: { id: theirs.id } })).not.toBeNull();
   });
 
-  it("addQuote refuses another reader's game", async () => {
+  it("addQuote refuses another player's game", async () => {
     const theirs = await makeQuote(otherUserId);
     const res = await addQuote({}, form({ gameId: theirs.gameId, text: "Sneaky" }));
     expect(res).toEqual({ error: "Game not found" });
     expect(await prisma.quote.count({ where: { gameId: theirs.gameId } })).toBe(1);
   });
 
-  it("refuses a page past the end of the game, as the reading card does", async () => {
+  it("addQuote saves who says it, trimmed, or nobody when left blank", async () => {
     const q = await makeQuote(userId);
-    await prisma.game.update({ where: { id: q.gameId }, data: { pageCount: 300 } });
+    const add = (speaker: string, text: string) =>
+      addQuote({}, form({ gameId: q.gameId, text, speaker, note: "" }));
 
-    const added = await addQuote({}, form({ gameId: q.gameId, text: "Typo", page: "3000" }));
-    expect(added).toEqual({ error: "Page 3000 is past the end of the game (300 pages)" });
-    const edited = await updateQuote(q.id, {}, form({ text: "Edited", page: "301" }));
-    expect(edited).toEqual({ error: "Page 301 is past the end of the game (300 pages)" });
-    expect(await prisma.quote.findMany({ where: { gameId: q.gameId } })).toMatchObject([
-      { text: "Original", page: 10 },
-    ]);
-
-    // The last page itself, and any page of a game with no page count, are fine.
-    expect(await updateQuote(q.id, {}, form({ text: "Last", page: "300" }))).toEqual({
-      success: true,
+    expect(await add("  Zote the Mighty  ", "Precept One")).toEqual({ success: true });
+    expect(await add("", "No one in particular")).toEqual({ success: true });
+    const saved = await prisma.quote.findMany({
+      where: { gameId: q.gameId, text: { not: "Original" } },
+      orderBy: { text: "asc" },
     });
-    await prisma.game.update({ where: { id: q.gameId }, data: { pageCount: null } });
-    expect(await addQuote({}, form({ gameId: q.gameId, text: "Any", page: "3000" }))).toEqual({
-      success: true,
+    expect(saved.map((x) => [x.text, x.speaker, x.note])).toEqual([
+      ["No one in particular", null, null],
+      ["Precept One", "Zote the Mighty", null],
+    ]);
+    expect(revalidated).toContain("/quotes");
+  });
+
+  it("refuses a speaker past the limit, and leaves the quote as it was", async () => {
+    const q = await makeQuote(userId);
+    const res = await updateQuote(q.id, {}, form({ text: "Edited", speaker: "x".repeat(201) }));
+    expect(res).toEqual({ error: "Speaker must be at most 200 characters" });
+    expect(await prisma.quote.findUniqueOrThrow({ where: { id: q.id } })).toMatchObject({
+      text: "Original",
+      speaker: "Elderbug",
     });
   });
 

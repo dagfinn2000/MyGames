@@ -6,9 +6,9 @@ import { PrismaClient, PlayStatus } from "@prisma/client";
  *
  * Two things are being pinned down here. First, `timesCompleted` is *derived*
  * (archived passes plus the current one when it's finished) and is
- * recalculated from several directions — re-reading, adding a past read,
- * deleting one. Getting it wrong silently misreports how many times you've
- * read a game and skews the yearly goal. Second, every action is supposed to
+ * recalculated from several directions — playing again, adding a past
+ * playthrough, deleting one. Getting it wrong silently misreports how many
+ * times you've completed a game and skews the yearly goal. Second, every action is supposed to
  * scope its writes to the signed-in user; that promise is only worth anything
  * if something checks it.
  */
@@ -41,9 +41,11 @@ async function makeGame(over: Record<string, unknown> = {}, owner = userId) {
   return prisma.game.create({
     data: {
       userId: owner,
-      title: "Test Game",
-      searchText: "test game",
-      pageCount: 300,
+      title: "Hollow Knight",
+      searchText: "hollow knight team cherry pc",
+      developers: ["Team Cherry"],
+      platform: "PC",
+      lengthMinutes: 1620,
       ...over,
     },
   });
@@ -70,8 +72,8 @@ afterEach(async () => {
   await prisma.user.deleteMany({ where: { id: { in: [userId, otherUserId] } } });
 });
 
-describe("read history bookkeeping", () => {
-  it("playAgain archives the finished pass and restarts the game", async () => {
+describe("playthrough bookkeeping", () => {
+  it("playAgain archives the completed pass with its time and restarts the game", async () => {
     const finished = new Date("2026-01-10T00:00:00.000Z");
     const bk = await makeGame({
       status: PlayStatus.COMPLETED,
@@ -79,6 +81,7 @@ describe("read history bookkeeping", () => {
       dateFinished: finished,
       rating: 9,
       timesCompleted: 1,
+      playedMinutes: 2520,
     });
 
     await playAgain(bk.id);
@@ -90,18 +93,21 @@ describe("read history bookkeeping", () => {
 
     expect(after.status).toBe(PlayStatus.PLAYING);
     expect(after.dateFinished).toBeNull();
-    expect(after.currentPage).toBeNull();
-    // The pass moved from "current" to "archived" — the total is unchanged.
+    // The new pass starts with no time played...
+    expect(after.playedMinutes).toBeNull();
+    // ...and the pass moved from "current" to "archived" — the total is unchanged.
     expect(after.timesCompleted).toBe(1);
     expect(after.playthroughs).toHaveLength(1);
     expect(after.playthroughs[0].dateFinished?.toISOString()).toBe(finished.toISOString());
     expect(after.playthroughs[0].rating).toBe(9);
-    // A page-0 anchor so the new pass's pace starts from zero.
+    // The archived pass keeps the time it took ("Completed in 42 h").
+    expect(after.playthroughs[0].playedMinutes).toBe(2520);
+    // A 0-minute anchor so the new playthrough's pace starts from zero.
     expect(after.progress).toHaveLength(1);
-    expect(after.progress[0].page).toBe(0);
+    expect(after.progress[0].minutes).toBe(0);
   });
 
-  it("playAgain does nothing to a game that isn't finished", async () => {
+  it("playAgain does nothing to a game that isn't completed", async () => {
     const bk = await makeGame({ status: PlayStatus.PLAYING });
     await playAgain(bk.id);
 
@@ -121,7 +127,7 @@ describe("read history bookkeeping", () => {
     expect(after.status).toBe(PlayStatus.COMPLETED); // untouched
   });
 
-  it("adding and deleting a past read keeps timesCompleted consistent", async () => {
+  it("adding and deleting a past playthrough keeps timesCompleted consistent", async () => {
     const bk = await makeGame({ status: PlayStatus.COMPLETED, timesCompleted: 1 });
 
     await addPastPlaythrough({}, form({ gameId: bk.id, dateFinished: "2019-05-01", rating: "8" }));
@@ -130,7 +136,7 @@ describe("read history bookkeeping", () => {
       include: { playthroughs: true },
     });
     expect(after.playthroughs).toHaveLength(1);
-    expect(after.timesCompleted).toBe(2); // one archived + the current finished pass
+    expect(after.timesCompleted).toBe(2); // one archived + the current completed pass
 
     await deletePastPlaythrough(after.playthroughs[0].id);
     after = await prisma.game.findFirstOrThrow({
@@ -158,15 +164,15 @@ describe("read history bookkeeping", () => {
   });
 });
 
-describe("past-read notes", () => {
+describe("past-playthrough notes and times", () => {
   async function onlyCompleted(gameId: string) {
     return prisma.playthrough.findFirstOrThrow({ where: { gameId } });
   }
 
   it("addPastPlaythrough stores the note trimmed, and an empty one as nothing", async () => {
     const bk = await makeGame();
-    await addPastPlaythrough({}, form({ gameId: bk.id, note: "  Read it aloud to the kids  " }));
-    expect((await onlyCompleted(bk.id)).note).toBe("Read it aloud to the kids");
+    await addPastPlaythrough({}, form({ gameId: bk.id, note: "  Played it co-op with my sister  " }));
+    expect((await onlyCompleted(bk.id)).note).toBe("Played it co-op with my sister");
 
     const other = await makeGame();
     await addPastPlaythrough({}, form({ gameId: other.id, note: "   " }));
@@ -175,38 +181,38 @@ describe("past-read notes", () => {
 
   it("updatePastPlaythrough changes the note, and an empty field clears it", async () => {
     const bk = await makeGame();
-    const read = await prisma.playthrough.create({ data: { gameId: bk.id, note: "First go" } });
+    const pass = await prisma.playthrough.create({ data: { gameId: bk.id, note: "First go" } });
 
-    const res = await updatePastPlaythrough(read.id, {}, form({ note: "Second go", rating: "6" }));
+    const res = await updatePastPlaythrough(pass.id, {}, form({ note: "Second go", rating: "6" }));
     expect(res).toEqual({ success: true });
     expect(await onlyCompleted(bk.id)).toMatchObject({ note: "Second go", rating: 6 });
 
-    await updatePastPlaythrough(read.id, {}, form({ note: "" }));
+    await updatePastPlaythrough(pass.id, {}, form({ note: "" }));
     expect((await onlyCompleted(bk.id)).note).toBeNull();
   });
 
   it("updatePastPlaythrough keeps the note when the field isn't sent", async () => {
     const bk = await makeGame();
-    const read = await prisma.playthrough.create({ data: { gameId: bk.id, note: "Keep me" } });
+    const pass = await prisma.playthrough.create({ data: { gameId: bk.id, note: "Keep me" } });
 
-    await updatePastPlaythrough(read.id, {}, form({ dateFinished: "2019-05-01" }));
+    await updatePastPlaythrough(pass.id, {}, form({ dateFinished: "2019-05-01" }));
     expect((await onlyCompleted(bk.id)).note).toBe("Keep me");
   });
 
-  it("updatePastPlaythrough refuses another account's read and changes nothing", async () => {
+  it("updatePastPlaythrough refuses another account's playthrough and changes nothing", async () => {
     const bk = await makeGame({}, otherUserId);
-    const read = await prisma.playthrough.create({ data: { gameId: bk.id, note: "Theirs", rating: 8 } });
+    const pass = await prisma.playthrough.create({ data: { gameId: bk.id, note: "Theirs", rating: 8 } });
 
-    const res = await updatePastPlaythrough(read.id, {}, form({ note: "Mine now", rating: "2" }));
-    expect(res).toEqual({ error: "Read not found" });
+    const res = await updatePastPlaythrough(pass.id, {}, form({ note: "Mine now", rating: "2" }));
+    expect(res).toEqual({ error: "Playthrough not found" });
     expect(await onlyCompleted(bk.id)).toMatchObject({ note: "Theirs", rating: 8 });
   });
 
   it("updatePastPlaythrough turns away a note over 2000 characters", async () => {
     const bk = await makeGame();
-    const read = await prisma.playthrough.create({ data: { gameId: bk.id, note: "Short" } });
+    const pass = await prisma.playthrough.create({ data: { gameId: bk.id, note: "Short" } });
 
-    const res = await updatePastPlaythrough(read.id, {}, form({ note: "x".repeat(2001) }));
+    const res = await updatePastPlaythrough(pass.id, {}, form({ note: "x".repeat(2001) }));
     expect(res).toEqual({ error: "Keep the note to 2000 characters or fewer." });
     expect((await onlyCompleted(bk.id)).note).toBe("Short");
   });
@@ -215,6 +221,39 @@ describe("past-read notes", () => {
     const bk = await makeGame({ status: PlayStatus.COMPLETED, timesCompleted: 1 });
     await playAgain(bk.id);
     expect((await onlyCompleted(bk.id)).note).toBeNull();
+  });
+
+  it("addPastPlaythrough reads a typed time played, and a blank one as none", async () => {
+    const bk = await makeGame();
+    await addPastPlaythrough({}, form({ gameId: bk.id, dateFinished: "2019-05-01", playedMinutes: "42:30" }));
+    expect((await onlyCompleted(bk.id)).playedMinutes).toBe(2550);
+
+    const other = await makeGame();
+    await addPastPlaythrough({}, form({ gameId: other.id, playedMinutes: "  " }));
+    expect((await onlyCompleted(other.id)).playedMinutes).toBeNull();
+  });
+
+  it("addPastPlaythrough explains a time it can't read and records nothing", async () => {
+    const bk = await makeGame();
+    const res = await addPastPlaythrough({}, form({ gameId: bk.id, playedMinutes: "a while" }));
+
+    expect(res.error).toMatch(/^Couldn't read “a while”\./);
+    expect(await prisma.playthrough.count({ where: { gameId: bk.id } })).toBe(0);
+  });
+
+  it("updatePastPlaythrough changes the time when sent, keeps it when not, and a blank clears it", async () => {
+    const bk = await makeGame();
+    const pass = await prisma.playthrough.create({ data: { gameId: bk.id, playedMinutes: 600 } });
+
+    await updatePastPlaythrough(pass.id, {}, form({ playedMinutes: "12h 30m" }));
+    expect((await onlyCompleted(bk.id)).playedMinutes).toBe(750);
+
+    // A request without the field (an older form) leaves the time alone.
+    await updatePastPlaythrough(pass.id, {}, form({ rating: "7" }));
+    expect(await onlyCompleted(bk.id)).toMatchObject({ playedMinutes: 750, rating: 7 });
+
+    await updatePastPlaythrough(pass.id, {}, form({ playedMinutes: "" }));
+    expect((await onlyCompleted(bk.id)).playedMinutes).toBeNull();
   });
 });
 
@@ -227,7 +266,7 @@ describe("bulkUpdateGames", () => {
       gameIds: [b1.id, b2.id],
       status: PlayStatus.COMPLETED,
       addShelfId: shelf.id,
-      addTags: ["fantasy"],
+      addTags: ["metroidvania"],
     });
 
     expect(res.count).toBe(2);
@@ -237,12 +276,12 @@ describe("bulkUpdateGames", () => {
     });
     for (const b of games) {
       expect(b.status).toBe(PlayStatus.COMPLETED);
-      expect(b.tags).toContain("fantasy");
+      expect(b.tags).toContain("metroidvania");
       expect(b.shelves).toHaveLength(1);
     }
   });
 
-  it("dates and counts games moved to Read, as the reading card does", async () => {
+  it("dates and counts games moved to Completed, as the playthrough card does", async () => {
     // A bare status update left these undated with timesCompleted 0, so they
     // were missing from the yearly stats and the goal.
     const fresh = await makeGame({ status: PlayStatus.PLAYING });
@@ -250,41 +289,41 @@ describe("bulkUpdateGames", () => {
       status: PlayStatus.PLAYING,
       dateFinished: new Date("2026-02-03T00:00:00.000Z"),
     });
-    const reread = await makeGame({ status: PlayStatus.PLAYING });
-    await prisma.playthrough.create({ data: { gameId: reread.id } });
+    const replayed = await makeGame({ status: PlayStatus.PLAYING });
+    await prisma.playthrough.create({ data: { gameId: replayed.id } });
 
     const res = await bulkUpdateGames({
-      gameIds: [fresh.id, dated.id, reread.id],
+      gameIds: [fresh.id, dated.id, replayed.id],
       status: PlayStatus.COMPLETED,
     });
     expect(res.count).toBe(3);
 
     const rows = await prisma.game.findMany({
-      where: { id: { in: [fresh.id, dated.id, reread.id] } },
+      where: { id: { in: [fresh.id, dated.id, replayed.id] } },
     });
     const byId = new Map(rows.map((r) => [r.id, r]));
     expect(byId.get(fresh.id)?.dateFinished?.toDateString()).toBe(new Date().toDateString());
     expect(byId.get(fresh.id)?.timesCompleted).toBe(1);
     expect(byId.get(dated.id)?.dateFinished?.toISOString()).toBe("2026-02-03T00:00:00.000Z");
-    expect(byId.get(reread.id)?.timesCompleted).toBe(2);
+    expect(byId.get(replayed.id)?.timesCompleted).toBe(2);
   });
 
-  it("uncounts games moved off Read and clears their page", async () => {
-    const bk = await makeGame({ status: PlayStatus.COMPLETED, timesCompleted: 1, currentPage: 50 });
+  it("uncounts games moved off Completed and clears their time", async () => {
+    const bk = await makeGame({ status: PlayStatus.COMPLETED, timesCompleted: 1, playedMinutes: 50 });
     await bulkUpdateGames({ gameIds: [bk.id], status: PlayStatus.WANT_TO_PLAY });
 
     const after = await prisma.game.findUniqueOrThrow({ where: { id: bk.id } });
     expect(after.status).toBe(PlayStatus.WANT_TO_PLAY);
     expect(after.timesCompleted).toBe(0);
-    expect(after.currentPage).toBeNull();
+    expect(after.playedMinutes).toBeNull();
   });
 
   it("merges tags instead of appending duplicates", async () => {
-    const bk = await makeGame({ tags: ["fantasy", "epic"] });
-    await bulkUpdateGames({ gameIds: [bk.id], addTags: ["fantasy", "reread"] });
+    const bk = await makeGame({ tags: ["metroidvania", "indie"] });
+    await bulkUpdateGames({ gameIds: [bk.id], addTags: ["metroidvania", "replay"] });
 
     const after = await prisma.game.findFirstOrThrow({ where: { id: bk.id } });
-    expect([...after.tags].sort()).toEqual(["epic", "fantasy", "reread"]);
+    expect([...after.tags].sort()).toEqual(["indie", "metroidvania", "replay"]);
   });
 
   it("silently drops ids belonging to another account", async () => {
@@ -463,6 +502,17 @@ describe("lending", () => {
     }
   });
 
+  it("only lends a physical copy", async () => {
+    // A download or a subscription game has no disc or cartridge to hand over.
+    for (const format of ["DIGITAL", "SUBSCRIPTION"]) {
+      const bk = await makeGame({ format });
+      const res = await lendGame(bk.id, {}, form({ borrower: "Kari" }));
+
+      expect(res.error).toBe("Only a physical copy can be lent out.");
+      expect(await prisma.loan.count({ where: { gameId: bk.id } })).toBe(0);
+    }
+  });
+
   it("refuses to lend another account's game", async () => {
     const theirs = await makeGame({}, otherUserId);
     const res = await lendGame(theirs.id, {}, form({ borrower: "Kari" }));
@@ -543,10 +593,10 @@ describe("tag rules for future imports", () => {
   });
 
   it("deleteTag with neverImport stores the skip", async () => {
-    await makeGame({ tags: ["fiction"] });
-    const res = await deleteTag("fiction", { neverImport: true });
+    await makeGame({ tags: ["indie"] });
+    const res = await deleteTag("indie", { neverImport: true });
     expect(res).toEqual({ count: 1, ruleSaved: true });
-    expect((await prefsOf(userId)).tagSkips).toEqual(["fiction"]);
+    expect((await prefsOf(userId)).tagSkips).toEqual(["indie"]);
   });
 
   it("keeps the other preferences when it writes a rule", async () => {
@@ -564,25 +614,25 @@ describe("tag rules for future imports", () => {
 
   it("removeTagRule takes one rule out and keeps the rest", async () => {
     await renameTag("sf", "sci-fi", { remember: true });
-    await renameTag("ya", "young adult", { remember: true });
+    await renameTag("rpg", "role-playing", { remember: true });
     await deleteTag("general", { neverImport: true });
 
     expect(await removeTagRule({ from: "sf" })).toEqual({});
     expect(await removeTagRule({ skip: "general" })).toEqual({});
     const prefs = await prefsOf(userId);
-    expect(prefs.tagRenames).toEqual([{ from: "ya", to: "young adult" }]);
+    expect(prefs.tagRenames).toEqual([{ from: "rpg", to: "role-playing" }]);
     expect(prefs.tagSkips).toEqual([]);
     expect((await removeTagRule({})).error).toBe("Invalid input");
   });
 
   it("stores rules on the signed-in account only", async () => {
     await renameTag("sf", "sci-fi", { remember: true });
-    await deleteTag("fiction", { neverImport: true });
+    await deleteTag("indie", { neverImport: true });
     expect(await prefsOf(otherUserId)).toEqual({});
   });
 });
 
-describe("bulk Set status: Read and the finish-date preference", () => {
+describe("bulk Set status: Completed and the finish-date preference", () => {
   it("leaves the finish date empty when undated is chosen, and keeps a date already there", async () => {
     await prisma.user.update({
       where: { id: userId },

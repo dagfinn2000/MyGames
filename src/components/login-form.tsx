@@ -53,7 +53,7 @@ export function LoginForm() {
     <Card className="w-full max-w-sm">
       <CardHeader>
         <CardTitle>Sign in</CardTitle>
-        <CardDescription>Personal self-hosted library and reading tracker</CardDescription>
+        <CardDescription>Personal self-hosted video game library and play tracker</CardDescription>
       </CardHeader>
       <CardContent>
         {justChangedPassword && (

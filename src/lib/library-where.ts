@@ -30,9 +30,9 @@ export async function resolveGameWhere(
 }
 
 /**
- * Tags, for a reader who added them to search. Folded and matched here
+ * Tags, for a player who added them to search. Folded and matched here
  * rather than in SQL: Postgres's lower() follows the database's locale,
- * which may leave "ÉMILE" capitalised, while the typed words are folded by
+ * which may leave "ŌKAMI" capitalised, while the typed words are folded by
  * foldForSearch. They turn into tag names, few however big the library.
  * Reviews need nothing ahead: each is stored folded (reviewSearchText).
  */
@@ -54,9 +54,9 @@ async function searchContext(
 
 /**
  * For "Finished in": the games finished in `year` in the hours around New
- * Year, where only the reader's time zone says which year it was. Read the
+ * Year, where only the player's time zone says which year it was. Read the
  * way Stats reads them (calendarDay): a date typed into a field is that day
- * everywhere, a "finished now" stamp falls on the reader's own day.
+ * everywhere, a "finished now" stamp falls on the player's own day.
  */
 async function finishedNearNewYear(
   userId: string,

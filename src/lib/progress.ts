@@ -3,28 +3,28 @@ import { calendarDay, dayKey, shiftDayKey } from "@/lib/dates";
 
 export { dayKey };
 
-type LogPoint = Pick<ProgressEntry, "gameId" | "page" | "date">;
+type LogPoint = Pick<ProgressEntry, "gameId" | "minutes" | "date">;
 
 /**
- * The slice of a game's log belonging to the current reading pass:
- * everything from the latest page-0 anchor onward. Page-0 entries only ever
- * come from pass anchors — the reading form treats page 0 as "cleared" and
- * never logs it — so the latest one marks the pass start exactly, even when
- * a re-read begins on a day that already has entries (the started-date form
- * field only keeps day precision). Logs without an anchor (upgrade-seeded
- * games, games added mid-read) fall back to the started-date window, by
- * calendar day in the reader's zone: a typed Started date is midnight UTC,
- * which east of UTC is still ahead of that morning's entries.
- * lib/stats-query.ts applies the same rule in SQL.
+ * The slice of a game's log belonging to the current playthrough:
+ * everything from the latest 0-minute anchor onward. 0-minute entries only
+ * ever come from playthrough anchors — the play form treats no time as
+ * "cleared" and never logs it — so the latest one marks the pass start
+ * exactly, even when playing again begins on a day that already has
+ * entries (the started-date form field only keeps day precision). Logs
+ * without an anchor (games added part-way through) fall back to the
+ * started-date window, by calendar day in the player's zone: a typed
+ * Started date is midnight UTC, which east of UTC is still ahead of that
+ * morning's entries. lib/stats-query.ts applies the same rule in SQL.
  */
-export function currentPassEntries<T extends Pick<ProgressEntry, "page" | "date">>(
+export function currentPassEntries<T extends Pick<ProgressEntry, "minutes" | "date">>(
   entries: T[], // sorted by date ascending
   dateStarted: Date | null,
-  /** The reader's zone; default the server's. */
+  /** The player's zone; default the server's. */
   timeZone?: string,
 ): T[] {
   for (let i = entries.length - 1; i >= 0; i--) {
-    if (entries[i].page === 0) return entries.slice(i);
+    if (entries[i].minutes === 0) return entries.slice(i);
   }
   if (!dateStarted) return entries;
   const startDay = calendarDay(dateStarted, timeZone);
@@ -34,16 +34,16 @@ export function currentPassEntries<T extends Pick<ProgressEntry, "page" | "date"
 }
 
 /**
- * Pages read per calendar day, summed across games. Each game's log is
+ * Minutes played per calendar day, summed across games. Each game's log is
  * walked in date order and every *increase* between consecutive entries is
  * credited to the later entry's day. A first entry has no predecessor and
- * credits nothing — that's what keeps the upgrade-seeded positions and
- * pass-start anchors inert — and decreases (corrections, re-read resets)
- * credit nothing but move the baseline.
+ * credits nothing — that's what keeps the time a game was added with and
+ * the playthrough-start anchors inert — and decreases (corrections, a new
+ * playthrough's reset) credit nothing but move the baseline.
  */
-export function dailyPageTotals(
+export function dailyMinuteTotals(
   entries: LogPoint[],
-  /** The reader's zone; default the server's. */
+  /** The player's zone; default the server's. */
   timeZone?: string,
 ): Map<string, number> {
   const byGame = new Map<string, LogPoint[]>();
@@ -55,9 +55,9 @@ export function dailyPageTotals(
 
   const totals = new Map<string, number>();
   for (const log of byGame.values()) {
-    log.sort((a, b) => a.date.getTime() - b.date.getTime() || a.page - b.page);
+    log.sort((a, b) => a.date.getTime() - b.date.getTime() || a.minutes - b.minutes);
     for (let i = 1; i < log.length; i++) {
-      const delta = log[i].page - log[i - 1].page;
+      const delta = log[i].minutes - log[i - 1].minutes;
       if (delta <= 0) continue;
       const key = dayKey(log[i].date, timeZone);
       totals.set(key, (totals.get(key) ?? 0) + delta);
@@ -67,14 +67,14 @@ export function dailyPageTotals(
 }
 
 /**
- * Current streak and longest-ever run of consecutive reading days. Today
+ * Current streak and longest-ever run of consecutive play days. Today
  * counts toward the current streak when logged, but an unlogged today
  * doesn't break yesterday's streak — the day isn't over yet.
  */
 export function playStreaks(
   days: ReadonlySet<string>,
   today: Date = new Date(),
-  /** The reader's zone, which decides what "today" is; default the server's. */
+  /** The player's zone, which decides what "today" is; default the server's. */
   timeZone?: string,
 ): { current: number; longest: number } {
   let longest = 0;

@@ -13,8 +13,8 @@ const PreferencesContext = createContext<Preferences>(DEFAULT_PREFERENCES);
  * down as props. Server components read them with getPreferences() instead.
  *
  * `detectTimeZone` is set while the account has no time zone yet. The
- * browser knows the reader's zone and the server doesn't, so the first page
- * that loads saves it — reading days then count in the reader's own day
+ * browser knows the player's zone and the server doesn't, so the first page
+ * that loads saves it — play days then count in the player's own day
  * instead of the server's.
  */
 export function PreferencesProvider({

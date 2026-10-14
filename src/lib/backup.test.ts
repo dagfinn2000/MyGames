@@ -32,7 +32,7 @@ describe("isBackupDue", () => {
 });
 
 describe("backupAgeDays", () => {
-  it("counts calendar days in the reader's zone", () => {
+  it("counts calendar days in the player's zone", () => {
     // 23:30 and 00:30 the next day in Oslo; the same day in UTC.
     const last = new Date("2026-03-10T22:30:00.000Z");
     const now = new Date("2026-03-10T23:30:00.000Z");
@@ -71,7 +71,7 @@ describe("backupStatusText", () => {
     expect(backupStatusText(null, NOW, prefs)).toBe("No download on record yet");
   });
 
-  it("gives the date in the reader's format, and how long ago", () => {
+  it("gives the date in the player's format, and how long ago", () => {
     expect(backupStatusText(new Date("2026-09-03T08:00:00.000Z"), NOW, prefs)).toBe(
       "Last downloaded 3 Sep 2026 · 39 days ago",
     );

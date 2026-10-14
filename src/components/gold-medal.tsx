@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 /**
- * The gold medal awarded for hitting a yearly reading goal. Pure SVG so it
+ * The gold medal awarded for hitting a yearly play goal. Pure SVG so it
  * looks crisp at any size and needs no image assets.
  *
  * `animate` swings it in and runs a shine across the disc as the page

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { GameFormat, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -26,11 +26,11 @@ export interface BulkResult {
 }
 
 /** Room for thousands of per-game writes (a status change runs each game
- *  through the reading rules); Prisma's default gives up after 5 seconds. */
+ *  through the play rules); Prisma's default gives up after 5 seconds. */
 const TRANSACTION_OPTIONS = { timeout: 120_000, maxWait: 10_000 };
 
 /** A transaction that ran out of time becomes "timeout" (everything in it
- *  was rolled back), so the reader gets a message rather than an error
+ *  was rolled back), so the player gets a message rather than an error
  *  page. Anything else is rethrown. */
 function timedOut(err: unknown): "timeout" {
   if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2028") {
@@ -75,7 +75,7 @@ async function resolveTarget(
 }
 
 /**
- * Apply changes to many games at once: reading status, format, ownership,
+ * Apply changes to many games at once: play status, format, ownership,
  * tags to add or remove, and/or a shelf to put them on or take them off.
  * The games are the ids picked on screen, each checked against the
  * account, or every game matching the library's filters ("Select all N
@@ -114,7 +114,7 @@ export async function bulkUpdateGames(input: BulkInput): Promise<BulkResult> {
       status: true,
       dateStarted: true,
       dateFinished: true,
-      currentPage: true,
+      playedMinutes: true,
       _count: { select: { playthroughs: true } },
     },
   });
@@ -144,19 +144,21 @@ export async function bulkUpdateGames(input: BulkInput): Promise<BulkResult> {
   // independent writes meant a failure partway through left some of the
   // selection changed and some not — while still reporting the whole batch
   // as updated. "Apply to 20 games" should either happen or not.
-  // Games moved to Read with no finish date follow the "Games I add as Read
-  // were finished" preference (New games): today, or no date at all.
+  // Games moved to Completed with no finish date are dated the way games
+  // added as Completed are (Preferences, New games): today, or not at all.
   const undatedFinish = status
     ? (await getPreferences()).addedAsCompletedFinished === "undated"
     : false;
 
   const outcome = await prisma.$transaction(async (tx) => {
     if (status) {
-      // Per game, through the same rules as the reading card: moving a game
-      // to Read dates it and counts the read, moving it off Read uncounts
-      // it. A bare updateMany of the status left both behind, so bulk-read
-      // games were missing from the yearly stats and goal. Games already
-      // in the target status are left alone.
+      // Per game, through the same rules as the playing card: moving a game
+      // to Completed dates it and counts the completion, moving it off
+      // Completed uncounts it. A bare updateMany of the status left both
+      // behind, so games bulk-moved to Completed were missing from the
+      // yearly stats and goal. The time played goes with the playthrough
+      // (kept, or cleared back on Want to Play). Games already in the
+      // target status are left alone.
       for (const b of owned) {
         if (b.status === status) continue;
         const next = settlePlayState(
@@ -165,7 +167,7 @@ export async function bulkUpdateGames(input: BulkInput): Promise<BulkResult> {
             status,
             dateStarted: b.dateStarted,
             dateFinished: b.dateFinished,
-            currentPage: b.currentPage,
+            playedMinutes: b.playedMinutes,
           },
           b._count.playthroughs,
           new Date(),
@@ -181,8 +183,7 @@ export async function bulkUpdateGames(input: BulkInput): Promise<BulkResult> {
       for (const part of chunk(ownedIds, BULK_CHUNK)) {
         await tx.game.updateMany({
           where: { id: { in: part }, userId, format: { not: format } },
-          // Only an audiobook has a running time.
-          data: { format, ...(format !== GameFormat.AUDIOBOOK && { lengthMinutes: null }) },
+          data: { format },
         });
       }
     }
@@ -235,7 +236,7 @@ export async function bulkUpdateGames(input: BulkInput): Promise<BulkResult> {
 }
 
 /**
- * Delete many games at once, with their reading history, quotes and loans
+ * Delete many games at once, with their play history, quotes and loans
  * (the schema cascades), then their cached covers where no other game uses
  * them. For "every game that matches", the count the confirmation showed
  * must still be the count that matches, or nothing is deleted: a game

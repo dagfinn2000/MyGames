@@ -20,7 +20,7 @@ import {
  * Tag housekeeping: rename a tag everywhere (renaming onto an existing tag
  * merges them) or remove one from every game. Lives behind a small icon
  * button next to the tag filter. Either can also become a rule for future
- * imports: subjects by the old name come in under the new one, or a
+ * imports: catalogue genres by the old name come in under the new one, or a
  * removed tag is never imported again (Preferences lists the rules).
  */
 export function ManageTagsDialog({

@@ -12,8 +12,8 @@ import {
 describe("parseLibraryView", () => {
   it("passes a fully valid stored view through", () => {
     expect(
-      parseLibraryView({ sort: "author", dir: "asc", group: "series" }),
-    ).toEqual({ ...DEFAULT_LIBRARY_VIEW, sort: "author", dir: "asc", group: "series" });
+      parseLibraryView({ sort: "developer", dir: "asc", group: "series" }),
+    ).toEqual({ ...DEFAULT_LIBRARY_VIEW, sort: "developer", dir: "asc", group: "series" });
   });
 
   it("returns defaults for null/undefined (never-saved accounts)", () => {
@@ -23,11 +23,11 @@ describe("parseLibraryView", () => {
 
   it("defaults each unknown field individually", () => {
     // e.g. a sort option removed in a later version — the rest must survive.
-    expect(parseLibraryView({ sort: "bogus", dir: "asc", group: "author" })).toEqual({
+    expect(parseLibraryView({ sort: "bogus", dir: "asc", group: "platform" })).toEqual({
       ...DEFAULT_LIBRARY_VIEW,
       sort: DEFAULT_LIBRARY_VIEW.sort,
       dir: "asc",
-      group: "author",
+      group: "platform",
     });
   });
 
@@ -93,6 +93,7 @@ describe("cleanLibraryViewPatch", () => {
 
   it("drops unknown keys and garbage", () => {
     expect(cleanLibraryViewPatch({ evil: 1 })).toEqual({});
+    expect(cleanLibraryViewPatch(JSON.parse('{"constructor": 1, "toString": "x"}'))).toEqual({});
     expect(cleanLibraryViewPatch(null)).toEqual({});
     expect(cleanLibraryViewPatch("list")).toEqual({});
   });
@@ -107,9 +108,10 @@ describe("the newer sorts, groupings and display options", () => {
   it("gives every sort a natural direction", () => {
     for (const sort of LIBRARY_SORTS) expect(NATURAL_DIRS[sort]).toMatch(/^(asc|desc)$/);
     expect(naturalDir("title")).toBe("asc");
-    expect(naturalDir("author")).toBe("asc");
+    expect(naturalDir("developer")).toBe("asc");
     expect(naturalDir("rating")).toBe("desc");
-    expect(naturalDir("pageCount")).toBe("desc");
+    expect(naturalDir("length")).toBe("desc");
+    expect(naturalDir("released")).toBe("desc");
     expect(naturalDir("bogus")).toBe("desc");
     // Straight from the URL: never a property of Object.prototype.
     expect(naturalDir("constructor")).toBe("desc");
@@ -117,19 +119,29 @@ describe("the newer sorts, groupings and display options", () => {
     expect(naturalDir("toString")).toBe("desc");
   });
 
-  it("parses the list-row and ownership options", () => {
+  it("parses the list-row, platform and ownership options", () => {
     expect(parseLibraryView({})).toMatchObject({
+      showPlatform: true,
       showOwnership: false,
       rowDate: "none",
-      showPageCount: false,
+      showLength: false,
     });
     expect(
-      parseLibraryView({ showOwnership: true, rowDate: "finished", showPageCount: true }),
-    ).toMatchObject({ showOwnership: true, rowDate: "finished", showPageCount: true });
-    expect(parseLibraryView({ rowDate: "started", showPageCount: "yes" })).toMatchObject({
+      parseLibraryView({
+        showPlatform: false,
+        showOwnership: true,
+        rowDate: "finished",
+        showLength: true,
+      }),
+    ).toMatchObject({ showPlatform: false, showOwnership: true, rowDate: "finished", showLength: true });
+    expect(
+      parseLibraryView({ rowDate: "started", showLength: "yes", showPlatform: 0 }),
+    ).toMatchObject({
       rowDate: "none",
-      showPageCount: false,
+      showLength: false,
+      showPlatform: true,
     });
     expect(cleanLibraryViewPatch({ rowDate: "added" })).toEqual({ rowDate: "added" });
+    expect(cleanLibraryViewPatch({ showPlatform: false })).toEqual({ showPlatform: false });
   });
 });

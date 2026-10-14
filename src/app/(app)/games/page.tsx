@@ -49,19 +49,20 @@ function param(v: string | string[] | undefined): string {
 const librarySelect = {
   id: true,
   title: true,
-  authors: true,
+  developers: true,
+  platform: true,
   coverUrl: true,
   status: true,
   rating: true,
-  currentPage: true,
-  pageCount: true,
+  playedMinutes: true,
+  lengthMinutes: true,
   seriesName: true,
   seriesNumber: true,
   dateFinished: true,
   createdAt: true,
   // Sort and group keys.
   dateStarted: true,
-  publishedDate: true,
+  releaseDate: true,
   updatedAt: true,
   format: true,
   ownership: true,
@@ -82,7 +83,7 @@ type LibraryGame = Omit<
  *  stay on the server. */
 function toCardGame<B extends LibraryGame & { shelves?: unknown }>({
   dateStarted: _dateStarted,
-  publishedDate: _publishedDate,
+  releaseDate: _releaseDate,
   updatedAt: _updatedAt,
   format: _format,
   tags: _tags,
@@ -128,7 +129,7 @@ export default async function GamesPage({
   const where = await resolveGameWhere(userId, filters, prefs);
 
   // How many cards to render. Sorting and grouping stay in JS — the
-  // surname-filing and series-block rules have no SQL equivalent — so the
+  // article and series-block rules have no SQL equivalent — so the
   // whole filtered set is still fetched and ordered here, but only this many
   // games are serialized into the client payload. "Show more" raises it via
   // the URL, like every other bit of view state in this app.
@@ -137,8 +138,16 @@ export default async function GamesPage({
     MAX_PAGE_SIZE,
   );
 
-  const [games, statusCounts, tagRows, shelves, viewUser, gameFinishes, pastFinishes] =
-    await Promise.all([
+  const [
+    games,
+    statusCounts,
+    tagRows,
+    platformRows,
+    shelves,
+    viewUser,
+    gameFinishes,
+    pastFinishes,
+  ] = await Promise.all([
     prisma.game.findMany({ where, select: librarySelect }),
     prisma.game.groupBy({
       by: ["status"],
@@ -152,6 +161,12 @@ export default async function GamesPage({
       FROM "Game", LATERAL unnest("tags") AS t
       WHERE "userId" = ${userId}
       GROUP BY t`,
+    // Every platform in the library, once each, for the platform filter.
+    prisma.game.findMany({
+      where: { userId, platform: { not: null } },
+      distinct: ["platform"],
+      select: { platform: true },
+    }),
     prisma.shelf.findMany({
       where: { userId },
       include: { _count: { select: { games: true } } },
@@ -238,7 +253,6 @@ export default async function GamesPage({
 
   const sortOptions: SortOptions = {
     ignoreArticles: prefs.ignoreArticles,
-    authorOrder: prefs.authorOrder,
     alphabet: prefs.sortAlphabet,
     timeZone: prefs.timeZone,
     ratingStyle: prefs.ratingStyle,
@@ -254,9 +268,9 @@ export default async function GamesPage({
     ? [...new Map(sliced.groups.flatMap((g) => g.games).map((b) => [b.id, b])).values()]
     : sorted.slice(0, limit);
 
-  // Series headings say how far through each series the reader is. That
-  // takes the whole library: on the Want to Read tab, the games already
-  // read aren't on screen.
+  // Series headings say how far through each series the player is. That
+  // takes the whole library: on the Want to Play tab, the games already
+  // completed aren't on screen.
   if (sliced && values.group === "series") {
     const members = await prisma.game.findMany({
       where: { userId, seriesName: { not: null } },
@@ -283,6 +297,11 @@ export default async function GamesPage({
   const allTags = tagRows.map((r) => r.tag).sort();
   const tagCounts: Record<string, number> = {};
   for (const row of tagRows) tagCounts[row.tag] = row.count;
+  // In the player's alphabet, like the platform sections when grouped.
+  const platforms = platformRows
+    .map((r) => r.platform?.trim() ?? "")
+    .filter((p, i, all) => p && all.indexOf(p) === i)
+    .sort(new Intl.Collator(prefs.sortAlphabet).compare);
 
   // Current params as plain strings, for shelf/status links.
   const flatParams: Record<string, string> = {};
@@ -298,10 +317,11 @@ export default async function GamesPage({
 
   const hasFilters =
     !!values.q ||
-    !!values.author ||
+    !!values.developer ||
     !!values.tag ||
     !!values.notTag ||
     !!values.format ||
+    !!values.platform ||
     values.owned !== "all" ||
     !!values.minRating ||
     !!values.finished ||
@@ -349,6 +369,7 @@ export default async function GamesPage({
         values={values}
         allTags={allTags}
         tagCounts={tagCounts}
+        platforms={platforms}
         display={accountView}
         ratingStyle={prefs.ratingStyle}
         finishedYears={finishedYears}

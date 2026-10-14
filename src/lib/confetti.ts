@@ -6,8 +6,8 @@ const PIECES = 90;
 
 /**
  * A short burst of confetti from `origin` (an element, or the top middle of
- * the screen when there is none), for finishing a game or reaching the
- * reading goal. Drawn on a canvas laid over the page for the length of the
+ * the screen when there is none), for completing a game or reaching the
+ * play goal. Drawn on a canvas laid over the page for the length of the
  * burst, then removed; nothing to install and nothing left behind. Does
  * nothing when animations are off or the device asks for reduced motion.
  */
@@ -42,7 +42,7 @@ export function celebrate(origin?: Element | null): void {
   const ox = rect ? rect.left + rect.width / 2 : width / 2;
   const oy = rect ? rect.top + rect.height / 2 : height / 4;
 
-  // Gold for the medal, the reader's accent, and a few bright ones.
+  // Gold for the medal, the theme's accent, and a few bright ones.
   const accent = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim();
   const colours = ["#f59e0b", "#fde68a", "#dc2626", "#10b981", "#38bdf8", "#a78bfa", accent || "#f59e0b"];
 

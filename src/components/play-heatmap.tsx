@@ -1,10 +1,11 @@
 import { dayKey, keyToUtcDate, shiftDayKey } from "@/lib/dates";
-import { formatDate, formatNumber } from "@/lib/display";
+import { formatDate } from "@/lib/display";
 import { heatmapLegend, heatmapLevel, heatmapThresholds } from "@/lib/heatmap";
 import type { Preferences } from "@/lib/preferences";
 import { playStreaks } from "@/lib/progress";
+import { formatHoursPlayed, formatPlaytime } from "@/lib/progress-units";
 
-/** Cell tint per intensity level (0 = no reading that day). */
+/** Cell tint per intensity level (0 = not played that day). */
 const LEVEL_CLASS = [
   "bg-muted",
   "bg-primary/25",
@@ -25,10 +26,11 @@ const DAY_LABELS = {
 
 /**
  * GitHub-style calendar of the last 12 months: one cell per day, tinted by
- * pages read that day (see dailyPageTotals for how entries become pages).
- * Server component — plain divs with title tooltips, no interactivity.
+ * the time played that day, in minutes (see dailyMinuteTotals for how log
+ * entries become time played). Server component — plain divs with title
+ * tooltips, no interactivity.
  *
- * Days are counted in the reader's time zone, weeks start on their chosen
+ * Days are counted in the player's time zone, weeks start on their chosen
  * day, and the shades follow their chosen scale (all from Preferences). The
  * calendar itself is laid out on midnight-UTC dates built from day keys, so
  * the server's own zone can't shift a cell.
@@ -48,8 +50,8 @@ export function PlayHeatmap({
   if (totals.size === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Update a game&apos;s current page as you read — every day you log
-        progress lights up here.
+        Log time on the games you&apos;re playing — every day you play lights
+        up here.
       </p>
     );
   }
@@ -84,11 +86,11 @@ export function PlayHeatmap({
   );
   if (!labels.slice(1, 4).some(Boolean)) labels[0] = shortMonth(weeks[0][0].date);
 
-  // Summary line: days and pages inside the window, streaks over the full log.
+  // Summary line: days and time inside the window, streaks over the full log.
   const windowDays = weeks.flat();
   const windowTotals = windowDays.map((d) => totals.get(d.key) ?? 0);
-  const daysPlayed = windowTotals.filter((p) => p > 0).length;
-  const pagesInWindow = windowTotals.reduce((sum, p) => sum + p, 0);
+  const daysPlayed = windowTotals.filter((m) => m > 0).length;
+  const minutesInWindow = windowTotals.reduce((sum, m) => sum + m, 0);
   const { current, longest } = playStreaks(
     new Set(totals.keys()),
     now,
@@ -104,8 +106,8 @@ export function PlayHeatmap({
         <span className="font-medium text-foreground tabular-nums">
           {daysPlayed}
         </span>{" "}
-        reading {daysPlayed === 1 ? "day" : "days"} (
-        {formatNumber(pagesInWindow, prefs)} pages) in the last year
+        play {daysPlayed === 1 ? "day" : "days"} (
+        {formatHoursPlayed(minutesInWindow, prefs)}) in the last year
         {current > 1 && (
           <>
             {" "}
@@ -138,14 +140,14 @@ export function PlayHeatmap({
                 )}
               </div>
               {week.map((day) => {
-                const pages = totals.get(day.key) ?? 0;
+                const minutes = totals.get(day.key) ?? 0;
                 return (
                   <div
                     key={day.key}
-                    className={`size-3 rounded-[3px] ${LEVEL_CLASS[heatmapLevel(pages, thresholds)]}`}
+                    className={`size-3 rounded-[3px] ${LEVEL_CLASS[heatmapLevel(minutes, thresholds)]}`}
                     title={
-                      pages > 0
-                        ? `${pages} pages · ${formatDate(day.date, prefs)}`
+                      minutes > 0
+                        ? `${formatPlaytime(minutes)} · ${formatDate(day.date, prefs)}`
                         : formatDate(day.date, prefs)
                     }
                   />

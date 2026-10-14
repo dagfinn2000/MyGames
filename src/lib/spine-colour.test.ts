@@ -39,7 +39,7 @@ describe("spineColour", () => {
 
 describe("drawnSpineColour", () => {
   it("is the same for a title every time", () => {
-    expect(drawnSpineColour("Sult")).toBe(drawnSpineColour(" sult"));
-    expect(drawnSpineColour("Sult")).toMatch(/^hsl\(\d+ \d+% \d+%\)$/);
+    expect(drawnSpineColour("Celeste")).toBe(drawnSpineColour(" celeste"));
+    expect(drawnSpineColour("Celeste")).toMatch(/^hsl\(\d+ \d+% \d+%\)$/);
   });
 });

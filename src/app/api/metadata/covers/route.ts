@@ -4,24 +4,24 @@ import { getPreferences } from "@/lib/current-user";
 import { getCoverCandidates } from "@/lib/metadata";
 
 /**
- * GET /api/metadata/covers?isbn=…&title=…&author=…
- * Backs the cover picker in the game form — returns candidate cover images
- * from Open Library, Google Games, and the National Library of Norway.
+ * GET /api/metadata/covers?id=<catalogueId>&title=…
+ * Backs the cover picker in the game form — returns candidate covers: the
+ * catalogue entry's own first, then what a title search finds in each of
+ * the player's catalogues (IGDB, Wikipedia, Steam).
  */
 export async function GET(req: Request) {
   const guard = await guardMetadataRequest();
   if (!guard.ok) return guard.response;
 
   const params = new URL(req.url).searchParams;
-  const isbn = params.get("isbn")?.replace(/[\s-]/g, "") || null;
+  const catalogueId = params.get("id")?.trim() || null;
   const title = params.get("title")?.trim() || null;
-  const author = params.get("author")?.trim() || null;
 
-  if (!isbn && !title) {
+  if (!catalogueId && !title) {
     return NextResponse.json({ covers: [] });
   }
 
   const { catalogues } = await getPreferences();
-  const covers = await getCoverCandidates({ isbn, title, author }, catalogues);
+  const covers = await getCoverCandidates({ catalogueId, title }, catalogues);
   return NextResponse.json({ covers });
 }

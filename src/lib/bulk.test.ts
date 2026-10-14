@@ -8,15 +8,15 @@ const ids = (n: number) => Array.from({ length: n }, (_, i) => `game${i}`);
 
 describe("retag", () => {
   it("merges without duplicates and is null when nothing changes", () => {
-    expect(retag(["fantasy", "epic"], ["fantasy", "reread"], [])).toEqual(["fantasy", "epic", "reread"]);
-    expect(retag(["fantasy"], ["fantasy"], [])).toBeNull();
-    expect(retag(["fantasy"], [], ["sci-fi"])).toBeNull();
+    expect(retag(["rpg", "epic"], ["rpg", "replay"], [])).toEqual(["rpg", "epic", "replay"]);
+    expect(retag(["rpg"], ["rpg"], [])).toBeNull();
+    expect(retag(["rpg"], [], ["sci-fi"])).toBeNull();
     expect(retag([], [], [])).toBeNull();
   });
 
   it("removes tags, alone or together with adding", () => {
-    expect(retag(["fantasy", "epic", "owned"], [], ["epic"])).toEqual(["fantasy", "owned"]);
-    expect(retag(["fantasy", "epic"], ["reread"], ["fantasy"])).toEqual(["epic", "reread"]);
+    expect(retag(["rpg", "epic", "owned"], [], ["epic"])).toEqual(["rpg", "owned"]);
+    expect(retag(["rpg", "epic"], ["replay"], ["rpg"])).toEqual(["epic", "replay"]);
   });
 });
 
@@ -58,8 +58,8 @@ describe("bulkSchema", () => {
   });
 
   it("trims and lowercases tags, and explains a tag that is too long", () => {
-    const parsed = bulkSchema.parse({ gameIds: ["a"], addTags: ["  Fantasy "], removeTags: ["OLD"] });
-    expect(parsed.addTags).toEqual(["fantasy"]);
+    const parsed = bulkSchema.parse({ gameIds: ["a"], addTags: ["  Roguelike "], removeTags: ["OLD"] });
+    expect(parsed.addTags).toEqual(["roguelike"]);
     expect(parsed.removeTags).toEqual(["old"]);
     expect(firstError(bulkSchema.safeParse({ gameIds: ["a"], removeTags: ["x".repeat(51)] }))).toBe(
       "Tags can be at most 50 characters.",

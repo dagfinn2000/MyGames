@@ -74,7 +74,7 @@ const HEAD_THINGS: readonly AvatarAccessory[] = [
 const NECK_THINGS: readonly AvatarAccessory[] = ["necklace", "scarf", "bowtie"];
 
 /**
- * The avatar maker, under Decorate on the Room page: the reader makes a
+ * The avatar maker, under Decorate on the Room page: the player makes a
  * little self from a wardrobe of faces, hair, clothes, hats and odds and
  * ends, seen standing and in the armchair as it changes, and says whether
  * it's in the room at all.
@@ -196,9 +196,9 @@ export function AvatarMaker({
             onChange={(e) => onShown(e.target.checked)}
           />
           <span>
-            Show me in the reading room
+            Show me in the game room
             <span className="block text-xs text-muted-foreground">
-              Walking about, or in the armchair while you&apos;re reading a game.
+              Walking about, or in the armchair with a controller while you&apos;re playing a game.
             </span>
           </span>
         </label>
@@ -315,7 +315,7 @@ export function AvatarMaker({
               <Tiles
                 label="Getting about"
                 tall
-                hint="Everyone sits in the armchair to read."
+                hint="Everyone sits in the armchair to play."
                 options={AVATAR_MOBILITY}
                 labels={AVATAR_LABELS}
                 chosen={(mobility) => look.mobility === mobility}
@@ -413,7 +413,7 @@ export function AvatarMaker({
               </Tiles>
               <Tiles
                 label="In your hand"
-                hint="Carried about the house; put down to read."
+                hint="Carried about the house; put down to play."
                 options={AVATAR_HELD}
                 labels={AVATAR_LABELS}
                 chosen={(h) => look.held === h}
@@ -437,7 +437,7 @@ export function AvatarMaker({
             <>
               <Tiles
                 label="Your pet"
-                hint="Follows you about the house, and sleeps at your feet while you read."
+                hint="Follows you about the house, and sleeps at your feet while you play."
                 options={PETS}
                 labels={PET_LABELS}
                 chosen={(p) => pet === p}
@@ -474,7 +474,7 @@ export function AvatarMaker({
 }
 
 /** The avatar against a bit of wall: on its feet, and in the armchair with
- *  a game. */
+ *  a controller. */
 function Stage({ look, pet, scene }: { look: AvatarLook; pet: Pet; scene: Record<string, string | undefined> }) {
   const avatar = useAvatar(look, pet)!;
   const s = 3;

@@ -4,10 +4,10 @@ import { auth } from "@/auth";
 export interface ActionState {
   error?: string;
   success?: boolean;
-  /** Set by updatePlay when the save marked the game as read, so the
-   *  reading card can celebrate. */
+  /** Set by updatePlay when the save marked the game as completed, so the
+   *  playing card can celebrate. */
   finished?: boolean;
-  /** Set by createGame when the reader chose "Add and add another": the
+  /** Set by createGame when the player chose "Add and add another": the
    *  form stays on the add page and says what was added. */
   added?: { id: string; title: string };
 }

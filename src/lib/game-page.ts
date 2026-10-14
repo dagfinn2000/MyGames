@@ -1,23 +1,23 @@
 import { GAME_PAGE_CARDS, type GamePageCard, type Preferences } from "@/lib/preferences";
 
-/** Which of a game's cards have something of the reader's in them. */
+/** Which of a game's cards have something of the player's in them. */
 export type CardHasContent = Partial<Record<GamePageCard, boolean>>;
 
 /**
- * The line under a card that shows although the reader hid it. Only these
+ * The line under a card that shows although the player hid it. Only these
  * cards are ever shown that way: each holds something written down nowhere
  * else on the page. Shelves never is, since a game's shelves also show in
  * the library.
  */
 export const FORCED_CARD_NOTES: Partial<Record<GamePageCard, string>> = {
-  reading: "Shown although hidden, because you're reading it or wrote a review.",
-  history: "Shown although hidden, because this game has past reads.",
+  playing: "Shown although hidden, because you're playing it or wrote a review.",
+  history: "Shown although hidden, because this game has past playthroughs.",
   lending: "Shown although hidden, because it's lent out.",
   quotes: "Shown although hidden, because you've saved quotes from it.",
 };
 
 /**
- * The cards a game's page shows, in the reader's order. A hidden card is
+ * The cards a game's page shows, in the player's order. A hidden card is
  * left out unless it has content, so hiding a card never hides an open loan
  * or a saved quote; such a card comes back `forced`. Every card is placed
  * even if `gamePageCards` leaves one out (parsePreferences fills it in, but

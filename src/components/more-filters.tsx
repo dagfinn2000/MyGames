@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-/** Minimum-rating choices, worded in the reader's rating style. Values are
+/** Minimum-rating choices, worded in the player's rating style. Values are
  *  the stored 1–10. */
 const RATING_OPTIONS: Record<Exclude<RatingStyle, "off">, { value: string; label: string }[]> = {
   half: [
@@ -46,7 +46,7 @@ const RATING_OPTIONS: Record<Exclude<RatingStyle, "off">, { value: string; label
 };
 
 /** A minimum rating as the menu words it ("≥ 4 stars"), or out of ten when
- *  the reader's style has no such choice (or ratings are off). */
+ *  the player's style has no such choice (or ratings are off). */
 export function minRatingLabel(value: string, style: RatingStyle): string {
   if (value === "unrated") return "Unrated";
   const option = style === "off" ? undefined : RATING_OPTIONS[style].find((o) => o.value === value);
@@ -130,7 +130,7 @@ export function MoreFilters({
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Games you finished that year, re-reads included. Uses your time zone.
+            Games you finished that year, replays included. Uses your time zone.
           </p>
         </div>
 

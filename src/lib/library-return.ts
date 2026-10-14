@@ -4,9 +4,9 @@
  *
  * Clicking a game in the library notes which game, the library's address
  * (with its filters, sort and "Show more" count) and how far down it was
- * scrolled. The reading room, the library drawn as a house, notes the same
- * for a spine clicked there. The game page shows its X only when that note
- * is for its own game, so a game opened from Now reading, Stats or another
+ * scrolled. The game room, the library drawn as a house, notes the same
+ * for a case clicked there. The game page shows its X only when that note
+ * is for its own game, so a game opened from Now playing, Stats or another
  * game's series strip looks as it always did.
  *
  * The note lives in sessionStorage: it belongs to this tab, survives a
@@ -19,7 +19,7 @@ export interface LibraryReturn {
   /** The game that was opened. */
   gameId: string;
   /** The library page it was opened from, path and query: "/games?sort=title",
-   *  or the reading room, "/room". */
+   *  or the game room, "/room". */
   href: string;
   /** How far down the library was scrolled. */
   scrollY: number;
@@ -29,7 +29,7 @@ export interface LibraryReturn {
 }
 
 /** True for the library page itself, with or without a query, and for the
- *  reading room. Anything else (a game, /games/new, another site) is not
+ *  game room. Anything else (a game, /games/new, another site) is not
  *  somewhere the X should go. */
 export function isLibraryHref(href: string): boolean {
   return href === "/games" || href.startsWith("/games?") || href === "/room";
@@ -55,17 +55,17 @@ export function parseLibraryReturn(raw: string | null, gameId: string): LibraryR
 }
 
 /** What following a game link from `pathname` does to the note: the
- *  library and the reading room write a new one; a game page's series strip
+ *  library and the game room write a new one; a game page's series strip
  *  keeps it, so Back from the next game still finds the X on this one;
- *  anywhere else (Now reading, Stats) forgets it. */
+ *  anywhere else (Now playing, Stats) forgets it. */
 export function noteAction(pathname: string): "write" | "keep" | "forget" {
   if (pathname === "/games" || pathname === "/room") return "write";
-  if (/^\/games\/(?!new$|check$)[^/]+$/.test(pathname)) return "keep";
+  if (/^\/games\/(?!new$)[^/]+$/.test(pathname)) return "keep";
   return "forget";
 }
 
 /** Called as a game link is followed (components/game-link.tsx). */
-export function noteBookOpened(gameId: string, cover: HTMLElement | null): void {
+export function noteGameOpened(gameId: string, cover: HTMLElement | null): void {
   try {
     const action = noteAction(location.pathname);
     if (action === "keep") return;

@@ -5,7 +5,7 @@ const TTL_MS = 7 * 24 * 60 * 60 * 1000; // one week
 
 /** Longer lookups skip the cache. Postgres can't index a key much past 2 KB
  *  (it refuses the row), and a refused cache write failed the lookup it was
- *  only meant to remember. Real titles and ISBNs are far shorter. */
+ *  only meant to remember. Real titles and catalogue ids are far shorter. */
 const MAX_KEY_LENGTH = 500;
 
 /**
@@ -15,7 +15,7 @@ const MAX_KEY_LENGTH = 500;
  * - Fresh cache hit → returned without touching the network.
  * - Miss/stale → `fetcher` runs; a non-null result is upserted.
  * - `fetcher` fails but a stale row exists → the stale payload is returned,
- *   so a flaky Open Library never breaks lookups that worked before.
+ *   so a flaky catalogue never breaks lookups that worked before.
  */
 export async function cachedLookup<T>(
   source: string,

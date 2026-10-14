@@ -7,13 +7,14 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /**
- * Cover picker: searches every metadata source for candidate covers of the
- * game currently in the form (exact ISBN matches first, so the edition you
- * own wins), or uploads your own image — e.g. a photo of the actual game.
+ * Cover picker: searches every catalogue for candidate covers of the game
+ * currently in the form (its own catalogue entry's first, then a search by
+ * title in each), or uploads your own image — a photo of your copy's box,
+ * say.
  *
- * Lives inside the game form and reads title/authors/ISBN straight from the
- * surrounding form's inputs, so whatever the user has typed (not just the
- * imported values) drives the search.
+ * Lives inside the game form and reads the title and catalogue entry
+ * straight from the surrounding form's inputs, so whatever the player has
+ * typed (not just the imported values) drives the search.
  */
 export function CoverPicker({
   selected,
@@ -34,20 +35,18 @@ export function CoverPicker({
     const val = (name: string) =>
       (form?.elements.namedItem(name) as HTMLInputElement | null)?.value.trim() ?? "";
     const title = val("title");
-    const isbn = val("isbn");
-    const author = val("authors").split(",")[0]?.trim() ?? "";
+    const catalogueId = val("catalogueId");
 
-    if (!title && !isbn) {
-      setError("Fill in a title or ISBN first.");
+    if (!title && !catalogueId) {
+      setError("Fill in a title first.");
       return;
     }
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (isbn) params.set("isbn", isbn);
+      if (catalogueId) params.set("id", catalogueId);
       if (title) params.set("title", title);
-      if (author) params.set("author", author);
       const res = await fetch(`/api/metadata/covers?${params}`);
       if (!res.ok) throw new Error();
       const data = await res.json();

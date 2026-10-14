@@ -1,8 +1,8 @@
-import { GameOwnership } from "@prisma/client";
+import { GameFormat, GameOwnership } from "@prisma/client";
 
 /**
  * Pure lending helpers, kept out of the card component so they're testable —
- * the same split as lib/progress.ts and its reading card.
+ * the same split as lib/progress.ts and its playing card.
  */
 
 /**
@@ -19,11 +19,18 @@ export function outFor(lentAt: Date, now: Date): string {
   return `out for ${days} days`;
 }
 
-/** What the Lending card can do with this copy. Only a copy you own can be
- *  lent out; for the others the card says why not. */
-export type LendingMode = "lendable" | "borrowed" | "given-away" | "wishlist";
+/** What the Lending card can do with this copy. Only a physical copy you
+ *  own can be lent out (there's no disc or cartridge to hand over for a
+ *  digital or subscription game); for the others the card says why not. */
+export type LendingMode =
+  | "lendable"
+  | "borrowed"
+  | "given-away"
+  | "wishlist"
+  | "digital"
+  | "subscription";
 
-export function lendingMode(ownership: GameOwnership): LendingMode {
+export function lendingMode(ownership: GameOwnership, format: GameFormat): LendingMode {
   switch (ownership) {
     case GameOwnership.BORROWED:
       return "borrowed";
@@ -31,15 +38,28 @@ export function lendingMode(ownership: GameOwnership): LendingMode {
       return "given-away";
     case GameOwnership.WISHLIST:
       return "wishlist";
+  }
+  switch (format) {
+    case GameFormat.DIGITAL:
+      return "digital";
+    case GameFormat.SUBSCRIPTION:
+      return "subscription";
     default:
       return "lendable";
   }
 }
 
-/** A wishlist game has no copy to lend, so it gets no Lending card, unless
- *  it has loans on record (it was owned once), which must not vanish. */
-export function showsLendingCard(ownership: GameOwnership, loanCount: number): boolean {
-  return ownership !== GameOwnership.WISHLIST || loanCount > 0;
+/** The Lending card is for physical copies you have or had. A wishlist,
+ *  digital or subscription game has nothing to lend, so it gets no card,
+ *  unless it has loans on record (it was a lendable copy once), which must
+ *  not vanish. */
+export function showsLendingCard(
+  ownership: GameOwnership,
+  format: GameFormat,
+  loanCount: number,
+): boolean {
+  if (loanCount > 0) return true;
+  return ownership !== GameOwnership.WISHLIST && format === GameFormat.PHYSICAL;
 }
 
 /** The card's line while nothing is lent out. */
@@ -48,4 +68,6 @@ export const LENDING_NOTE: Record<LendingMode, string> = {
   borrowed: "Borrowed copy. It isn't yours to lend.",
   "given-away": "You gave this copy away.",
   wishlist: "On your wishlist, so there's no copy to lend.",
+  digital: "A digital copy, so there's nothing to hand over.",
+  subscription: "Part of a subscription, so there's no copy to lend.",
 };

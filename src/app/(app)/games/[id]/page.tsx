@@ -2,8 +2,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { PlayStatus } from "@prisma/client";
-import { Library, Pencil, Repeat } from "lucide-react";
-import { GameFormat } from "@prisma/client";
+import { ExternalLink, Library, Pencil, Repeat } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getPreferences } from "@/lib/current-user";
@@ -17,8 +16,9 @@ import {
   STATUS_BADGE_CLASS,
   STATUS_LABELS,
 } from "@/lib/display";
-import { AuthorLinks } from "@/components/author-links";
-import { formatLength } from "@/lib/progress-units";
+import { catalogueLink } from "@/lib/metadata/links";
+import { aboutLength, formatPlaytime } from "@/lib/progress-units";
+import { DeveloperLinks } from "@/components/developer-links";
 import { GameBackdrop, GameCover } from "@/components/game-card";
 import { GameDescription } from "@/components/game-description";
 import { GameLink } from "@/components/game-link";
@@ -60,25 +60,26 @@ export default async function GameDetailPage({
 
   const game = await prisma.game.findFirst({
     where: { id, userId },
-    // Search's folded copies of title, authors, series and review: the
-    // reading card is a client component and would carry them to the page.
+    // Search's folded copies of title, developers, platform, series and
+    // review: the playing card is a client component and would carry them
+    // to the page.
     omit: { searchText: true, reviewSearchText: true },
     include: {
       shelves: { select: { id: true } },
-      quotes: {
-        orderBy: [{ page: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
-      },
-      // Oldest pass first; undated reads are presumed oldest.
+      // Newest first: a quote has no place in the game to sort by.
+      quotes: { orderBy: [{ createdAt: "desc" }, { id: "asc" }] },
+      // Oldest playthrough first; undated ones are presumed oldest.
       playthroughs: {
         orderBy: [
           { dateFinished: { sort: "asc", nulls: "first" } },
           { createdAt: "asc" },
         ],
       },
-      // The automatic reading log, oldest first (page breaks same-instant
-      // ties — a pass's page-0 anchor sorts before its first real entry).
+      // The automatic play log, oldest first (minutes break same-instant
+      // ties — a playthrough's 0-minute anchor sorts before its first real
+      // entry).
       progress: {
-        orderBy: [{ date: "asc" }, { page: "asc" }],
+        orderBy: [{ date: "asc" }, { minutes: "asc" }],
       },
       // Newest first: the open loan (if any) leads, history follows.
       loans: { orderBy: { lentAt: "desc" } },
@@ -104,32 +105,49 @@ export default async function GameDetailPage({
       : Promise.resolve([]),
   ]);
 
+  const catalogue = catalogueLink(game.catalogueId);
+  // "2017-03-03" and "2017-03" show as their year; catalogues rarely agree
+  // on more than that anyway.
+  const releaseYear = game.releaseDate?.match(/^\d{4}/)?.[0] ?? game.releaseDate;
+  const finishedLabel =
+    game.status === PlayStatus.DROPPED
+      ? "Dropped"
+      : game.status === PlayStatus.COMPLETED
+        ? "Completed"
+        : "Finished";
+
   const seriesHref = game.seriesName
     ? `/games?series=${encodeURIComponent(game.seriesName)}&group=series`
     : null;
 
-  // The cards below the details, in the reader's order (Preferences > Game
+  // The cards below the details, in the player's order (Preferences > Game
   // page). A hidden card still shows when it holds something written down
   // nowhere else on the page, with a line saying why.
   const cards: Record<GamePageCard, React.ReactNode> = {
     shelves: (
       <GameShelvesCard
         gameId={game.id}
-        // In the reader's own order, as the library's shelf chips are.
+        // In the player's own order, as the library's shelf chips are.
         shelves={orderByIds(allShelves, prefs.shelfOrder)}
         memberIds={game.shelves.map((s) => s.id)}
       />
     ),
-    reading: <PlayingCard game={game} progress={game.progress} />,
+    playing: <PlayingCard game={game} progress={game.progress} />,
     history: <PlaythroughHistoryCard game={game} playthroughs={game.playthroughs} />,
-    // A wishlist copy with no loan history has nothing to show.
-    lending: showsLendingCard(game.ownership, game.loans.length) ? (
-      <LendingCard gameId={game.id} ownership={game.ownership} loans={game.loans} />
+    // A wishlist, digital or subscription game with no loan history has
+    // nothing to show.
+    lending: showsLendingCard(game.ownership, game.format, game.loans.length) ? (
+      <LendingCard
+        gameId={game.id}
+        ownership={game.ownership}
+        format={game.format}
+        loans={game.loans}
+      />
     ) : null,
     quotes: <QuotesCard gameId={game.id} quotes={game.quotes} />,
   };
   const arranged = arrangeGameCards(prefs, {
-    reading: game.status === PlayStatus.PLAYING || !!game.review?.trim(),
+    playing: game.status === PlayStatus.PLAYING || !!game.review?.trim(),
     history: game.playthroughs.length > 0,
     lending: game.loans.some((l) => l.returnedAt === null),
     quotes: game.quotes.length > 0,
@@ -142,7 +160,7 @@ export default async function GameDetailPage({
       <GameBackdrop game={game} />
       {/* Both column definitions clamp their track minimums to 0 — with the
           default (auto) minimum, one unbreakable token in the description
-          (Open Library URLs, say) would stretch the whole page past the
+          (a store URL, say) would stretch the whole page past the
           viewport. */}
       <div className="game-page relative grid grid-cols-1 gap-6 md:grid-cols-[240px_minmax(0,1fr)]">
         <CloseGameButton gameId={game.id} />
@@ -165,15 +183,15 @@ export default async function GameDetailPage({
         </div>
 
         <div className="grid grid-cols-1 content-start gap-4">
-          {/* A title, author or series with no spaces to break at wraps
+          {/* A title, developer or series with no spaces to break at wraps
               anywhere, instead of pushing the page sideways. */}
           <div className="game-title wrap-anywhere">
             <h1 className="text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl">
               {game.title}
             </h1>
-            {game.authors.length > 0 && (
+            {game.developers.length > 0 && (
               <p className="mt-1.5 text-lg text-muted-foreground">
-                <AuthorLinks authors={game.authors} />
+                <DeveloperLinks developers={game.developers} />
               </p>
             )}
             {game.seriesName && seriesHref && (
@@ -199,7 +217,7 @@ export default async function GameDetailPage({
             {game.timesCompleted > 1 && (
               <Badge variant="outline">
                 <Repeat data-slot="icon" className="size-3" />
-                Read {game.timesCompleted}×
+                Completed {game.timesCompleted}×
               </Badge>
             )}
             {game.tags.map((tag) =>
@@ -222,34 +240,73 @@ export default async function GameDetailPage({
           {/* Each fact sits after a hairline, with its label in small
               capitals above the value (globals.css, `.game-facts`). */}
           <dl className="game-facts grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
-            {game.pageCount && (
+            {game.platform && (
               <div>
-                <dt className="text-muted-foreground">Pages</dt>
-                <dd>{game.pageCount}</dd>
+                <dt className="text-muted-foreground">Platform</dt>
+                {/* Its other games on the same system, like the developer
+                    and tag links above. */}
+                <dd className="wrap-anywhere">
+                  <Link
+                    href={`/games?platform=${encodeURIComponent(game.platform)}`}
+                    className="hover:underline"
+                  >
+                    {game.platform}
+                  </Link>
+                </dd>
               </div>
             )}
-            {game.format === GameFormat.AUDIOBOOK && game.lengthMinutes != null && (
+            {game.publisher && (
               <div>
-                <dt className="text-muted-foreground">Length</dt>
-                <dd>{formatLength(game.lengthMinutes)}</dd>
+                <dt className="text-muted-foreground">Publisher</dt>
+                <dd className="wrap-anywhere">{game.publisher}</dd>
               </div>
             )}
-            {game.publishedDate && (
+            {releaseYear && (
               <div>
-                <dt className="text-muted-foreground">Published</dt>
-                <dd>{game.publishedDate}</dd>
+                <dt className="text-muted-foreground">Released</dt>
+                <dd>{releaseYear}</dd>
               </div>
             )}
-            {game.isbn && (
+            {game.lengthMinutes != null && (
               <div>
-                <dt className="text-muted-foreground">ISBN</dt>
-                <dd>{game.isbn}</dd>
+                <dt className="text-muted-foreground">Time to beat</dt>
+                <dd>{aboutLength(game.lengthMinutes)}</dd>
               </div>
             )}
             {game.dateFinished && (
               <div>
-                <dt className="text-muted-foreground">Finished</dt>
+                <dt className="text-muted-foreground">{finishedLabel}</dt>
                 <dd>{formatDate(game.dateFinished, prefs)}</dd>
+              </div>
+            )}
+            {/* The time the playthrough took, or where it stopped. */}
+            {game.playedMinutes != null && game.status === PlayStatus.COMPLETED && (
+              <div>
+                <dt className="text-muted-foreground">Completed in</dt>
+                <dd>{formatPlaytime(game.playedMinutes)}</dd>
+              </div>
+            )}
+            {game.playedMinutes != null && game.status === PlayStatus.DROPPED && (
+              <div>
+                <dt className="text-muted-foreground">Stopped at</dt>
+                <dd>{formatPlaytime(game.playedMinutes)}</dd>
+              </div>
+            )}
+            {catalogue && (
+              <div>
+                <dt className="text-muted-foreground">More on</dt>
+                <dd>
+                  <a
+                    href={catalogue.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-sm underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    {catalogue.label}
+                    <ExternalLink aria-hidden="true" className="size-3.5 shrink-0" />
+                    <span className="sr-only"> (opens in a new tab)</span>
+                  </a>
+                </dd>
               </div>
             )}
           </dl>
@@ -277,17 +334,17 @@ export default async function GameDetailPage({
               </h2>
               {/* One row that scrolls, so a long series doesn't push the rest down. */}
               <div className="flex gap-3 overflow-x-auto pb-1">
-                {seriesGames.map((b) => (
+                {seriesGames.map((g) => (
                   <GameLink
-                    key={b.id}
-                    gameId={b.id}
+                    key={g.id}
+                    gameId={g.id}
                     className="group w-20 shrink-0"
-                    title={`${b.title}${b.seriesNumber != null ? ` (#${b.seriesNumber})` : ""}`}
+                    title={`${g.title}${g.seriesNumber != null ? ` (#${g.seriesNumber})` : ""}`}
                   >
-                    <GameCover game={b} className="aspect-[2/3] w-20" />
+                    <GameCover game={g} className="aspect-[2/3] w-20" />
                     <p className="mt-1 line-clamp-2 text-xs leading-tight text-muted-foreground group-hover:text-foreground">
-                      {b.seriesNumber != null ? `#${b.seriesNumber} · ` : ""}
-                      {b.title}
+                      {g.seriesNumber != null ? `#${g.seriesNumber} · ` : ""}
+                      {g.title}
                     </p>
                   </GameLink>
                 ))}

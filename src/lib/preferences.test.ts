@@ -36,11 +36,12 @@ describe("parsePreferences", () => {
 
   it("keeps known list entries once, in the order given", () => {
     const prefs = parsePreferences({
-      catalogues: ["nb", "bogus", "openlibrary", "nb"],
-      hiddenStats: ["quote", "quote", "goal", 7],
+      // "openlibrary" is a book catalogue, not one this app searches.
+      catalogues: ["steam", "bogus", "openlibrary", "igdb", "steam"],
+      hiddenStats: ["quote", "quote", "platforms", "goal", 7],
     });
-    expect(prefs.catalogues).toEqual(["nb", "openlibrary"]);
-    expect(prefs.hiddenStats).toEqual(["quote", "goal"]);
+    expect(prefs.catalogues).toEqual(["steam", "igdb"]);
+    expect(prefs.hiddenStats).toEqual(["quote", "platforms", "goal"]);
   });
 
   it("searches every catalogue rather than none", () => {
@@ -93,10 +94,8 @@ describe("parsePreferences: the newer settings", () => {
       afterAdd: "open",
       pickOnlyHave: false,
       pickNextInSeries: false,
-      quickLogSteps: "10-25",
-      ebookUnit: "page",
-      audiobookUnit: "page",
-      paceFrom: "read",
+      quickLogSteps: "30m-1h",
+      paceFrom: "playthrough",
       gamePageCards: [...GAME_PAGE_CARDS],
       hiddenGamePageCards: [],
       gameDescription: "full",
@@ -107,9 +106,8 @@ describe("parsePreferences: the newer settings", () => {
       hiddenShelves: [],
       savedViewOrder: [],
       hiddenStatusTabs: [],
-      statsPagesRead: "finished",
+      statsHoursPlayed: "logged",
       statsStoppedGames: "none",
-      statsAudiobooks: "full",
       statsPeriod: "all",
       statsBreakdown: "library",
       quotesOrder: "newest",
@@ -122,15 +120,12 @@ describe("parsePreferences: the newer settings", () => {
     const valid = parsePreferences({
       addedAsCompletedFinished: "undated",
       afterAdd: "another",
-      quickLogSteps: "5pct",
-      ebookUnit: "percent",
-      audiobookUnit: "time",
+      quickLogSteps: "15m-30m",
       paceFrom: "14d",
       gameDescription: "clamp",
       shelvesCard: "mine",
-      statsPagesRead: "logged",
-      statsStoppedGames: "pages",
-      statsAudiobooks: "out",
+      statsHoursPlayed: "finished",
+      statsStoppedGames: "hours",
       statsPeriod: "30d",
       statsBreakdown: "period",
       quotesOrder: "shuffle",
@@ -142,15 +137,12 @@ describe("parsePreferences: the newer settings", () => {
     expect(valid).toMatchObject({
       addedAsCompletedFinished: "undated",
       afterAdd: "another",
-      quickLogSteps: "5pct",
-      ebookUnit: "percent",
-      audiobookUnit: "time",
+      quickLogSteps: "15m-30m",
       paceFrom: "14d",
       gameDescription: "clamp",
       shelvesCard: "mine",
-      statsPagesRead: "logged",
-      statsStoppedGames: "pages",
-      statsAudiobooks: "out",
+      statsHoursPlayed: "finished",
+      statsStoppedGames: "hours",
       statsPeriod: "30d",
       statsBreakdown: "period",
       quotesOrder: "shuffle",
@@ -160,16 +152,22 @@ describe("parsePreferences: the newer settings", () => {
       quotesGroupByGame: true,
     });
 
+    // Values counted in pages rather than time go back to the defaults
+    // rather than being guessed at.
     const invalid = parsePreferences({
-      ebookUnit: "time", // audiobooks only
-      paceFrom: "30d",
+      quickLogSteps: "10-25",
+      paceFrom: "read",
+      statsHoursPlayed: "pages",
+      statsStoppedGames: "pages",
       quotesOrder: "random",
       backupReminder: "weekly",
       pickOnlyHave: "yes",
       statsPeriod: 2024,
     });
-    expect(invalid.ebookUnit).toBe("page");
-    expect(invalid.paceFrom).toBe("read");
+    expect(invalid.quickLogSteps).toBe("30m-1h");
+    expect(invalid.paceFrom).toBe("playthrough");
+    expect(invalid.statsHoursPlayed).toBe("logged");
+    expect(invalid.statsStoppedGames).toBe("none");
     expect(invalid.quotesOrder).toBe("newest");
     expect(invalid.backupReminder).toBe("off");
     expect(invalid.pickOnlyHave).toBe(false);
@@ -186,24 +184,31 @@ describe("parsePreferences: the newer settings", () => {
     );
   });
 
-  it("offers Now reading as a start page and a top-bar link", () => {
-    expect(START_PAGES).toContain("reading");
-    expect(START_PAGE_PATHS.reading).toBe("/playing");
-    expect(parsePreferences({ startPage: "reading" }).startPage).toBe("reading");
-    expect(parsePreferences({ hiddenNav: ["reading", "quotes"] }).hiddenNav).toEqual([
-      "reading",
+  it("offers Now playing as a start page and a top-bar link", () => {
+    expect(START_PAGES).toContain("playing");
+    expect(START_PAGE_PATHS.playing).toBe("/playing");
+    expect(parsePreferences({ startPage: "playing" }).startPage).toBe("playing");
+    expect(parsePreferences({ hiddenNav: ["playing", "quotes"] }).hiddenNav).toEqual([
+      "playing",
       "quotes",
+    ]);
+  });
+
+  it("forgets the links and start page that games don't have", () => {
+    expect(parsePreferences({ startPage: "reading" }).startPage).toBe("library");
+    expect(parsePreferences({ hiddenNav: ["check", "reading", "room"] }).hiddenNav).toEqual([
+      "room",
     ]);
   });
 
   it("always lists every game-page card once", () => {
     expect(parsePreferences({ gamePageCards: ["quotes", "bogus", "quotes"] }).gamePageCards).toEqual(
-      ["quotes", "shelves", "reading", "history", "lending"],
+      ["quotes", "shelves", "playing", "history", "lending"],
     );
     expect(
-      parsePreferences({ gamePageCards: ["lending", "history", "reading", "shelves", "quotes"] })
+      parsePreferences({ gamePageCards: ["lending", "history", "playing", "shelves", "quotes"] })
         .gamePageCards,
-    ).toEqual(["lending", "history", "reading", "shelves", "quotes"]);
+    ).toEqual(["lending", "history", "playing", "shelves", "quotes"]);
     expect(parsePreferences({ gamePageCards: "quotes" }).gamePageCards).toEqual([
       ...GAME_PAGE_CARDS,
     ]);
@@ -213,9 +218,9 @@ describe("parsePreferences: the newer settings", () => {
   });
 
   it("keeps known search fields", () => {
-    expect(parsePreferences({ searchAlsoIn: ["review", "notes", "tags", "tags"] }).searchAlsoIn).toEqual(
-      ["review", "tags"],
-    );
+    expect(
+      parsePreferences({ searchAlsoIn: ["review", "notes", "isbn", "tags", "tags"] }).searchAlsoIn,
+    ).toEqual(["review", "tags"]);
     expect(parsePreferences({ searchAlsoIn: "tags" }).searchAlsoIn).toEqual([]);
   });
 
@@ -242,14 +247,15 @@ describe("parsePreferences: the newer settings", () => {
   });
 
   it("keeps valid Find it at links, trimmed, up to the cap", () => {
-    const good = { name: " Library ", url: " https://example.org/search?q={isbn} " };
+    const good = { name: " HowLongToBeat ", url: " https://howlongtobeat.com/?q={title} " };
     const prefs = parsePreferences({
       findLinks: [
         good,
         { name: "Plain", url: "http://example.org" },
         { name: "Script", url: "javascript:alert(1)" },
         { name: "Odd", url: "https://example.org/{publisher}" },
-        { name: "Brace", url: "https://example.org/{isbn" },
+        { name: "Old", url: "https://example.org/search?q={isbn}" },
+        { name: "Brace", url: "https://example.org/{title" },
         { name: "", url: "https://example.org" },
         { name: "x".repeat(41), url: "https://example.org" },
         { name: "Long", url: `https://example.org/${"a".repeat(500)}` },
@@ -259,7 +265,7 @@ describe("parsePreferences: the newer settings", () => {
       ],
     });
     expect(prefs.findLinks).toEqual([
-      { name: "Library", url: "https://example.org/search?q={isbn}" },
+      { name: "HowLongToBeat", url: "https://howlongtobeat.com/?q={title}" },
     ]);
     const seven = Array.from({ length: 7 }, (_, i) => ({
       name: `Shop ${i}`,
@@ -273,10 +279,15 @@ describe("parsePreferences: the newer settings", () => {
     expect(findLinkError("A", "")).toBe("Add the link.");
     expect(findLinkError("A", "ftp://a.example")).toBe("Links must start with https://.");
     expect(findLinkError("A", "https://a.example/{year}")).toBe(
-      "Only {isbn}, {title} and {author} can be filled in.",
+      "Only {title}, {developer} and {platform} can be filled in.",
+    );
+    expect(findLinkError("A", "https://a.example/?q={author}")).toBe(
+      "Only {title}, {developer} and {platform} can be filled in.",
     );
     expect(findLinkError("A", "https://user:pw@a.example")).toBe("That isn't a web address.");
-    expect(findLinkError("A", "https://a.example/s?t={title}&a={author}")).toBeNull();
+    expect(
+      findLinkError("A", "https://a.example/s?t={title}&d={developer}&p={platform}"),
+    ).toBeNull();
   });
 
   it("normalises tag rules, newest rule winning", () => {
@@ -293,10 +304,10 @@ describe("parsePreferences: the newer settings", () => {
         { from: "x", to: 4 },
         "nope",
       ],
-      tagSkips: ["Fiction", "fiction", " ", "general"],
+      tagSkips: ["Indie", "indie", " ", "adventure"],
     });
     expect(prefs.tagRenames).toEqual([{ from: "science fiction", to: "sf" }]);
-    expect(prefs.tagSkips).toEqual(["fiction", "general"]);
+    expect(prefs.tagSkips).toEqual(["indie", "adventure"]);
 
     const many = Array.from({ length: MAX_TAG_RULES + 5 }, (_, i) => `t${i}`);
     const capped = parsePreferences({ tagSkips: many }).tagSkips;
@@ -305,7 +316,7 @@ describe("parsePreferences: the newer settings", () => {
   });
 });
 
-describe("parsePreferences: the reading room", () => {
+describe("parsePreferences: the game room", () => {
   it("keeps a chosen style and colours, and defaults anything else", () => {
     const prefs = parsePreferences({
       roomStyle: "elven",
@@ -327,7 +338,7 @@ describe("parsePreferences: the reading room", () => {
       roomLayout: [
         { kind: "hearth", floor: 1, slot: 0 },
         { kind: "hearth", floor: 0, slot: 2 }, // a second place for it
-        { kind: "case", floor: 0, slot: 1 }, // bookcases don't move
+        { kind: "case", floor: 0, slot: 1 }, // the game shelves don't move
         { kind: "plant", floor: -1, slot: 0 },
         { kind: "clock", floor: 0, slot: 1.5 },
         { kind: "seat", floor: 2, slot: 3 },
@@ -404,7 +415,7 @@ describe("parsePreferences: the avatar", () => {
     expect(prefs.avatar).toEqual({ ...parsePreferences({}).avatar, hair: "afro", hat: "crown" });
   });
 
-  it("starts everyone with the same little reader, shown", () => {
+  it("starts everyone with the same little player, shown", () => {
     const prefs = parsePreferences({ avatar: "junk" });
     expect(prefs.avatarShown).toBe(true);
     expect(prefs.avatar).toEqual(parsePreferences({}).avatar);
@@ -451,12 +462,16 @@ describe("cleanPreferencesPatch", () => {
     expect(cleanPreferencesPatch({ isAdmin: true, theme: "dark" })).toEqual({});
     // Replaced by importTagsMode; a stale tab sending it changes nothing.
     expect(cleanPreferencesPatch({ importTags: false })).toEqual({});
+    // Book settings with nothing to do in a game library.
+    expect(
+      cleanPreferencesPatch({ authorOrder: "surname", ebookUnit: "percent", statsPagesRead: "logged" }),
+    ).toEqual({});
   });
 
   it("cleans the newer settings the same way", () => {
     expect(
       cleanPreferencesPatch({ quotesOrder: "game", paceFrom: "1y", findLinks: [{ name: "A" }] }),
-    ).toEqual({ quotesOrder: "game", paceFrom: "read", findLinks: [] });
+    ).toEqual({ quotesOrder: "game", paceFrom: "playthrough", findLinks: [] });
   });
 
   it("returns nothing for a non-object", () => {

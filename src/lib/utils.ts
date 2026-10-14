@@ -19,12 +19,13 @@ const FOLDED_LETTERS: Record<string, string> = {
 };
 
 /**
- * Lowercases and strips accents, so "Brontë" and "Bjørn" are found by
- * "bronte" and "bjorn". Applied to both the stored searchText and the words
+ * Lowercases and strips accents, so "Pokémon" and "Ōkami" are found by
+ * "pokemon" and "okami". Applied to both the stored searchText and the words
  * typed into search; the two have to agree exactly.
  *
- * The 20261011000000_accent_insensitive_search migration repeats these steps
- * in SQL to backfill existing rows. Change one, change the other.
+ * Every game's searchText was folded this way when it was saved. Change
+ * the steps and the stored rows need rewriting by a migration, or searches
+ * will stop finding them.
  */
 export function foldForSearch(s: string): string {
   return s
@@ -35,16 +36,20 @@ export function foldForSearch(s: string): string {
     .replace(/[æøœßđðłþ]/g, (c) => FOLDED_LETTERS[c]);
 }
 
-/** Folded title+authors+series blob stored on Game.searchText: makes
- *  case- and accent-insensitive search a `contains` query (Prisma can't
- *  substring-search a String[] column). Shared by the game actions and the
- *  backup import so the two can never drift. */
+/** Folded title + developers + series + platform blob stored on
+ *  Game.searchText: makes case- and accent-insensitive search a `contains`
+ *  query (Prisma can't substring-search a String[] column). Shared by the
+ *  game actions and the backup import so the two can never drift; anything
+ *  else that changes one of these fields has to rebuild it too. */
 export function buildSearchText(
   title: string,
-  authors: string[],
+  developers: string[],
   seriesName?: string | null,
+  platform?: string | null,
 ): string {
-  return foldForSearch([title, ...authors, seriesName ?? ""].join(" ").trim());
+  // Blank parts left out, so a game with a platform but no series doesn't
+  // get a double space in the middle.
+  return foldForSearch([title, ...developers, seriesName, platform].filter(Boolean).join(" ").trim());
 }
 
 /** Escapes LIKE's wildcards. Prisma's `contains` passes `%` and `_` through,
@@ -62,8 +67,8 @@ export function searchWords(q: string): string[] {
 
 /**
  * The words of a search query, folded like searchText and escaped for
- * `contains`. Each word is matched on its own, so "tolkien hobbit" finds
- * The Hobbit by J.R.R. Tolkien even though that phrase appears nowhere.
+ * `contains`. Each word is matched on its own, so "cherry knight" finds
+ * Hollow Knight by Team Cherry even though that phrase appears nowhere.
  */
 export function searchTerms(q: string): string[] {
   return searchWords(q).map(escapeLike);

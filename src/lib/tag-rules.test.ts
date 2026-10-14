@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyTagRules,
   catalogueTags,
-  splitCatalogueSubjects,
+  splitCatalogueGenres,
   withRenameRule,
   withSkipRule,
   withoutRule,
@@ -16,29 +16,29 @@ function settings(over: Partial<TagImportSettings> = {}): TagImportSettings {
   return { mode: "all", rules: none, knownTags: [], ...over };
 }
 
-describe("splitCatalogueSubjects", () => {
+describe("splitCatalogueGenres", () => {
   it("splits on commas, lowercases, dedupes and drops what can't be a tag", () => {
     expect(
-      splitCatalogueSubjects(["Fiction, General", "fiction", "  ", "x".repeat(51), "Sci-Fi"]),
-    ).toEqual(["fiction", "general", "sci-fi"]);
+      splitCatalogueGenres(["Action, Adventure", "action", "  ", "x".repeat(51), "Sci-Fi"]),
+    ).toEqual(["action", "adventure", "sci-fi"]);
   });
 });
 
 describe("applyTagRules", () => {
   it("drops skipped tags, before and after renaming", () => {
-    const rules = { renames: [{ from: "sf", to: "general" }], skips: ["general", "fiction"] };
-    expect(applyTagRules(["fiction", "sf", "fantasy"], rules)).toEqual(["fantasy"]);
+    const rules = { renames: [{ from: "f2p", to: "free to play" }], skips: ["free to play", "early access"] };
+    expect(applyTagRules(["early access", "f2p", "puzzle"], rules)).toEqual(["puzzle"]);
   });
 
   it("follows a chain of renames and dedupes the result", () => {
     const rules = {
       renames: [
-        { from: "science fiction", to: "sf" },
-        { from: "sf", to: "sci-fi" },
+        { from: "role-playing (rpg)", to: "role-playing" },
+        { from: "role-playing", to: "rpg" },
       ],
       skips: [],
     };
-    expect(applyTagRules(["science fiction", "sf", "sci-fi"], rules)).toEqual(["sci-fi"]);
+    expect(applyTagRules(["role-playing (rpg)", "role-playing", "rpg"], rules)).toEqual(["rpg"]);
   });
 
   it("stops on a loop in hand-edited rules", () => {
@@ -54,22 +54,22 @@ describe("applyTagRules", () => {
 });
 
 describe("catalogueTags", () => {
-  const raw = ["Fantasy", "Fiction, General", "Science Fiction"];
-  const rules = { renames: [{ from: "science fiction", to: "sci-fi" }], skips: ["general"] };
+  const raw = ["Puzzle", "Action, Indie", "Science fiction"];
+  const rules = { renames: [{ from: "science fiction", to: "sci-fi" }], skips: ["indie"] };
 
   it("copies nothing when switched off", () => {
     expect(catalogueTags(raw, settings({ mode: "off", rules }))).toEqual([]);
   });
 
   it("keeps only tags already in the library in mode known", () => {
-    expect(catalogueTags(raw, settings({ mode: "known", rules, knownTags: ["Sci-Fi", "romance"] }))).toEqual([
+    expect(catalogueTags(raw, settings({ mode: "known", rules, knownTags: ["Sci-Fi", "roguelike"] }))).toEqual([
       "sci-fi",
     ]);
     expect(catalogueTags(raw, settings({ mode: "known", rules, knownTags: [] }))).toEqual([]);
   });
 
-  it("keeps every subject, after the rules, in mode all", () => {
-    expect(catalogueTags(raw, settings({ rules }))).toEqual(["fantasy", "fiction", "sci-fi"]);
+  it("keeps every genre, after the rules, in mode all", () => {
+    expect(catalogueTags(raw, settings({ rules }))).toEqual(["puzzle", "action", "sci-fi"]);
   });
 });
 
@@ -113,10 +113,10 @@ describe("withRenameRule", () => {
 
 describe("withSkipRule", () => {
   it("adds the tag once and drops the rename rule from it", () => {
-    const rules = { renames: [{ from: "fiction", to: "novels" }], skips: ["general"] };
-    const once = withSkipRule(rules, "Fiction");
-    expect(once).toEqual({ renames: [], skips: ["general", "fiction"] });
-    expect(withSkipRule(once, "fiction").skips).toEqual(["general", "fiction"]);
+    const rules = { renames: [{ from: "indie", to: "indie games" }], skips: ["early access"] };
+    const once = withSkipRule(rules, "Indie");
+    expect(once).toEqual({ renames: [], skips: ["early access", "indie"] });
+    expect(withSkipRule(once, "indie").skips).toEqual(["early access", "indie"]);
   });
 
   it("keeps the newest 100", () => {

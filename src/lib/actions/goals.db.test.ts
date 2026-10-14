@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
 
 /**
- * The reading goal action against a real database: each year is its own
+ * The play goal action against a real database: each year is its own
  * goal, removing one leaves the others, bad input says so and writes
  * nothing, and nobody can touch someone else's goals.
  */
@@ -68,11 +68,21 @@ describe("setPlayGoal", () => {
     expect(revalidated).toEqual(["/stats", "/stats/year/2027"]);
   });
 
-  it("edits a past year's goal", async () => {
+  it("edits a past year's goal, into an hours goal without replays", async () => {
     await prisma.playGoal.create({ data: { userId, year: 2024, target: 18 } });
-    await setPlayGoal(goalForm({ year: "2024", target: "8000", unit: "PAGES" }));
+    await setPlayGoal(goalForm({ year: "2024", target: "300", unit: "HOURS" }));
     expect(await goals()).toEqual([
-      { year: 2024, target: 8000, unit: "PAGES", countReplays: false },
+      { year: 2024, target: 300, unit: "HOURS", countReplays: false },
+    ]);
+  });
+
+  it("takes an hours goal up to 10,000, and counts games when the unit is unknown", async () => {
+    await setPlayGoal(goalForm({ year: "2026", target: "10000", unit: "HOURS", countReplays: "on" }));
+    // A unit from an old form or a typo'd request: a games goal, not an error.
+    await setPlayGoal(goalForm({ year: "2027", target: "24", unit: "PAGES", countReplays: "on" }));
+    expect(await goals()).toEqual([
+      { year: 2026, target: 10_000, unit: "HOURS", countReplays: true },
+      { year: 2027, target: 24, unit: "GAMES", countReplays: true },
     ]);
   });
 
@@ -99,9 +109,9 @@ describe("setPlayGoal", () => {
 
   it("says what's wrong with a bad target and writes nothing", async () => {
     await prisma.playGoal.create({ data: { userId, year: 2026, target: 24 } });
-    for (const target of ["abc", "2000000", "-1", "2.5"]) {
+    for (const target of ["abc", "10001", "-1", "2.5"]) {
       expect(await setPlayGoal(goalForm({ year: "2026", target })), target).toEqual({
-        error: "Enter a whole number from 0 to 1,000,000.",
+        error: "Enter a whole number from 0 to 10,000.",
       });
     }
     expect(await setPlayGoal(goalForm({ year: "1800", target: "5" }))).toHaveProperty("error");
@@ -111,7 +121,7 @@ describe("setPlayGoal", () => {
     expect(revalidated).toEqual([]);
   });
 
-  it("only ever writes the signed-in reader's goal", async () => {
+  it("only ever writes the signed-in player's goal", async () => {
     await prisma.playGoal.create({ data: { userId: otherUserId, year: 2026, target: 10 } });
     await setPlayGoal(goalForm({ year: "2026", target: "30" }));
     expect((await goals(otherUserId))[0].target).toBe(10);

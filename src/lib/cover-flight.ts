@@ -11,7 +11,7 @@ const NAME = "game-cover";
 const WAIT_LIMIT_MS = 1500;
 
 /** True when a cover can fly: the browser has view transitions and the
- *  reader hasn't turned animations off. */
+ *  player hasn't turned animations off. */
 export function canFlyCover(): boolean {
   return typeof document !== "undefined" && !!document.startViewTransition && motionAllowed();
 }
@@ -61,7 +61,7 @@ export function flyCover(cover: HTMLElement, gameId: string, navigate: () => voi
 }
 
 /** The library's card for a game: the cover inside its GameLink, or the
- *  link itself for a spine in the reading room. A grouped library can show a
+ *  link itself for a case on a shelf in the game room. A grouped library can show a
  *  game in more than one group. */
 function libraryCovers(gameId: string): HTMLElement[] {
   const link = `[data-game-link="${CSS.escape(gameId)}"]`;
@@ -99,7 +99,7 @@ function whenLibraryShows(back: LibraryReturn): Promise<HTMLElement | null> {
     };
     const observer = new MutationObserver(() => {
       // [data-library-view] marks the library proper (or its "no games"
-      // box, or the reading room's house), not its loading skeleton.
+      // box, or the game room's house), not its loading skeleton.
       const view = document.querySelector("[data-library-view]");
       if (!view?.getClientRects().length) return;
 

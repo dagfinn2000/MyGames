@@ -16,15 +16,15 @@ const MAX_SERIES_NAMES = 200;
 /**
  * Picks a random game from the current view: the tab and filters on screen,
  * narrowed by the Pick for me switches in Preferences (lib/pick.ts has the
- * rule). Only the All tab prefers Want to Read; on a status tab the pick
+ * rule). Only the All tab prefers Want to Play; on a status tab the pick
  * stays on that tab. Returns why when nothing could be picked, so the page
  * can say so instead of doing nothing.
  *
  * It runs here rather than in the browser because the page no longer ships
  * the entire library to the client. Choosing from the loaded slice would
- * quietly turn "anything on my to-read shelf" into "anything in the first
- * couple of hundred", which is exactly the sort of silent narrowing a
- * shuffle button must not have.
+ * quietly turn "anything in my backlog" into "anything in the first couple
+ * of hundred", which is exactly the sort of silent narrowing a shuffle
+ * button must not have.
  */
 export async function pickRandomGame(
   searchParams: Record<string, string>,
@@ -62,8 +62,8 @@ export async function pickRandomGame(
   );
   const rows = games.map((b) => ({ ...b, lent: lentIds.has(b.id) }));
 
-  // Earlier games of a series may be anywhere in the library (Want to Read
-  // has no read #1 on it), so the series are fetched whole, unfiltered.
+  // Earlier games of a series may be anywhere in the library (Want to Play
+  // has no completed #1 on it), so the series are fetched whole, unfiltered.
   let series: SeriesRow[] = [];
   if (prefs.pickNextInSeries) {
     const names = [

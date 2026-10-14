@@ -18,16 +18,16 @@ export function seriesKey(name: string): string {
   return name.normalize("NFC").trim().toLowerCase();
 }
 
-/** Read at least once, or put down for good. Either way, not what's next. */
+/** Completed at least once, or dropped. Either way, not what's next. */
 export function isDoneInSeries(b: Pick<SeriesMember, "status" | "timesCompleted">): boolean {
   return b.status === PlayStatus.COMPLETED || b.status === PlayStatus.DROPPED || b.timesCompleted > 0;
 }
 
 /**
  * The next game in one series: the lowest-numbered one not done yet, whether
- * it's being read or waiting on Want to Read. A number counts as done when
- * any copy of it is done (two editions of #1, one read). Games without a
- * number are never "next". Null when every numbered game is done.
+ * it's being played or waiting on Want to Play. A number counts as done when
+ * any copy of it is done (#1 on two platforms, one completed). Games without
+ * a number are never "next". Null when every numbered game is done.
  */
 export function nextInSeries<T extends SeriesMember>(games: T[]): T | null {
   const done = new Set(

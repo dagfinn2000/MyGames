@@ -61,7 +61,7 @@ afterEach(async () => {
 
 async function makeGame(over: Record<string, unknown> = {}, owner = userId) {
   return prisma.game.create({
-    data: { userId: owner, title: "Test Game", searchText: "test game", pageCount: 300, ...over },
+    data: { userId: owner, title: "Test Game", searchText: "test game", lengthMinutes: 600, ...over },
   });
 }
 
@@ -166,9 +166,9 @@ describe("renameView", () => {
 
   it("renames a view", async () => {
     const view = await makeView("Unplayed");
-    expect(await renameView(view.id, " To read ")).toEqual({});
+    expect(await renameView(view.id, " Backlog ")).toEqual({});
     expect((await prisma.savedView.findUniqueOrThrow({ where: { id: view.id } })).name).toBe(
-      "To read",
+      "Backlog",
     );
   });
 
@@ -194,14 +194,14 @@ describe("renameView", () => {
 describe("bulkUpdateGames, more fields", () => {
   it("sets format and ownership on the selection only", async () => {
     const [a, b, untouched] = await Promise.all([
-      makeGame({ format: GameFormat.AUDIOBOOK, lengthMinutes: 600 }),
+      makeGame({ format: GameFormat.SUBSCRIPTION, lengthMinutes: 2400 }),
       makeGame(),
       makeGame(),
     ]);
 
     const res = await bulkUpdateGames({
       gameIds: [a.id, b.id],
-      format: GameFormat.EBOOK,
+      format: GameFormat.DIGITAL,
       ownership: GameOwnership.BORROWED,
     });
     expect(res).toEqual({ count: 2 });
@@ -209,30 +209,30 @@ describe("bulkUpdateGames, more fields", () => {
     const rows = await prisma.game.findMany({ where: { userId } });
     const byId = new Map(rows.map((r) => [r.id, r]));
     for (const id of [a.id, b.id]) {
-      expect(byId.get(id)?.format).toBe(GameFormat.EBOOK);
+      expect(byId.get(id)?.format).toBe(GameFormat.DIGITAL);
       expect(byId.get(id)?.ownership).toBe(GameOwnership.BORROWED);
     }
-    // Only an audiobook keeps a running time.
-    expect(byId.get(a.id)?.lengthMinutes).toBeNull();
+    // The time to beat belongs to the game, whatever the format.
+    expect(byId.get(a.id)?.lengthMinutes).toBe(2400);
     expect(byId.get(untouched.id)?.format).toBe(GameFormat.PHYSICAL);
     expect(byId.get(untouched.id)?.ownership).toBe(GameOwnership.OWNED);
   });
 
   it("removes tags, alone or while adding others", async () => {
-    const a = await makeGame({ tags: ["fantasy", "epic", "owned"] });
+    const a = await makeGame({ tags: ["rpg", "epic", "owned"] });
     const b = await makeGame({ tags: ["epic"] });
 
     await bulkUpdateGames({ gameIds: [a.id, b.id], removeTags: ["epic"] });
     expect((await prisma.game.findUniqueOrThrow({ where: { id: a.id } })).tags).toEqual([
-      "fantasy",
+      "rpg",
       "owned",
     ]);
     expect((await prisma.game.findUniqueOrThrow({ where: { id: b.id } })).tags).toEqual([]);
 
-    await bulkUpdateGames({ gameIds: [a.id], addTags: ["reread"], removeTags: ["owned"] });
+    await bulkUpdateGames({ gameIds: [a.id], addTags: ["replay"], removeTags: ["owned"] });
     expect((await prisma.game.findUniqueOrThrow({ where: { id: a.id } })).tags).toEqual([
-      "fantasy",
-      "reread",
+      "rpg",
+      "replay",
     ]);
   });
 
@@ -244,7 +244,7 @@ describe("bulkUpdateGames, more fields", () => {
     expect((await prisma.game.findUniqueOrThrow({ where: { id: bk.id } })).tags).toEqual(["epic"]);
   });
 
-  it("applies to every game matching the filters, past any page, and only the reader's", async () => {
+  it("applies to every game matching the filters, past any page, and only the player's", async () => {
     const tagged = await Promise.all(
       Array.from({ length: 205 }, (_, i) => makeGame({ title: `Tagged ${i}`, tags: ["x"] })),
     );
@@ -268,7 +268,7 @@ describe("bulkUpdateGames, more fields", () => {
     );
   });
 
-  it("matches on a shelf only when the shelf is the reader's", async () => {
+  it("matches on a shelf only when the shelf is the player's", async () => {
     const theirGame = await makeGame({}, otherUserId);
     const theirShelf = await makeShelf("Theirs", [theirGame], otherUserId);
     await makeGame();
@@ -281,13 +281,13 @@ describe("bulkUpdateGames, more fields", () => {
     );
   });
 
-  it("dates and counts every matching game moved to Read", async () => {
+  it("dates and counts every matching game moved to Completed", async () => {
     const games = await Promise.all([
-      makeGame({ status: PlayStatus.PLAYING, tags: ["club"] }),
-      makeGame({ status: PlayStatus.WANT_TO_PLAY, tags: ["club"] }),
+      makeGame({ status: PlayStatus.PLAYING, tags: ["co-op"] }),
+      makeGame({ status: PlayStatus.WANT_TO_PLAY, tags: ["co-op"] }),
     ]);
 
-    const res = await bulkUpdateGames({ matching: { tag: "club" }, status: PlayStatus.COMPLETED });
+    const res = await bulkUpdateGames({ matching: { tag: "co-op" }, status: PlayStatus.COMPLETED });
     expect(res).toEqual({ count: 2 });
 
     for (const bk of games) {
@@ -296,6 +296,39 @@ describe("bulkUpdateGames, more fields", () => {
       expect(after.dateFinished).not.toBeNull();
       expect(after.timesCompleted).toBe(1);
     }
+  });
+
+  it("leaves completed games undated when that is the preference", async () => {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { preferences: { addedAsCompletedFinished: "undated" } },
+    });
+    const bk = await makeGame({ status: PlayStatus.PLAYING });
+
+    await bulkUpdateGames({ gameIds: [bk.id], status: PlayStatus.COMPLETED });
+    const after = await prisma.game.findUniqueOrThrow({ where: { id: bk.id } });
+    expect(after.status).toBe(PlayStatus.COMPLETED);
+    expect(after.dateFinished).toBeNull();
+    expect(after.timesCompleted).toBe(1);
+  });
+
+  it("keeps the time played through Completed and Dropped, and clears it on Want to Play", async () => {
+    const [done, dropped, shelved] = await Promise.all([
+      makeGame({ status: PlayStatus.PLAYING, playedMinutes: 2520 }),
+      makeGame({ status: PlayStatus.PLAYING, playedMinutes: 750 }),
+      makeGame({ status: PlayStatus.PLAYING, playedMinutes: 90 }),
+    ]);
+
+    await bulkUpdateGames({ gameIds: [done.id], status: PlayStatus.COMPLETED });
+    await bulkUpdateGames({ gameIds: [dropped.id], status: PlayStatus.DROPPED });
+    await bulkUpdateGames({ gameIds: [shelved.id], status: PlayStatus.WANT_TO_PLAY });
+
+    const played = async (id: string) =>
+      (await prisma.game.findUniqueOrThrow({ where: { id } })).playedMinutes;
+    // "Completed in 42 h", "stopped at 12 h 30 min".
+    expect(await played(done.id)).toBe(2520);
+    expect(await played(dropped.id)).toBe(750);
+    expect(await played(shelved.id)).toBeNull();
   });
 
   it("takes 2,000 ids, and explains 2,001 instead of 'Invalid input'", async () => {

@@ -341,9 +341,8 @@
     --ring: #4c8dff;
 }
 
-/* Old paper and leather. The warm darks here (Gruvbox, Zenburn) are really
-   warm greys; this one is actually brown, which for a shelf of games felt
-   like an obvious gap. */
+/* Old wood and leather. The warm darks here (Gruvbox, Zenburn) are really
+   warm greys; this one is actually brown, which felt like an obvious gap. */
 [data-theme="sepia"] {
     --background: #241a15;
     --foreground: #efe0d0;
@@ -674,7 +673,7 @@
     cursor: pointer;
   }
 }
-/* ── Reading preferences ───────────────────────────────────────────────────
+/* ── Text preferences ──────────────────────────────────────────────────────
    Set on <html> by the root layout from the account's Preferences.
    Text size scales the root font size, which every rem-based size in the
    app follows. The serif choice applies to long passages only — game
@@ -842,15 +841,15 @@ html[data-background="linen"] body,
       transparent 1px 4px
     );
 }
-/* Small open and closed games, scattered. */
+/* Little controllers, d-pads, face buttons and handhelds, scattered. */
 html[data-background="games"] body,
 .texture-swatch[data-texture="games"] {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128' fill='none' stroke='rgb(128,128,128)' stroke-opacity='0.37' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'%3E %3Cg transform='translate(14 14)'%3E%3Cpath d='M0 2c3.5-1.6 7-1.6 10 0v12c-3-1.6-6.5-1.6-10 0zM10 2c3-1.6 6.5-1.6 10 0v12c-3.5-1.6-7-1.6-10 0z'/%3E%3C/g%3E %3Cg transform='translate(78 18) rotate(-12)'%3E%3Crect width='10' height='14' rx='1'/%3E%3Cpath d='M2.5 0v14'/%3E%3C/g%3E %3Cg transform='translate(22 84)'%3E%3Crect width='20' height='4.5' rx='1'/%3E%3Crect x='2' y='-5' width='17' height='4.5' rx='1'/%3E%3Crect x='-1' y='-10' width='19' height='4.5' rx='1'/%3E%3C/g%3E %3Cg transform='translate(86 84) rotate(10) scale(0.8)'%3E%3Cpath d='M0 2c3.5-1.6 7-1.6 10 0v12c-3-1.6-6.5-1.6-10 0zM10 2c3-1.6 6.5-1.6 10 0v12c-3.5-1.6-7-1.6-10 0z'/%3E%3C/g%3E %3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128' fill='none' stroke='rgb(128,128,128)' stroke-opacity='0.37' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg transform='translate(12 18)'%3E%3Cpath d='M5 0h10c2.4 0 4.1 1.6 4.5 3.9l.8 4.8c.3 2-2.2 3.1-3.6 1.6L14.6 8.2H5.4l-2.1 2.1C1.9 11.8-.6 10.7-.3 8.7L.5 3.9C.9 1.6 2.6 0 5 0z'/%3E%3Cpath d='M3.2 4.2h3.6M5 2.4v3.6'/%3E%3Ccircle cx='14.4' cy='5.4' r='.7'/%3E%3Ccircle cx='16.4' cy='3.4' r='.7'/%3E%3C/g%3E%3Cg transform='translate(80 14) rotate(-12)'%3E%3Cpath d='M4 0h4v4h4v4H8v4H4V8H0V4h4z'/%3E%3C/g%3E%3Cg transform='translate(24 78)'%3E%3Ccircle cx='6' cy='1.8' r='1.8'/%3E%3Ccircle cx='10.2' cy='6' r='1.8'/%3E%3Ccircle cx='6' cy='10.2' r='1.8'/%3E%3Ccircle cx='1.8' cy='6' r='1.8'/%3E%3C/g%3E%3Cg transform='translate(86 76) rotate(10) scale(0.85)'%3E%3Crect width='13' height='19' rx='1.5'/%3E%3Crect x='2.5' y='2.5' width='8' height='6' rx='.5'/%3E%3Cpath d='M3.6 12v3M2.1 13.5h3'/%3E%3Ccircle cx='9.6' cy='14.6' r='.6'/%3E%3Ccircle cx='10.8' cy='12.6' r='.6'/%3E%3C/g%3E%3C/svg%3E");
   background-size: 128px 128px;
 }
 html.dark[data-background="games"] body,
 .dark .texture-swatch[data-texture="games"] {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128' fill='none' stroke='rgb(128,128,128)' stroke-opacity='0.17' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'%3E %3Cg transform='translate(14 14)'%3E%3Cpath d='M0 2c3.5-1.6 7-1.6 10 0v12c-3-1.6-6.5-1.6-10 0zM10 2c3-1.6 6.5-1.6 10 0v12c-3.5-1.6-7-1.6-10 0z'/%3E%3C/g%3E %3Cg transform='translate(78 18) rotate(-12)'%3E%3Crect width='10' height='14' rx='1'/%3E%3Cpath d='M2.5 0v14'/%3E%3C/g%3E %3Cg transform='translate(22 84)'%3E%3Crect width='20' height='4.5' rx='1'/%3E%3Crect x='2' y='-5' width='17' height='4.5' rx='1'/%3E%3Crect x='-1' y='-10' width='19' height='4.5' rx='1'/%3E%3C/g%3E %3Cg transform='translate(86 84) rotate(10) scale(0.8)'%3E%3Cpath d='M0 2c3.5-1.6 7-1.6 10 0v12c-3-1.6-6.5-1.6-10 0zM10 2c3-1.6 6.5-1.6 10 0v12c-3.5-1.6-7-1.6-10 0z'/%3E%3C/g%3E %3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128' fill='none' stroke='rgb(128,128,128)' stroke-opacity='0.17' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg transform='translate(12 18)'%3E%3Cpath d='M5 0h10c2.4 0 4.1 1.6 4.5 3.9l.8 4.8c.3 2-2.2 3.1-3.6 1.6L14.6 8.2H5.4l-2.1 2.1C1.9 11.8-.6 10.7-.3 8.7L.5 3.9C.9 1.6 2.6 0 5 0z'/%3E%3Cpath d='M3.2 4.2h3.6M5 2.4v3.6'/%3E%3Ccircle cx='14.4' cy='5.4' r='.7'/%3E%3Ccircle cx='16.4' cy='3.4' r='.7'/%3E%3C/g%3E%3Cg transform='translate(80 14) rotate(-12)'%3E%3Cpath d='M4 0h4v4h4v4H8v4H4V8H0V4h4z'/%3E%3C/g%3E%3Cg transform='translate(24 78)'%3E%3Ccircle cx='6' cy='1.8' r='1.8'/%3E%3Ccircle cx='10.2' cy='6' r='1.8'/%3E%3Ccircle cx='6' cy='10.2' r='1.8'/%3E%3Ccircle cx='1.8' cy='6' r='1.8'/%3E%3C/g%3E%3Cg transform='translate(86 76) rotate(10) scale(0.85)'%3E%3Crect width='13' height='19' rx='1.5'/%3E%3Crect x='2.5' y='2.5' width='8' height='6' rx='.5'/%3E%3Cpath d='M3.6 12v3M2.1 13.5h3'/%3E%3Ccircle cx='9.6' cy='14.6' r='.6'/%3E%3Ccircle cx='10.8' cy='12.6' r='.6'/%3E%3C/g%3E%3C/svg%3E");
 }
 html[data-background="waves"] body,
 .texture-swatch[data-texture="waves"] {
@@ -998,7 +997,7 @@ html.dark[data-background="terrazzo"] body,
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='254' height='254' viewBox='0 0 508 508' fill='rgb(128,128,128)'%3E%3Cpath fill-opacity='0.09' d='M17 44l-2-10 6 0 2 9-2 5zM313 178l1-9 9-3 3 3-2 10-6 1zM85 357l-1-10 6-3 6 9-8 6zM365 76l-6 3-4-7 1-9 8 0 3 9zM466 256l-1-6 6-1 7 3-2 8zM471 68l5-4-1 6zM409 1l4-3 3 3-6 2zM409 509l4-3 3 3-6 2zM201 185l3 0-1 4-2 1-4 0zM109 25l1-2 3 0 1 1-1 4-3 1z'/%3E%3Cpath fill-opacity='0.14' d='M499 358l-4-6 4-11 6 3 1 9zM378 169l-5-13 11 5zM416 373l8-4 4 12-4 1zM292 80l-7-6 1-7 15-2-1 11zM139 166l-11-4 9-5zM243 478l-5-7 15 1zM370 367l4-5 4 2-2 4-4 4zM38 441l1-3 5-2 3 0-1 5-4 3zM220 94l-4-1-1-2 3-2 3 1zM504 141l-7 1-3-7 8 2zM300 339l3-3 6 2 0 5-9 0zM159 306l2-3 5-2 2 4-3 4z'/%3E%3Cpath fill-opacity='0.19' d='M310 290l10-7 1 14zM59 190l2-13 6-2 3 5-6 11zM6 225l4 0 2 2-4 4-4 2zM175 417l-4 0 0-4 2 0 3 2zM176 152l-4-2 1-5 4-2 3 7zM39 105l-1-5 1-3 5 9z'/%3E%3C/svg%3E"),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='194' height='194' viewBox='0 0 388 388' fill='rgb(128,128,128)'%3E%3Cpath fill-opacity='0.09' d='M72 162l-5-1 3-2zM377 172l2-2 0 2zM184 122l2-2 0 3zM75 300l-1-3 3 1zM83 16l4-1-3 3zM304 311l2 2-4 1zM284 244l3-1-2 4z'/%3E%3Cpath fill-opacity='0.14' d='M198 259l-7-4 2-2 6 0 1 3zM17 270l9 1-3 3-3 2zM310 386l1-3 4-2 3 3 1 3zM229 193l4-9 3 1-1 5-3 5zM175 183l-4 0-2-5 4-2zM237 96l-2 2-6-2 1-2 3-1 3 1zM61 29l-2-3 0-6 3 1 1 3zM297 170l-4-3 7-2zM81 372l1-6 3-2 4 5-4 6zM162 79l-4-5 3-3 5 4 1 5zM293 29l0-3 3 4zM229 336l-1-3 4 2zM38 209l2 0-1 2zM282 108l0-4 3-1zM94 191l-2-4 4 2zM135 366l1 2-4 1z'/%3E%3Cpath fill-opacity='0.19' d='M46 242l-5-5 1-2 6 3-1 2zM41 73l6-6 2 2-2 7zM363 381l-3 1-3-2 2-4 2 0zM335 253l-3-4 1-4 5 0 2 3zM372 22l3 0-1 2zM381 281l3-1-1 2zM57 185l2 0-2 3z'/%3E%3C/svg%3E");
 }
-/* Polished marble, like a library floor or a marbled endpaper: a few long,
+/* Polished marble, like a museum floor or a marbled card: a few long,
    fine veins wandering on the diagonal, forking now and then and fading out
    at their ends, over a faint, mottled cloudiness. Drawn in public/textures
    (as contours is), with the veins and the clouds on tiles of different
@@ -1094,7 +1093,7 @@ html.dark[data-background="ripples"] body,
 .dark .texture-swatch[data-texture="snow"] {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='44' fill='rgb(238,242,252)'%3E%3Ccircle cx='6' cy='8' r='1.1' fill-opacity='0.51'/%3E%3Ccircle cx='19' cy='30' r='1.6' fill-opacity='0.45'/%3E%3Ccircle cx='30' cy='12' r='0.8' fill-opacity='0.63'/%3E%3Ccircle cx='41' cy='26' r='1.3' fill-opacity='0.43'/%3E%3Ccircle cx='52' cy='9' r='1.8' fill-opacity='0.59'/%3E%3Ccircle cx='57' cy='36' r='0.9' fill-opacity='0.53'/%3E%3Ccircle cx='12' cy='38' r='0.8' fill-opacity='0.42'/%3E%3Ccircle cx='35' cy='40' r='1.1' fill-opacity='0.58'/%3E%3Ccircle cx='24' cy='19' r='0.7' fill-opacity='0.41'/%3E%3Ccircle cx='47' cy='18' r='0.7' fill-opacity='0.55'/%3E%3C/svg%3E");
 }
-/* Sky: the colours of the time of day where the reader is (lib/sky.ts),
+/* Sky: the colours of the time of day where the player is (lib/sky.ts),
    drawn by "Moving backgrounds" below rather than here, because it is the
    same whether or not anything may move. The swatch shows a whole day, from
    night through dawn, noon and dusk to night again. */
@@ -1679,14 +1678,15 @@ html.dark[data-background="ripples"] body,
 
 /* ── Drawn covers ──────────────────────────────────────────────────────────
    The stand-in for a game with no cover image (GameCover in
-   components/game-card.tsx): a coloured board with a spine shadow, a thin
-   inset frame, the title in a game face and the author in small capitals.
+   components/game-card.tsx): a coloured case front with a shadow down the
+   hinge, a thin inset frame, the title in the serif and the developer in
+   small capitals.
    The colour comes from the title (lib/cover-art.ts) through --cover-hue,
    --cover-sat and --cover-light. Sizes are in cqi (percent of the cover's
    width), so the same cover reads at every size; covers too small for
    text (list rows, quotes) show just the board.
    "Games without a cover: Plain" in Preferences (data-covers="plain")
-   shows the grey box with a game icon instead. */
+   shows the grey box with a controller instead. */
 .game-cover {
   container-type: inline-size;
 }
@@ -1743,7 +1743,7 @@ html[data-covers="plain"] .drawn-cover {
   background: currentColor;
   opacity: 0.6;
 }
-.drawn-cover-author {
+.drawn-cover-developer {
   margin-top: auto;
   font-size: 6.4cqi;
   letter-spacing: 0.12em;
@@ -1757,7 +1757,7 @@ html[data-covers="plain"] .drawn-cover {
 .drawn-cover[data-layout="1"] .drawn-cover-frame {
   justify-content: center;
 }
-.drawn-cover[data-layout="1"] .drawn-cover-author {
+.drawn-cover[data-layout="1"] .drawn-cover-developer {
   margin-top: 2cqi;
 }
 .drawn-cover[data-layout="2"] .drawn-cover-frame {
@@ -1776,7 +1776,7 @@ html[data-covers="plain"] .drawn-cover {
 .drawn-cover[data-layout="2"] .drawn-cover-frame > * {
   position: relative;
 }
-.drawn-cover[data-layout="2"] .drawn-cover-author {
+.drawn-cover[data-layout="2"] .drawn-cover-developer {
   margin-top: 3cqi;
 }
 @container (max-width: 4.5rem) {
@@ -1828,7 +1828,7 @@ html[data-covers="plain"] .drawn-cover {
   }
 }
 
-/* Bars (reading progress, the goal, the stats charts) grow from the left
+/* Bars (time played, the goal, the stats charts) grow from the left
    as the page opens, and the gold medal for a reached goal swings in and
    catches the light once. The shine is clipped to the medal's disc. */
 @keyframes bar-grow {
@@ -1887,17 +1887,17 @@ html[data-covers="plain"] .drawn-cover {
 }
 
 /* ── Card styles and 3D covers ───────────────────────────────────────────
-   "Covers only" and "Bookshelf" (the library's View menu) drop the card
-   frame, so the cover carries its own shadow and rises on its own under the
-   pointer. A bookshelf has no gap between columns: each slot draws its
-   stretch of ledge under its cover, so a row of slots reads as one shelf,
-   and the last slot's ledge runs on to the grid's edge, which clips it. */
+   "Covers only" and "Shelf" (the library's View menu) drop the card frame,
+   so the cover carries its own shadow and rises on its own under the
+   pointer. A shelf has no gap between columns: each slot draws its stretch
+   of ledge under its cover, so a row of slots reads as one shelf, and the
+   last slot's ledge runs on to the grid's edge, which clips it. */
 .cover-shadow {
   box-shadow:
     0 1px 2px rgb(0 0 0 / 0.14),
     0 10px 18px -12px rgb(0 0 0 / 0.55);
 }
-.bookshelf {
+.game-shelf {
   overflow-x: clip;
 }
 .shelf-slot {
@@ -1931,24 +1931,22 @@ html[data-covers="plain"] .drawn-cover {
 }
 
 /* 3D covers (the View menu's switch, data-cover-3d on <html>): every cover
-   in the app becomes a little hardback, with a squarer spine edge, a crease
-   and shine down the spine, a few page edges peeking out on the right and a
-   shadow underneath. The pages stay paper-coloured on any theme, a little
-   dimmer on dark ones. Offsets are small enough for the tiny covers in
-   lists. */
+   in the app becomes a little game case, with a squarer hinge edge, a crease
+   and shine down the hinge, the case's plastic edge showing on the right and
+   a shadow underneath. The edge is dark plastic on light themes and a
+   lighter grey on dark ones, so it shows against either. Offsets are small
+   enough for the tiny covers in lists. */
 html {
-  --cover-pages: #f3efe4;
+  --case-edge: #2f343c;
 }
 html.dark {
-  --cover-pages: #d6d0c2;
+  --case-edge: #5b616b;
 }
 html[data-cover-3d] .game-cover {
-  border-radius: 2px 5px 5px 2px;
+  border-radius: 2px 4px 4px 2px;
   box-shadow:
-    2px 0 0 -1px var(--cover-pages),
-    3px 0 0 -1px rgb(0 0 0 / 0.16),
-    4px 0 0 -2px var(--cover-pages),
-    5px 0 0 -2px rgb(0 0 0 / 0.16),
+    3px 0 0 -1px var(--case-edge),
+    4px 0 0 -1px rgb(0 0 0 / 0.2),
     6px 8px 14px -6px rgb(0 0 0 / 0.55);
 }
 html[data-cover-3d] .game-cover::after {
@@ -2056,8 +2054,8 @@ html[data-covers="plain"] .game-backdrop[data-drawn] {
     padding-right: 3rem;
   }
 }
-/* Pages, published, ISBN and finished: each after a hairline, with its
-   label in small capitals. */
+/* Platform, publisher, release, time to beat and the finish: each after a
+   hairline, with its label in small capitals. */
 .game-facts > div {
   border-left: 1px solid var(--border);
   padding-left: 0.75rem;
@@ -2102,7 +2100,7 @@ html[data-covers="plain"] .game-backdrop[data-drawn] {
     animation-range: 0 4rem;
   }
 }
-/* The app's name, in the game face used for drawn covers. */
+/* The app's name, in the serif used for drawn covers. */
 .wordmark {
   font-family: var(--font-literata), ui-serif, Georgia, serif;
   font-weight: 600;
@@ -2112,7 +2110,7 @@ html[data-covers="plain"] .game-backdrop[data-drawn] {
 /* ── Small touches ─────────────────────────────────────────────────────────
    Selected text and scrollbars take a tint of the accent colour. Headings
    break into lines of even length, and paragraphs avoid a last line of one
-   word. A reading status badge leads with a dot of its colour. */
+   word. A play status badge leads with a dot of its colour. */
 ::selection {
   background: color-mix(in oklab, var(--primary) 24%, transparent);
 }
@@ -2180,7 +2178,7 @@ html {
 /* ── Motion ────────────────────────────────────────────────────────────────
    Every animation and transition in the app, including the menu and dialog
    zoom from shadcn, stops when the device asks for reduced motion or the
-   reader turns Animations off in Preferences (data-motion="off" on <html>).
+   player turns Animations off in Preferences (data-motion="off" on <html>).
    Durations drop to almost nothing rather than to `none`, so an animation
    that holds its end state still lands on it. Animations started from
    script check the same two things through motionAllowed() in

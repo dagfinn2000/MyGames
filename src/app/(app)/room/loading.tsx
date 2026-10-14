@@ -1,4 +1,4 @@
-/** Skeleton for the reading room. */
+/** Skeleton for the game room. */
 export default function GameRoomLoading() {
   return (
     <div className="shimmer grid gap-4">

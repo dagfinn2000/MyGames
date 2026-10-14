@@ -21,11 +21,11 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Quotes · MyGames" };
 
 /**
- * Every quote in the library on one page — the commonplace game view.
- * Newest first, oldest first, by game or shuffled, optionally grouped
- * under each game (its quotes then in page order), and narrowed to one
- * shelf or tag. Search covers the quote text, the personal note, and the
- * game (via its searchText blob, so authors and series match too).
+ * Every quote in the library on one page. Newest first, oldest first, by
+ * game or shuffled, optionally grouped under each game (its quotes then
+ * newest first), and narrowed to one shelf or tag. Search covers the quote
+ * text, who says it, the personal note, and the game (via its searchText
+ * blob, so developers, series and platform match too).
  */
 export default async function QuotesPage({
   searchParams,
@@ -50,7 +50,6 @@ export default async function QuotesPage({
   const [{ total, shown, list, groups }, sources] = await Promise.all([
     loadQuotes(userId, params, {
       ignoreArticles: prefs.ignoreArticles,
-      authorOrder: prefs.authorOrder,
       alphabet: prefs.sortAlphabet,
     }),
     quoteSources(userId, { alphabet: prefs.sortAlphabet, shelfId: params.shelfId }),
@@ -91,7 +90,7 @@ export default async function QuotesPage({
               ? "No quotes match these filters."
               : params.q
                 ? "No quotes match that search."
-                : "No quotes yet — add passages worth keeping from any game page."}
+                : "No quotes yet — add lines worth keeping from any game page."}
           </p>
           {fromFilter && (
             <Link
@@ -114,7 +113,7 @@ export default async function QuotesPage({
                       {game.title}
                     </span>
                     <span className="block truncate text-sm font-normal text-muted-foreground">
-                      {game.authors.join(", ")}
+                      {[game.developers.join(", "), game.platform].filter(Boolean).join(" · ")}
                     </span>
                   </span>
                 </Link>

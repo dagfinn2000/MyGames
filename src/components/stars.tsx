@@ -22,7 +22,7 @@ function StarRow({ filled, sizeClass }: { filled?: boolean; sizeClass: string })
 }
 
 /**
- * A rating shown the way the reader chose in Preferences: stars, "7/10", or
+ * A rating shown the way the player chose in Preferences: stars, "7/10", or
  * nothing at all when ratings are switched off. `value` is the stored 1–10.
  */
 export function Stars(props: {

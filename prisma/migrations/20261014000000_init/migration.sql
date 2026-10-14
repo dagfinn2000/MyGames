@@ -9,13 +9,13 @@ CREATE SCHEMA IF NOT EXISTS "public";
 CREATE TYPE "PlayStatus" AS ENUM ('WANT_TO_PLAY', 'PLAYING', 'COMPLETED', 'DROPPED');
 
 -- CreateEnum
-CREATE TYPE "GameFormat" AS ENUM ('PHYSICAL', 'EBOOK', 'AUDIOBOOK');
+CREATE TYPE "GameFormat" AS ENUM ('PHYSICAL', 'DIGITAL', 'SUBSCRIPTION');
 
 -- CreateEnum
 CREATE TYPE "GameOwnership" AS ENUM ('OWNED', 'WISHLIST', 'BORROWED', 'GIVEN_AWAY');
 
 -- CreateEnum
-CREATE TYPE "GoalUnit" AS ENUM ('GAMES', 'PAGES');
+CREATE TYPE "GoalUnit" AS ENUM ('GAMES', 'HOURS');
 
 -- CreateTable
 CREATE TABLE "User" (
@@ -72,26 +72,26 @@ CREATE TABLE "Game" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
-    "authors" TEXT[] DEFAULT ARRAY[]::TEXT[],
-    "isbn" TEXT,
+    "developers" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "publisher" TEXT,
+    "platform" TEXT,
     "description" TEXT,
     "coverUrl" TEXT,
-    "pageCount" INTEGER,
     "lengthMinutes" INTEGER,
-    "publishedDate" TEXT,
+    "releaseDate" TEXT,
     "tags" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "format" "GameFormat" NOT NULL DEFAULT 'PHYSICAL',
     "ownership" "GameOwnership" NOT NULL DEFAULT 'OWNED',
     "seriesName" TEXT,
     "seriesNumber" DOUBLE PRECISION,
-    "openLibraryId" TEXT,
+    "catalogueId" TEXT,
     "status" "PlayStatus" NOT NULL DEFAULT 'WANT_TO_PLAY',
     "rating" INTEGER,
     "review" TEXT,
     "dateStarted" TIMESTAMP(3),
     "dateFinished" TIMESTAMP(3),
     "timesCompleted" INTEGER NOT NULL DEFAULT 0,
-    "currentPage" INTEGER,
+    "playedMinutes" INTEGER,
     "searchText" TEXT NOT NULL DEFAULT '',
     "reviewSearchText" TEXT NOT NULL DEFAULT '',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -107,6 +107,7 @@ CREATE TABLE "Playthrough" (
     "dateStarted" TIMESTAMP(3),
     "dateFinished" TIMESTAMP(3),
     "rating" INTEGER,
+    "playedMinutes" INTEGER,
     "note" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -117,7 +118,7 @@ CREATE TABLE "Playthrough" (
 CREATE TABLE "ProgressEntry" (
     "id" TEXT NOT NULL,
     "gameId" TEXT NOT NULL,
-    "page" INTEGER NOT NULL,
+    "minutes" INTEGER NOT NULL,
     "date" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "ProgressEntry_pkey" PRIMARY KEY ("id")
@@ -141,7 +142,7 @@ CREATE TABLE "Quote" (
     "id" TEXT NOT NULL,
     "gameId" TEXT NOT NULL,
     "text" TEXT NOT NULL,
-    "page" INTEGER,
+    "speaker" TEXT,
     "note" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -188,9 +189,6 @@ CREATE INDEX "Game_userId_createdAt_idx" ON "Game"("userId", "createdAt");
 
 -- CreateIndex
 CREATE INDEX "Game_userId_dateFinished_idx" ON "Game"("userId", "dateFinished");
-
--- CreateIndex
-CREATE INDEX "Game_userId_isbn_idx" ON "Game"("userId", "isbn");
 
 -- CreateIndex
 CREATE INDEX "Game_tags_idx" ON "Game" USING GIN ("tags");

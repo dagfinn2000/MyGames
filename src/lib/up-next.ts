@@ -6,15 +6,15 @@ export interface UpNextGame extends SeriesMember {
 }
 
 /**
- * The Want to Read games for the "Up next" strip on Now reading, at most
+ * The Want to Play games for the "Up next" strip on Now playing, at most
  * `limit`. The next game of a series already under way comes first, then
  * the rest in the order given (newest first). A numbered game that isn't
  * its series' next one (an earlier number is still unplayed, or another copy
- * of the same number is read) is left out.
+ * of the same number is completed) is left out.
  *
- * Games being read count as under way here: while you're reading #2, #3 is
- * what comes next. That's the one difference from the series rule in
- * lib/series.ts, which treats a game being read as the next one itself.
+ * Games being played count as under way here: while you're playing #2, #3
+ * is what comes next. That's the one difference from the series rule in
+ * lib/series.ts, which treats a game being played as the next one itself.
  */
 export function upNext<T extends UpNextGame>(
   wantToPlay: T[],
@@ -23,10 +23,10 @@ export function upNext<T extends UpNextGame>(
   limit: number,
 ): T[] {
   const bySeries = new Map<string, UpNextGame[]>();
-  for (const b of seriesGames) {
-    if (!b.seriesName) continue;
-    const key = seriesKey(b.seriesName);
-    const member = b.status === PlayStatus.PLAYING ? { ...b, status: PlayStatus.COMPLETED } : b;
+  for (const g of seriesGames) {
+    if (!g.seriesName) continue;
+    const key = seriesKey(g.seriesName);
+    const member = g.status === PlayStatus.PLAYING ? { ...g, status: PlayStatus.COMPLETED } : g;
     const list = bySeries.get(key);
     if (list) list.push(member);
     else bySeries.set(key, [member]);

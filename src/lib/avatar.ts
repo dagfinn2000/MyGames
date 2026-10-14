@@ -1,9 +1,9 @@
 /**
- * The reader's avatar in the reading room (Decorate › Avatar on the Room
+ * The player's avatar in the game room (Decorate › Avatar on the Room
  * page): how they look. Kept free of React so Preferences can check the
  * choices. components/avatar-art.ts draws them, and game-room.tsx has
- * them walk about the house, or sit in the armchair with the game they're
- * reading.
+ * them walk about the house, or sit in the armchair with a controller
+ * while a game is being played.
  */
 
 export const AVATAR_SKINS = [
@@ -35,7 +35,7 @@ export const AVATAR_HEIGHTS = ["short", "medium", "tall"] as const;
 export type AvatarHeight = (typeof AVATAR_HEIGHTS)[number];
 
 /** How they get about the house: on foot, with a walking stick, or in a
- *  wheelchair. In the armchair, reading, everyone sits the same. */
+ *  wheelchair. In the armchair, playing, everyone sits the same. */
 export const AVATAR_MOBILITY = ["walk", "stick", "wheelchair"] as const;
 export type AvatarMobility = (typeof AVATAR_MOBILITY)[number];
 
@@ -163,9 +163,9 @@ export const AVATAR_ACCESSORIES = [
 ] as const;
 export type AvatarAccessory = (typeof AVATAR_ACCESSORIES)[number];
 
-/** Something carried about the house (not while reading: then the game's
- *  in their hands). */
-export const AVATAR_HELD = ["nothing", "mug", "game", "lantern", "wand", "teddy", "sunflower"] as const;
+/** Something carried about the house (not while playing: then it's put
+ *  down for the controller). */
+export const AVATAR_HELD = ["nothing", "mug", "controller", "book", "lantern", "wand", "teddy", "sunflower"] as const;
 export type AvatarHeld = (typeof AVATAR_HELD)[number];
 
 /** Clothes colours: tops, and what's worn below. */
@@ -589,7 +589,8 @@ export const AVATAR_LABELS: Record<string, string> = {
   // In your hand
   nothing: "Nothing",
   mug: "A mug of tea",
-  game: "A game",
+  controller: "A game controller",
+  book: "A book",
   lantern: "A lantern",
   wand: "A magic wand",
   teddy: "A teddy bear",
