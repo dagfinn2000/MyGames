@@ -134,7 +134,7 @@ export default async function GameRoomPage() {
         <p className="mx-auto max-w-prose text-center text-xs text-muted-foreground">
           Games are filed by platform, then by developer. Handheld games stand in slim cases and boxed PC
           games in big boxes. An outline keeps the place of a game that isn&apos;t on the shelf right now:
-          wished for, lent out or given away. A red ribbon marks a game you&apos;re playing. The room gets
+          wished for, lent out, or sold or traded. A red ribbon marks a game you&apos;re playing. The room gets
           more furniture as your library grows, and Decorate changes its style and colours, adds rooms and
           furniture, moves it about, and makes the little you who lives there.
         </p>

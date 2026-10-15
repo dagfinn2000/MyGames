@@ -52,7 +52,8 @@ describe("catalogueGameValues", () => {
       platform: "",
       description: "",
       coverUrl: "https://images.igdb.com/igdb/image/upload/t_cover_big_2x/co93cr.jpg",
-      lengthMinutes: "1610",
+      // 26 h 50 min, saved as the "about 27 h" the search showed.
+      lengthMinutes: "1620",
       releaseDate: "2017-02-24",
       tags: "platform, adventure",
       seriesName: "Hollow Knight",
@@ -84,7 +85,7 @@ describe("catalogueGameValues", () => {
       releaseDate: "2017-02-24",
       coverUrl: details.coverUrl,
       description: "Forge your own path in Hollow Knight!",
-      lengthMinutes: "1610",
+      lengthMinutes: "1620",
     });
   });
 
@@ -145,7 +146,7 @@ describe("diffAgainstForm", () => {
     expect(byField.title).toMatchObject({ value: "Hollow Knight", current: "Hollow Night", checked: false });
     expect(byField.developers.checked).toBe(false);
     expect(byField.platform).toMatchObject({ value: "PC", checked: false });
-    expect(byField.lengthMinutes).toMatchObject({ value: "1610", label: "Time to beat", checked: true });
+    expect(byField.lengthMinutes).toMatchObject({ value: "1620", label: "Time to beat", checked: true });
     expect(byField.publisher.checked).toBe(true);
     expect(byField.description.checked).toBe(true);
     expect(byField.coverUrl.checked).toBe(true);
@@ -168,6 +169,14 @@ describe("diffAgainstForm", () => {
       catalogue,
     );
     expect(rows.map((r) => r.field)).toEqual(["coverUrl", "catalogueId"]);
+  });
+
+  it("offers a time to beat only when it shows differently", () => {
+    // 26 h 49 min and 27 h both show as "about 27 h"; 25 h doesn't.
+    const offered = (lengthMinutes: string) =>
+      diffAgainstForm({ ...empty, lengthMinutes }, catalogue).some((r) => r.field === "lengthMinutes");
+    expect(offered("1609")).toBe(false);
+    expect(offered("1500")).toBe(true);
   });
 
   it("offers only new tags, and the cover and catalogue entry only when empty", () => {

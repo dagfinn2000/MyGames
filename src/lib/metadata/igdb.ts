@@ -22,6 +22,10 @@ const GAME_FIELDS = [
   "slug",
   "cover.image_id",
   "first_release_date",
+  // How precisely each release date is known (see igdbReleaseDate).
+  "release_dates.date",
+  "release_dates.date_format.format",
+  "release_dates.category",
   "platforms.name",
   "genres.name",
   "themes.name",
@@ -40,6 +44,14 @@ export interface IgdbGame {
   cover?: { image_id?: string };
   /** Unix seconds. */
   first_release_date?: number;
+  release_dates?: {
+    /** Unix seconds. */
+    date?: number;
+    /** "YYYYMMMMDD", "YYYYMMMM", "YYYY", "YYYYQ1" to "YYYYQ4" or "TBD". */
+    date_format?: { format?: string };
+    /** The same as a number, in that order, from before date_format. */
+    category?: number;
+  }[];
   platforms?: { name?: string }[];
   genres?: { name?: string }[];
   themes?: { name?: string }[];
@@ -146,18 +158,47 @@ export function igdbDate(seconds: number | undefined): string | null {
   return new Date(seconds * 1000).toISOString().slice(0, 10);
 }
 
+/** IGDB's date formats, numbered as the older `category` numbers them. */
+const IGDB_DATE_FORMATS = ["YYYYMMMMDD", "YYYYMMMM", "YYYY", "YYYYQ1", "YYYYQ2", "YYYYQ3", "YYYYQ4", "TBD"];
+
+/** How much of "YYYY-MM-DD" a release date's format knows: a month, a year
+ *  (or a quarter of one), else the whole day. */
+function knownLength(format: string | undefined): number {
+  if (format === "YYYYMMMM") return 7;
+  if (format && /^YYYY(Q[1-4])?$/.test(format)) return 4;
+  return 10;
+}
+
+/**
+ * A game's first release as precisely as IGDB knows it. A release known only
+ * to the year, quarter or month is stored as the last day of it ("2026" as
+ * 31 December 2026), so the releases on `first_release_date` say how much
+ * of that date to keep: "2026", "2026-12" or "2026-12-31". The most precise
+ * of them wins, and the whole day is kept when IGDB doesn't say.
+ */
+export function igdbReleaseDate(game: Pick<IgdbGame, "first_release_date" | "release_dates">): string | null {
+  const day = igdbDate(game.first_release_date);
+  if (!day) return null;
+  const lengths = (game.release_dates ?? [])
+    .filter((r) => r.date === game.first_release_date)
+    .map((r) => knownLength(r.date_format?.format ?? IGDB_DATE_FORMATS[r.category ?? -1]));
+  return lengths.length > 0 ? day.slice(0, Math.max(...lengths)) : day;
+}
+
 /** The cover at a size that stays sharp in the cover picker's grid. */
 export function igdbCoverUrl(imageId: string): string {
   return `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${imageId}.jpg`;
 }
 
-/** Minutes to beat per game id. "Normally" is the main story played at an
- *  ordinary pace, the closest to what people mean by how long a game is;
- *  "hastily" (rushing it) only when that is all IGDB has. */
+/** Minutes to beat per game id. IGDB's "hastily" is the main story: to the
+ *  credits without notable time on extras such as side quests, which is
+ *  what a time to beat means here. "Normally" mixes in side quests
+ *  (HowLongToBeat's "Main + Extras"), so it is used only when IGDB has no
+ *  "hastily" time. */
 export function parseTimesToBeat(rows: readonly IgdbTimeToBeat[]): Map<number, number> {
   const minutes = new Map<number, number>();
   for (const row of rows) {
-    const seconds = (row.normally ?? 0) > 0 ? row.normally! : (row.hastily ?? 0);
+    const seconds = (row.hastily ?? 0) > 0 ? row.hastily! : (row.normally ?? 0);
     if (typeof row.game_id === "number" && seconds > 0) {
       minutes.set(row.game_id, Math.round(seconds / 60));
     }
@@ -189,7 +230,7 @@ export function parseIgdbGame(
     coverUrl: game.cover?.image_id ? igdbCoverUrl(game.cover.image_id) : null,
     description: game.summary?.trim() || null,
     lengthMinutes: (game.id !== undefined && timesToBeat.get(game.id)) || null,
-    releaseDate: igdbDate(game.first_release_date),
+    releaseDate: igdbReleaseDate(game),
     tags: [...new Set([...names(game.genres), ...names(game.themes)])],
     seriesName: names(game.collections)[0] ?? names(game.franchises)[0] ?? null,
     catalogueId: `igdb:${game.slug}`,

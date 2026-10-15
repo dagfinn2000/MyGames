@@ -386,8 +386,14 @@ export function GameForm({
         </div>
 
         {/* Keyed on the status, so switching status starts its fields
-            afresh. */}
-        {showStatus && <StatusFields key={status} status={status} />}
+            afresh. Playing and Dropped share a key: both ask for the time
+            played, and switching between them keeps what was typed. */}
+        {showStatus && (
+          <StatusFields
+            key={status === PlayStatus.DROPPED ? PlayStatus.PLAYING : status}
+            status={status}
+          />
+        )}
 
         <input type="hidden" name="catalogueId" value={catalogueId} />
 
@@ -437,8 +443,10 @@ function StatusFields({ status }: { status: PlayStatus }) {
     );
   }
   if (status === PlayStatus.PLAYING || status === PlayStatus.DROPPED) {
+    // Top-aligned, so the hint under the time box doesn't drop the Started
+    // box to the hint's line.
     return (
-      <div className="flex flex-wrap items-end gap-4">
+      <div className="flex flex-wrap items-start gap-4">
         {status === PlayStatus.PLAYING && (
           <div className="grid gap-2">
             <Label htmlFor="dateStarted">Started</Label>
@@ -477,8 +485,8 @@ function PlayedSoFarField() {
         placeholder="0:00"
         aria-describedby={hintId}
       />
-      <p id={hintId} className="sr-only">
-        Hours and minutes, like 12:30
+      <p id={hintId} className="max-w-56 text-xs text-muted-foreground">
+        Like 42:00, 42h or 45m. A plain number is minutes.
       </p>
     </div>
   );

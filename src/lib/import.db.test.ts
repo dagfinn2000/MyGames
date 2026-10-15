@@ -201,12 +201,31 @@ describe("importLibrary", () => {
       userId,
       payload([
         game({ catalogueId: null, platform: "PC" }),
-        game({ catalogueId: null, platform: null }),
         game({ catalogueId: null, developers: ["Someone Else"] }),
       ]),
     );
 
-    expect(second).toMatchObject({ gamesCreated: 3, gamesSkipped: 0 });
+    expect(second).toMatchObject({ gamesCreated: 2, gamesSkipped: 0 });
+  });
+
+  it.each([
+    ["with a catalogue id", "igdb:hollow-knight"],
+    ["without a catalogue id", null],
+  ])("takes a game with no platform for the same one on any platform, %s", async (_, catalogueId) => {
+    // The platform filled in here after the backup was made: restoring
+    // that backup again mustn't bring the game back a second time.
+    const backup = payload([game({ catalogueId, platform: null })]);
+    await importLibrary(userId, backup);
+    await prisma.game.updateMany({ where: { userId }, data: { platform: "Nintendo Switch" } });
+    expect(await importLibrary(userId, backup)).toMatchObject({ gamesCreated: 0, gamesSkipped: 1 });
+
+    // And the other way round: a platform in the backup, none here.
+    await prisma.game.updateMany({ where: { userId }, data: { platform: null } });
+    expect(await importLibrary(userId, payload([game({ catalogueId })]))).toMatchObject({
+      gamesCreated: 0,
+      gamesSkipped: 1,
+    });
+    expect(await prisma.game.count({ where: { userId } })).toBe(1);
   });
 
   it("matches by title when only one side has a catalogue id", async () => {

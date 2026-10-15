@@ -77,8 +77,18 @@ describe("gameSchema catalogueId", () => {
 
   it("refuses anything else", () => {
     // A bare id, an unknown catalogue, a prefix with nothing after it, a
-    // space inside, and the wrong case.
-    for (const id of ["OL27482W", "gog:hollow_knight", "igdb:", "steam:6 20", "IGDB:portal-2"]) {
+    // space inside, the wrong case, and keys their catalogue never writes
+    // (which would leave the game without its link or its lookup).
+    for (const id of [
+      "OL27482W",
+      "gog:hollow_knight",
+      "igdb:",
+      "steam:6 20",
+      "IGDB:portal-2",
+      "steam:portal-2",
+      "wikidata:q42",
+      "igdb:foo/bar?x",
+    ]) {
       const res = gameSchema.safeParse({ ...minimalForm, catalogueId: id });
       expect(res.success, id).toBe(false);
       expect(res.error?.issues[0]?.message).toBe("That isn't a catalogue id MyGames knows");

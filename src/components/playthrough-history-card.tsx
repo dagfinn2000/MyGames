@@ -161,6 +161,7 @@ function PastPlaythroughForm({
   const startId = useId();
   const finishId = useId();
   const timeId = useId();
+  const timeHintId = useId();
   const noteId = useId();
 
   const formRef = useRef<HTMLFormElement>(null);
@@ -220,6 +221,7 @@ function PastPlaythroughForm({
             placeholder="h:mm"
             autoComplete="off"
             className="w-24"
+            aria-describedby={timeHintId}
             defaultValue={boxText(playthrough?.playedMinutes ?? null)}
           />
         </div>
@@ -230,6 +232,10 @@ function PastPlaythroughForm({
           <StarRatingInput name="rating" defaultValue={playthrough?.rating ?? 0} />
         </div>
       </div>
+      {/* Under the row, not the box, so the row's boxes stay level. */}
+      <p id={timeHintId} className="text-xs text-muted-foreground">
+        Time played like 42:00, 42h or 45m. A plain number is minutes.
+      </p>
       <div className="grid gap-1">
         <Label htmlFor={noteId} className="text-xs text-muted-foreground">
           Note

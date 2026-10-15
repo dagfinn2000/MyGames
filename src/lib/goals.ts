@@ -113,6 +113,14 @@ export function doneWords(done: number, unit: GoalUnit, prefs?: FormatPrefs): st
   return formatNumber(Math.floor(done / 60), prefs);
 }
 
+/** The same with its unit, for progress shown on its own ("played 142
+ *  hours", "completed 9 games"): still rounded down. */
+export function doneAmount(done: number, unit: GoalUnit, prefs?: FormatPrefs): string {
+  if (unit === "HOURS" && done < 10 * 60) return formatPlaytime(done);
+  const n = unit === "HOURS" ? Math.floor(done / 60) : done;
+  return `${doneWords(done, unit, prefs)} ${unitWord(unit, n)}`;
+}
+
 /** How far through a goal's year today is. Today counts as gone and as
  *  left: 12 Oct 2026 is day 285 of 365, with 81 days to go. */
 export interface YearClock {

@@ -169,9 +169,14 @@ src/
   played on a day is the difference between consecutive entries, so the
   play calendar, the pace, hours played and hours goals all count the same
   thing. A new playthrough starts with a 0-minute entry as its anchor, so
-  the first time logged after it counts in full. There are no pages,
-  percentages or per-format units: a digital or subscription game is
-  tracked like a boxed one. Typed times are parsed in one place,
+  the first time logged after it counts in full. Completing a game you
+  were logging, with a later time typed, closes the log at that time on
+  the finish day. Otherwise a time typed on a completed game is how long
+  it took, not time played that day, so it isn't logged; stats count it
+  on the day the game was completed. There
+  are no pages, percentages or per-format units: a digital or
+  subscription game is tracked like a boxed one. Typed times are parsed
+  in one place,
   [progress-units.ts](../src/lib/progress-units.ts): "12:30" and "12.30"
   are twelve and a half hours, "1.5h" is an hour and a half, and a bare
   "90" is minutes.
@@ -203,7 +208,8 @@ src/
   stable when an article is renamed). "Look up details" asks that entry's
   own catalogue again, the game page links to it
   ([links.ts](../src/lib/metadata/links.ts)), and a restore treats a game
-  with the same id on the same platform as one it already has. IGDB needs
+  with the same id on the same platform (or with no platform on one side)
+  as one it already has. IGDB needs
   Twitch credentials (`IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`); its access
   token is kept in memory until a minute before it expires. Without them
   IGDB is simply not asked, and the other two need no keys.

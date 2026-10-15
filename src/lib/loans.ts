@@ -66,7 +66,7 @@ export function showsLendingCard(
 export const LENDING_NOTE: Record<LendingMode, string> = {
   lendable: "This copy is on your shelf.",
   borrowed: "Borrowed copy. It isn't yours to lend.",
-  "given-away": "You gave this copy away.",
+  "given-away": "You no longer have this copy.",
   wishlist: "On your wishlist, so there's no copy to lend.",
   digital: "A digital copy, so there's nothing to hand over.",
   subscription: "Part of a subscription, so there's no copy to lend.",

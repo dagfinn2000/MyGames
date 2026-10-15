@@ -271,12 +271,10 @@ export async function updateProgressEntry(
     }
     await tx.progressEntry.update({ where: { id: entry.id }, data: { minutes, date: at } });
 
-    // The game's time played follows the newest entry of the playthrough in
-    // progress.
-    if (
-      around.isCurrent &&
-      (game.status === PlayStatus.PLAYING || game.status === PlayStatus.DROPPED)
-    ) {
+    // The game's time played follows the newest entry of the current
+    // playthrough, whenever the game keeps a time: every status but Want to
+    // Play (Completed keeps it as the time the playthrough took).
+    if (around.isCurrent && game.status !== PlayStatus.WANT_TO_PLAY) {
       const fresh = await tx.progressEntry.findMany({
         where: { gameId: entry.gameId },
         orderBy: LOG_ORDER,
@@ -298,8 +296,8 @@ export async function updateProgressEntry(
 
 /**
  * Delete a play log entry (ownership checked through the game). Deleting
- * the newest entry of the playthrough in progress moves the game's time
- * played back to the entry before it, so the bar keeps matching the log.
+ * the newest entry of the current playthrough moves the game's time played
+ * back to the entry before it, so the bar keeps matching the log.
  */
 export async function deleteProgressEntry(entryId: string): Promise<{ error?: string }> {
   const userId = await requireUserId();
@@ -329,10 +327,7 @@ export async function deleteProgressEntry(entryId: string): Promise<{ error?: st
     const pass = currentPassEntries(all, existing.game.dateStarted, tz);
     await tx.progressEntry.delete({ where: { id: existing.id } });
     const { status } = existing.game;
-    if (
-      pass[pass.length - 1]?.id === existing.id &&
-      (status === PlayStatus.PLAYING || status === PlayStatus.DROPPED)
-    ) {
+    if (pass[pass.length - 1]?.id === existing.id && status !== PlayStatus.WANT_TO_PLAY) {
       await tx.game.update({
         where: { id: existing.gameId },
         data: { playedMinutes: lastLogged(pass.slice(0, -1))?.minutes ?? null },

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
+import { parseCatalogueId } from "@/lib/metadata/links";
 import { parseDuration, TIME_EXAMPLE } from "@/lib/progress-units";
 
 /**
@@ -49,12 +50,15 @@ export const MAX_LENGTH_MINUTES = 60_000;
 export const MAX_PLAYED_MINUTES = 600_000;
 
 /**
- * What a catalogue id may be: "igdb:<slug>", "steam:<app id>" or
- * "wikidata:<Q-id>", as the catalogue clients write them. The form carries
- * it in a hidden field, so anything else came from somewhere else and would
- * only make "Look up details" and the catalogue link go wrong.
+ * Whether text is a catalogue id: "igdb:<slug>", "steam:<app id>" or
+ * "wikidata:<Q-id>", as the catalogue clients write them, checked by the
+ * same parser that reads them back. The form carries it in a hidden field,
+ * so anything else came from somewhere else and would only make "Look up
+ * details" and the catalogue link go wrong.
  */
-export const CATALOGUE_ID_PATTERN = /^(igdb|steam|wikidata):\S+$/;
+export function isCatalogueId(s: string): boolean {
+  return parseCatalogueId(s) !== null;
+}
 
 /** Trimmed text with a length limit; blank is null. */
 function optionalText(max: number, message?: string) {
@@ -169,7 +173,7 @@ export const gameSchema = z.object({
     .string()
     .trim()
     .max(200)
-    .refine((s) => s === "" || CATALOGUE_ID_PATTERN.test(s), "That isn't a catalogue id MyGames knows")
+    .refine((s) => s === "" || isCatalogueId(s), "That isn't a catalogue id MyGames knows")
     .transform((s) => s || null)
     .nullable()
     .optional(),

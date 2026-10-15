@@ -660,6 +660,41 @@ describe("updatePlay and the play log", () => {
     expect(await progressOf(g.id)).toHaveLength(0);
   });
 
+  it("logs nothing for the time an untracked or already completed game took", async () => {
+    // It's how long the playthrough took, not time played today: stats
+    // count it on the day it was completed.
+    const fresh = await makeGame({ status: PlayStatus.WANT_TO_PLAY });
+    await updatePlay(
+      fresh.id,
+      {},
+      form({ status: "COMPLETED", dateFinished: "2019-05-01", playedMinutes: "42:00" }),
+    );
+    expect((await reload(fresh.id)).playedMinutes).toBe(2520);
+    expect(await progressOf(fresh.id)).toHaveLength(0);
+
+    const old = await makeGame({
+      status: PlayStatus.COMPLETED,
+      timesCompleted: 1,
+      dateStarted: new Date("2019-03-01T00:00:00Z"),
+      dateFinished: new Date("2019-04-20T00:00:00Z"),
+    });
+    await updatePlay(
+      old.id,
+      {},
+      form({ status: "COMPLETED", dateStarted: "2019-03-01", dateFinished: "2019-04-20", playedMinutes: "42:00" }),
+    );
+    expect((await reload(old.id)).playedMinutes).toBe(2520);
+    expect(await progressOf(old.id)).toHaveLength(0);
+
+    // A tracked one keeps its log as it was.
+    const tracked = await makeGame({ status: PlayStatus.WANT_TO_PLAY });
+    await updatePlay(tracked.id, {}, form({ status: "PLAYING", playedMinutes: "2:00" }));
+    await updatePlay(tracked.id, {}, form({ status: "COMPLETED" }));
+    await updatePlay(tracked.id, {}, form({ status: "COMPLETED", playedMinutes: "2:30" }));
+    expect((await reload(tracked.id)).playedMinutes).toBe(150);
+    expect(await minutesLogged(tracked.id)).toEqual([0, 120]);
+  });
+
   it("keeps an undated Completed game undated when it is saved again", async () => {
     const g = await makeGame({ status: PlayStatus.COMPLETED, timesCompleted: 1 });
     await updatePlay(g.id, {}, form({ status: "COMPLETED", rating: "8" }));
@@ -698,6 +733,42 @@ describe("updatePlay and the play log", () => {
     expect(after.playedMinutes).toBe(2710);
     expect(after.dateFinished?.toISOString()).toBe("2026-10-11T00:00:00.000Z");
     expect(await minutesLogged(g.id)).toEqual([0, 2710]);
+  });
+
+  it("closes the log on the finish day when a dropped game is picked up and completed", async () => {
+    // A game being played logs its time through the quick row, so its last
+    // session is already in the log when it is completed. A dropped one has
+    // a time box instead: the time typed with Completed is the last
+    // session, and belongs in the play calendar and the hours played on the
+    // day it was completed in the player's zone, not on the day the form
+    // was saved.
+    await setZone("America/New_York");
+    clockAt("2026-10-12T15:00:00.000Z");
+    const g = await makeGame({
+      status: PlayStatus.DROPPED,
+      dateStarted: new Date("2026-10-05T00:00:00Z"),
+      playedMinutes: 2400,
+    });
+    await prisma.progressEntry.createMany({
+      data: [
+        { gameId: g.id, minutes: 0, date: new Date("2026-10-05T00:00:00Z") },
+        { gameId: g.id, minutes: 2400, date: new Date("2026-10-08T16:00:00Z") },
+      ],
+    });
+    await updatePlay(
+      g.id,
+      {},
+      form({ status: "COMPLETED", dateStarted: "2026-10-05", dateFinished: "2026-10-11", playedMinutes: "42:30" }),
+    );
+
+    expect((await reload(g.id)).playedMinutes).toBe(2550);
+    const log = await progressOf(g.id);
+    expect(log.map((e) => e.minutes)).toEqual([0, 2400, 2550]);
+    const closing = log[2].date;
+    expect(closing.getTime()).toBeLessThanOrEqual(Date.now());
+    expect(new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(closing)).toBe(
+      "2026-10-11",
+    );
   });
 
   it("completing with Don't remember leaves no date and keeps the time", async () => {

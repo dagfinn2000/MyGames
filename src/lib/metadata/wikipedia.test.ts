@@ -7,10 +7,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * shaped like the real APIs', and the cache passes every lookup through.
  */
 
+/** What each lookup would have kept, by source. */
+const kept = new Map<string, unknown>();
 vi.mock("@/lib/metadata/cache", () => ({
-  cachedLookup: async (_source: string, _query: string, fetcher: () => Promise<unknown>) => {
+  cachedLookup: async (source: string, _query: string, fetcher: () => Promise<unknown>) => {
     try {
-      return await fetcher();
+      const answer = await fetcher();
+      if (answer !== null) kept.set(source, answer);
+      return answer;
     } catch {
       return null;
     }
@@ -215,6 +219,7 @@ describe("talking to Wikipedia and Wikidata", () => {
     urls = [];
     agents = [];
     wikidataUp = true;
+    kept.clear();
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: string | URL, init?: RequestInit) => {
@@ -247,7 +252,7 @@ describe("talking to Wikipedia and Wikidata", () => {
     expect(rows[1]).toMatchObject({ releaseDate: "2007", coverUrl: null });
 
     const search = urls[0].searchParams;
-    expect(search.get("gsrsearch")).toBe('portal hastemplate:"Infobox video game"');
+    expect(search.get("gsrsearch")).toBe('hastemplate:"Infobox video game" portal');
     expect(search.get("pilicense")).toBe("any");
     expect(agents.every((a) => a?.startsWith("mygames/"))).toBe(true);
   });
@@ -265,9 +270,32 @@ describe("talking to Wikipedia and Wikidata", () => {
     expect(urls[0].searchParams.get("gsrlimit")).toBe("6");
   });
 
+  it("keeps only the claims it reads, and asks for labels with their fallback", async () => {
+    await searchWikipedia("portal");
+    expect(kept.get("wiki-claims")).toEqual({
+      Q279744: parseWikidataEntity(ENTITIES.entities.Q279744),
+      Q309535: parseWikidataEntity(ENTITIES.entities.Q309535),
+    });
+    const labels = urls.find((u) => u.searchParams.get("props") === "labels")!;
+    expect(labels.searchParams.get("languagefallback")).toBe("1");
+  });
+
   it("says Wikipedia is down rather than that it found nothing", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 503 })));
     await expect(searchWikipedia("portal")).rejects.toThrow("Wikipedia unavailable");
+  });
+
+  it("takes an error the API answers with 200 for a failure, keeping nothing", async () => {
+    // CirrusSearch under load, say: HTTP 200 with an `error` member.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ error: { code: "search-error", info: "Search is currently too busy." } }),
+      ),
+    );
+    await expect(searchWikipedia("portal")).rejects.toThrow("Wikipedia unavailable");
+    expect(await getWikipediaGame("Q279744")).toBeNull();
+    expect(kept.size).toBe(0);
   });
 
   it("fetches one game by its Wikidata item, then its article", async () => {

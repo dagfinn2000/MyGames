@@ -102,8 +102,8 @@ type LogEntry = Pick<ProgressEntry, "id" | "minutes" | "date">;
 /**
  * The raw play log, collapsed by default: every logged time, newest first.
  * Each entry has a pencil to fix its time or day and a delete button;
- * deleting the newest entry of the playthrough in progress moves the
- * game's time played back with it. A playthrough's "Started" anchor has
+ * deleting the newest entry of the current playthrough moves the game's
+ * time played back with it. A playthrough's "Started" anchor has
  * neither, since the playthrough's time is counted from it.
  *
  * Opens by itself when the address ends in #progress-log (the "Full log"

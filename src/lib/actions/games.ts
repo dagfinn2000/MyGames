@@ -12,7 +12,7 @@ import { localizeCoverAfterResponse } from "@/lib/cover-localize";
 import { getPreferences } from "@/lib/current-user";
 import { requireUserId } from "@/lib/actions/helpers";
 import type { ActionState } from "@/lib/actions/helpers";
-import { calendarDay, dayKey, zonedDayStart } from "@/lib/dates";
+import { calendarDay, dayKey, endOfZonedDay, zonedDayStart } from "@/lib/dates";
 import { currentPassEntries } from "@/lib/progress";
 import { anchorMoment } from "@/lib/play-log";
 import { settlePlayState } from "@/lib/play-state";
@@ -256,7 +256,7 @@ export async function updatePlay(
       tx,
       gameId,
       existing,
-      { status: data.status, playedMinutes, dateStarted },
+      { status: data.status, playedMinutes, dateStarted, dateFinished },
       prefs.timeZone,
     );
   });
@@ -271,8 +271,9 @@ export async function updatePlay(
 }
 
 /**
- * The automatic play log: every change to `playedMinutes` becomes a dated
- * ProgressEntry. Consumers (sparkline, pace, heatmap, hours played) count
+ * The automatic play log: every change to the time played of a game that
+ * isn't completed becomes a dated ProgressEntry. Consumers (sparkline,
+ * pace, heatmap, hours played) count
  * time as the delta between *consecutive* entries, so the first entry of a
  * playthrough is preceded by a 0-minute anchor at the pass start — "2 h"
  * logged into a fresh game credits 2 hours, while a lone entry with no
@@ -281,7 +282,9 @@ export async function updatePlay(
  *
  * Completing a game writes nothing extra: there is no last minute to close
  * the log at. The time played when it was completed is whatever was
- * logged, and it stays on the game ("Completed in 42 h").
+ * logged, and it stays on the game ("Completed in 42 h"). Nor does a time
+ * typed or corrected on a completed game: it is how long that playthrough
+ * took, not time played today.
  */
 async function logProgress(
   db: Prisma.TransactionClient,
@@ -295,6 +298,7 @@ async function logProgress(
     status: PlayStatus;
     playedMinutes: number | null;
     dateStarted: Date | null;
+    dateFinished: Date | null;
   },
   /** The player's zone. */
   timeZone: string,
@@ -331,13 +335,46 @@ async function logProgress(
     }
   }
 
-  if (next.playedMinutes != null && next.playedMinutes !== prev.playedMinutes) {
+  // Logging a completed playthrough's time would credit all of it (or a
+  // correction) to the day it was typed. Unlogged, it counts on the finish
+  // day instead (wholeMinutes in lib/stats-count.ts), like the time of a
+  // game added as Completed.
+  if (
+    next.status !== PlayStatus.COMPLETED &&
+    next.playedMinutes != null &&
+    next.playedMinutes !== prev.playedMinutes
+  ) {
     const entries: { gameId: string; minutes: number; date: Date }[] = [];
     if (!last) {
       entries.push({ gameId, minutes: 0, date: anchorMoment(next.dateStarted, now) });
     }
     entries.push({ gameId, minutes: next.playedMinutes, date: now });
     await db.progressEntry.createMany({ data: entries });
+    return;
+  }
+
+  // Finishing a tracked game with a later time than its log reached: close
+  // the log at that time, so the last session lands in the play calendar
+  // and the hours played. An untracked pass (no entries) logs nothing, nor
+  // does an undated finish (no day to credit the last session to), nor a
+  // correction to a game that was already completed.
+  if (
+    next.status === PlayStatus.COMPLETED &&
+    prev.status !== PlayStatus.COMPLETED &&
+    next.dateFinished != null &&
+    next.playedMinutes != null &&
+    last != null &&
+    last.minutes < next.playedMinutes
+  ) {
+    // On the finish day in the player's zone. A typed date is midnight UTC,
+    // which west of UTC is still the evening before and east of UTC can
+    // be later today; that takes the end of its day, or now if sooner.
+    const finished = next.dateFinished;
+    const day = calendarDay(finished, timeZone);
+    const end = endOfZonedDay(day, timeZone);
+    const date =
+      dayKey(finished, timeZone) === day && finished <= now ? finished : end < now ? end : now;
+    await db.progressEntry.create({ data: { gameId, minutes: next.playedMinutes, date } });
   }
 }
 

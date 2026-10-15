@@ -23,6 +23,7 @@ const {
   apicalypseString,
   getIgdbGame,
   igdbDate,
+  igdbReleaseDate,
   parseIgdbGame,
   parseTimesToBeat,
   resetIgdbToken,
@@ -96,17 +97,33 @@ describe("parseIgdbGame", () => {
     expect(igdbDate(1487894400)).toBe("2017-02-24");
     expect(igdbDate(undefined)).toBeNull();
   });
+
+  it("keeps only as much of the release date as IGDB knows", () => {
+    // A release known to the year is stored as its last day.
+    const endOf2026 = 1798675200; // 2026-12-31 00:00 UTC
+    const year = { date: endOf2026, date_format: { format: "YYYY" } };
+    const game = (release_dates: object[]) => ({ first_release_date: endOf2026, release_dates });
+    expect(igdbReleaseDate(game([year]))).toBe("2026");
+    expect(igdbReleaseDate(game([{ date: endOf2026, date_format: { format: "YYYYQ4" } }]))).toBe("2026");
+    expect(igdbReleaseDate(game([{ date: endOf2026, category: 1 }]))).toBe("2026-12");
+    // An exact date on one platform beats a vaguer one on another.
+    expect(igdbReleaseDate(game([year, { date: endOf2026, category: 0 }]))).toBe("2026-12-31");
+    // Releases on other days, or none, leave the whole day.
+    expect(igdbReleaseDate(game([{ date: 1487894400, date_format: { format: "YYYY" } }]))).toBe("2026-12-31");
+    expect(igdbReleaseDate({ first_release_date: 1487894400 })).toBe("2017-02-24");
+    expect(igdbReleaseDate({})).toBeNull();
+  });
 });
 
 describe("parseTimesToBeat", () => {
-  it("takes the usual time in minutes, or the rushed one when that's all there is", () => {
+  it("takes the main-story time in minutes, or the time with extras when that's all there is", () => {
     const times = parseTimesToBeat([
-      { game_id: 72, hastily: 25200, normally: 31230, completely: 54000 },
-      { game_id: 1, hastily: 28800 },
+      { game_id: 72, hastily: 25230, normally: 31200, completely: 54000 },
+      { game_id: 1, normally: 28800 },
       { game_id: 2, normally: 0, hastily: 0 },
     ]);
     expect([...times]).toEqual([
-      [72, 521],
+      [72, 421],
       [1, 480],
     ]);
   });
@@ -160,7 +177,7 @@ describe("talking to IGDB", () => {
   it("searches with a token and Apicalypse, then fetches the times to beat", async () => {
     const rows = await searchIgdb('portal "2"');
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ title: "Portal 2", lengthMinutes: 520 });
+    expect(rows[0]).toMatchObject({ title: "Portal 2", lengthMinutes: 420 });
 
     const tokenUrl = new URL(calls[0].url);
     expect(tokenUrl.searchParams.get("client_id")).toBe("client-id");
@@ -209,7 +226,7 @@ describe("talking to IGDB", () => {
 
   it("fetches one game by its slug", async () => {
     const game = await getIgdbGame("portal-2");
-    expect(game).toMatchObject({ catalogueId: "igdb:portal-2", lengthMinutes: 520 });
+    expect(game).toMatchObject({ catalogueId: "igdb:portal-2", lengthMinutes: 420 });
     expect(calls[1].init?.body).toContain('where slug = "portal-2";');
   });
 });

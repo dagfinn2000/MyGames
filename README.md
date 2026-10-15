@@ -118,7 +118,7 @@ the same app for books, and is built from the same code.
   asleep in the armchair to a clock, a library ladder, a window seat and a
   study.
 - A ribbon marks the games you're playing, and games on your wishlist, lent
-  out or given away keep their place as an outline. Light themes show it by
+  out or sold keep their place as an outline. Light themes show it by
   day; dark themes by lamplight, with the fire going.
 - Decorate it: ten house styles (a cottage, a castle, a wizard's house, an
   elven hall, a cave in a hill, a space station, a modern house, a log
@@ -130,7 +130,7 @@ the same app for books, and is built from the same code.
   to wherever you like it (or move it with the arrow keys).
 - Add rooms over the library, each a floor of its own: a kitchen with the
   kettle on the range, a bedroom under a patchwork quilt, a music room, a
-  conservatory with a songbird, a games room with a billiard table, a
+  conservatory with a songbird, a billiard room with a dartboard, a
   studio with an easel, a bathroom with a bubble bath, a dining room under
   a chandelier, a nursery with a mobile over the cot, a woodshop, a sauna
   with steam rising off the stove, or a spare room to fill yourself. The

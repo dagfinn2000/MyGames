@@ -3,6 +3,7 @@ import type { GoalUnit } from "@prisma/client";
 import { formatDayKey, formatNumber } from "@/lib/display";
 import {
   describePace,
+  doneAmount,
   doneWords,
   goalAmount,
   goalTarget,
@@ -178,7 +179,7 @@ export function GoalCard({
                 <span className="w-12 text-muted-foreground">{g.year}</span>
                 <span className="tabular-nums">
                   {targetWords(g.target, g.unit, prefs)} ·{" "}
-                  {g.unit === "HOURS" ? "played" : "completed"} {doneWords(g.done, g.unit, prefs)}
+                  {g.unit === "HOURS" ? "played" : "completed"} {doneAmount(g.done, g.unit, prefs)}
                 </span>
                 {g.met && <GoldMedal className="h-6 w-[18px]" />}
                 <Link

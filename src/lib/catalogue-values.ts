@@ -40,9 +40,9 @@ export function cataloguePlatforms(
   return details?.platforms?.length ? details.platforms : (row?.platforms ?? []);
 }
 
-/** A catalogue's time to beat as worth showing. The times are averages
- *  over many players, so from two hours up they are rounded to the hour:
- *  "about 27 h" rather than "about 26 h 50 min". */
+/** A catalogue's time to beat as worth showing (and keeping). The times
+ *  are averages over many players, so from two hours up they are rounded
+ *  to the hour: "about 27 h" rather than "about 26 h 50 min". */
 export function roundTimeToBeat(minutes: number): number {
   return minutes >= 120 ? Math.round(minutes / 60) * 60 : Math.round(minutes);
 }
@@ -75,7 +75,9 @@ export function catalogueGameValues(
     platform: platforms.length === 1 ? platforms[0] : "",
     description: details?.description ?? row?.description ?? "",
     coverUrl: details?.coverUrl ?? row?.coverUrl ?? "",
-    lengthMinutes: length && length > 0 ? String(Math.round(length)) : "",
+    // Rounded as the search list and Look up details show it, so the time
+    // saved is the time that was shown.
+    lengthMinutes: length && length > 0 ? String(roundTimeToBeat(length)) : "",
     releaseDate: details?.releaseDate ?? row?.releaseDate ?? "",
     tags: catalogueTags([...(row?.tags ?? []), ...(details?.tags ?? [])], tagImport).join(", "),
     seriesName: details?.seriesName ?? row?.seriesName ?? "",
@@ -130,8 +132,9 @@ function comparable(field: CatalogueField, value: string): string {
     case "platform":
       return v ? normalizePlatform(v).toLowerCase() : v;
     case "lengthMinutes": {
+      // As shown: "about 27 h" against "about 27 h" is nothing to offer.
       const n = Number(v);
-      return v && Number.isFinite(n) ? String(n) : v;
+      return v && Number.isFinite(n) ? String(roundTimeToBeat(n)) : v;
     }
     default:
       return v;

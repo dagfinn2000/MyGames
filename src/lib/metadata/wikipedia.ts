@@ -104,7 +104,11 @@ async function getJson<T>(api: string, params: Record<string, string>): Promise<
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) return null;
-  return (await res.json()) as T;
+  const data: unknown = await res.json();
+  // The action API reports its errors (search too busy, a bad id, ...) with
+  // HTTP 200 and an `error` member: a failure, not an answer to cache.
+  if (data !== null && typeof data === "object" && "error" in data) return null;
+  return data as T;
 }
 
 /** The article fields both the search and a single page ask for. */
@@ -303,18 +307,28 @@ async function wikidataFacts(qids: readonly string[]): Promise<Map<string, Wikid
 
   const claimsById = new Map<string, WikidataClaims>();
   for (const chunk of chunks(ids, IDS_PER_CALL)) {
-    const data = await cachedLookup<WikidataResponse>("wiki-entity", chunk.join("|"), () =>
-      getJson(WIKIDATA_API, {
-        action: "wbgetentities",
-        format: "json",
-        ids: chunk.join("|"),
-        props: "claims|sitelinks",
-        sitefilter: "enwiki",
-      }),
+    // Only the claims read here are kept: a popular game's item, with every
+    // statement and its references, runs to hundreds of kilobytes.
+    const claims = await cachedLookup<Record<string, WikidataClaims>>(
+      "wiki-claims",
+      chunk.join("|"),
+      async () => {
+        const data = await getJson<WikidataResponse>(WIKIDATA_API, {
+          action: "wbgetentities",
+          format: "json",
+          ids: chunk.join("|"),
+          props: "claims|sitelinks",
+          sitefilter: "enwiki",
+        });
+        if (!data) return null;
+        return Object.fromEntries(
+          Object.entries(data.entities ?? {})
+            .filter(([, entity]) => entity.missing === undefined)
+            .map(([id, entity]) => [id, parseWikidataEntity(entity)]),
+        );
+      },
     );
-    for (const [id, entity] of Object.entries(data?.entities ?? {})) {
-      if (entity.missing === undefined) claimsById.set(id, parseWikidataEntity(entity));
-    }
+    for (const [id, c] of Object.entries(claims ?? {})) claimsById.set(id, c);
   }
 
   // The items' own ids too, for a title when an item has no article.
@@ -333,6 +347,9 @@ async function wikidataFacts(qids: readonly string[]): Promise<Map<string, Wikid
         ids: chunk.join("|"),
         props: "labels",
         languages: "en",
+        // An item may have only a label for all languages ("mul"), which
+        // Wikidata now prefers for names; this returns it as the English one.
+        languagefallback: "1",
       }),
     );
     for (const [id, label] of parseLabels(data ?? {})) labels.set(id, label);
@@ -361,7 +378,9 @@ export async function searchWikipedia(
       getJson(WIKIPEDIA_API, {
         ...PAGE_PARAMS,
         generator: "search",
-        gsrsearch: `${query} hastemplate:"Infobox video game"`,
+        // The filter first: a search starting "Portal: ..." would otherwise
+        // search the Portal namespace.
+        gsrsearch: `hastemplate:"Infobox video game" ${query}`,
         gsrnamespace: "0",
         gsrlimit: String(limit),
       }),

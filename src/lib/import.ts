@@ -8,11 +8,11 @@ import { coverFilePath, coversDir } from "@/lib/covers";
 import { sniffImageKind } from "@/lib/image-type";
 import { buildSearchText, foldForSearch } from "@/lib/utils";
 import {
-  CATALOGUE_ID_PATTERN,
   MAX_LENGTH_MINUTES,
   MAX_PLAYED_MINUTES,
   MAX_SPEAKER_LENGTH,
   isAllowedCoverUrl,
+  isCatalogueId,
   shelfNameSchema,
 } from "@/lib/validation";
 import { cleanLibraryViewPatch } from "@/lib/library-view";
@@ -173,7 +173,7 @@ const importedGameSchema = z.object({
     .string()
     .trim()
     .max(200)
-    .regex(CATALOGUE_ID_PATTERN)
+    .refine(isCatalogueId)
     .nullable()
     .optional()
     .catch(null),
@@ -340,30 +340,44 @@ function catalogueKey(catalogueId: string, platform: string | null): string {
   return JSON.stringify([catalogueId, fold(platform)]);
 }
 
-/**
- * The games already in a library, for telling whether a backup's game is
- * one of them: by catalogue id where both have one, since that survives a
- * title edited on either side and tells a remake from the original of the
- * same name; otherwise by title, platform and developers.
- */
-function duplicateFinder(existing: GameIdentity[]) {
+/** Whether a game is one of `games` on the same platform. No platform
+ *  counts as one of its own here: it matches only a game with none. */
+function samePlatformFinder(games: GameIdentity[]) {
   const byCatalogue = new Set<string>();
   const byTitle = new Set<string>();
   /** Title keys of the games without a catalogue id: the only ones a
    *  catalogued game can match by title. */
   const byTitleUncatalogued = new Set<string>();
-  const add = (g: GameIdentity) => {
+  for (const g of games) {
     const key = titleKey(g);
     byTitle.add(key);
     if (g.catalogueId) byCatalogue.add(catalogueKey(g.catalogueId, g.platform));
     else byTitleUncatalogued.add(key);
-  };
-  existing.forEach(add);
+  }
   return (g: GameIdentity): boolean =>
     g.catalogueId
       ? byCatalogue.has(catalogueKey(g.catalogueId, g.platform)) ||
         byTitleUncatalogued.has(titleKey(g))
       : byTitle.has(titleKey(g));
+}
+
+/**
+ * The games already in a library, for telling whether a backup's game is
+ * one of them: by catalogue id where both have one, since that survives a
+ * title edited on either side and tells a remake from the original of the
+ * same name; otherwise by title, platform and developers. A game with no
+ * platform on either side matches any platform: the platform is often
+ * filled in after a backup was made, and that same game mustn't come back
+ * as a second one.
+ */
+function duplicateFinder(existing: GameIdentity[]) {
+  const noPlatform = (g: GameIdentity): GameIdentity => ({ ...g, platform: null });
+  const samePlatform = samePlatformFinder(existing);
+  const anyPlatform = samePlatformFinder(existing.map(noPlatform));
+  return (g: GameIdentity): boolean =>
+    fold(g.platform)
+      ? samePlatform(g) || samePlatform(noPlatform(g))
+      : anyPlatform(g);
 }
 
 /** Reads a cover image bundled with the backup (zip imports supply this). */

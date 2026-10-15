@@ -3,6 +3,7 @@ import type { GoalUnit } from "@prisma/client";
 import { formatNumber } from "@/lib/display";
 import {
   describePace,
+  doneAmount,
   doneWords,
   goalAmount,
   goalPace,
@@ -82,6 +83,14 @@ describe("goal units in words", () => {
     expect(doneWords(72_000, "HOURS")).toBe("1,200");
     const spaced = { numberFormat: "space" } as const;
     expect(doneWords(72_000, "HOURS", spaced)).toBe(formatNumber(1200, spaced));
+  });
+
+  it("says the unit when progress stands on its own, still rounded down", () => {
+    expect(doneAmount(9, "GAMES")).toBe("9 games");
+    expect(doneAmount(1, "GAMES")).toBe("1 game");
+    expect(doneAmount(200, "HOURS")).toBe("3 h 20 min");
+    expect(doneAmount(8_570, "HOURS")).toBe("142 hours");
+    expect(doneAmount(17_999, "HOURS")).toBe("299 hours");
   });
 });
 

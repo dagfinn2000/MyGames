@@ -328,6 +328,19 @@ describe("updateProgressEntry", () => {
     expect((await gameRow(game.id)).playedMinutes).toBe(205);
   });
 
+  it("moves a completed game's time played with its newest entry, but never a Want to Play game's", async () => {
+    // Completed keeps the time the playthrough took ("Completed in 3 h
+    // 30 min"), so fixing a mistyped last log fixes that too.
+    const done = await seeded({ status: PlayStatus.COMPLETED, timesCompleted: 1 });
+    await updateProgressEntry(done.rows[3].id, { minutes: 200, day: "2026-10-12" });
+    expect((await gameRow(done.game.id)).playedMinutes).toBe(200);
+
+    // Want to Play has no time; an old log fixed there doesn't bring one back.
+    const shelved = await seeded({ status: PlayStatus.WANT_TO_PLAY, playedMinutes: null });
+    await updateProgressEntry(shelved.rows[3].id, { minutes: 200, day: "2026-10-12" });
+    expect((await gameRow(shelved.game.id)).playedMinutes).toBeNull();
+  });
+
   it("takes the newest entry past the usual time to beat", async () => {
     const { game, rows } = await seeded();
     expect(await updateProgressEntry(rows[3].id, { minutes: 2000, day: "2026-10-12" })).toEqual({
@@ -421,6 +434,19 @@ describe("deleteProgressEntry", () => {
     await deleteProgressEntry(rows[2].id);
     expect((await gameRow(game.id)).playedMinutes).toBeNull();
     expect(await log(game.id)).toEqual([[0, "2026-10-05T00:00:00.000Z"]]);
+  });
+
+  it("moves a completed game's time played back too", async () => {
+    // 42 h logged where 4 h 20 min was meant, then completed.
+    const game = await makeGame({ status: PlayStatus.COMPLETED, timesCompleted: 1, playedMinutes: 2520 });
+    await addEntries(game.id, [
+      [0, "2026-10-05T00:00:00.000Z"],
+      [120, "2026-10-08T18:00:00.000Z"],
+      [2520, "2026-10-12T07:00:00.000Z"],
+    ]);
+    const rows = await prisma.progressEntry.findMany({ where: { gameId: game.id }, orderBy: { date: "asc" } });
+    await deleteProgressEntry(rows[2].id);
+    expect((await gameRow(game.id)).playedMinutes).toBe(120);
   });
 
   it("won't delete the start of a playthrough, or another account's entry", async () => {
