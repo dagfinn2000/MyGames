@@ -1051,7 +1051,8 @@ const ShelvingUnit = memo(function ShelvingUnit({
                     data-spine=""
                     data-game={i}
                     data-flight-cover=""
-                    data-pattern={spine.pattern}
+                    data-case={spine.kind}
+                    data-band={spine.band}
                     data-away={isOnShelf(game) ? undefined : ""}
                     data-playing={game.status === PlayStatus.PLAYING ? "" : undefined}
                     tabIndex={i === current ? 0 : -1}

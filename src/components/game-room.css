@@ -1106,23 +1106,26 @@
 }
 
 /* ── Spines ───────────────────────────────────────────────────────────────
-   Each game is a case standing spine out: a strip of the game's colour
-   with a lighter left edge and a darker right one, so cases standing
-   together read as separate, and one of five patterns a case's spine
-   might wear: a band at the top and the foot, a title label, a dark
-   header band, a wide band, or a small logo. A game that isn't on the
-   shelf (wishlist, lent out, given away) keeps its place as an outline.
-   A game being played has a red ribbon showing at the top. */
+   Each game is a case standing spine out, the way games stand on a real
+   shelf: every case of a kind the same height (room.ts), a strip of the
+   game's colour with a lighter left edge and a darker right one, so cases
+   standing together read as separate, and across the top the band of its
+   system — red for Switch, white for PS5, blue for PS4, black for older
+   PlayStations, green for Xbox — with the title running down the spine
+   under it and a little age-rating badge at the foot. A game that isn't
+   on the shelf (wishlist, lent out, given away) keeps its place as an
+   outline. A game being played has a red ribbon showing at the top. */
 .room-shelf {
   position: absolute;
   display: flex;
   align-items: flex-end;
 }
 .room-spine {
-  --hi: color-mix(in oklab, var(--spine), #fff 24%);
-  --lo: color-mix(in oklab, var(--spine), #000 38%);
-  --band: color-mix(in oklab, var(--spine), #fff 62%);
-  --dark: color-mix(in oklab, var(--spine), #000 30%);
+  --hi: color-mix(in oklab, var(--spine), #fff 14%);
+  --lo: color-mix(in oklab, var(--spine), #000 45%);
+  --title: color-mix(in oklab, var(--spine), #fff 62%);
+  /* The band of a system without one of its own: the game's colour, dark. */
+  --case-band: color-mix(in oklab, var(--spine), #000 45%);
   position: relative;
   flex: none;
   display: block;
@@ -1141,41 +1144,46 @@
 [data-returning] .room-spine {
   animation: none;
 }
+/* The system's band, over the whole width, plastic edges included. Faded
+   a little at night like the rest of the room's own colours. */
+.room-spine[data-band="switch"] { --case-band: color-mix(in oklab, #e4141e, var(--dusk) calc(var(--night) * 30%)); }
+.room-spine[data-band="ps5"] { --case-band: color-mix(in oklab, #f4f5f7, var(--dusk) calc(var(--night) * 40%)); }
+.room-spine[data-band="ps4"] { --case-band: color-mix(in oklab, #1d4fa8, var(--dusk) calc(var(--night) * 30%)); }
+.room-spine[data-band="playstation"] { --case-band: color-mix(in oklab, #17171a, var(--dusk) calc(var(--night) * 20%)); }
+.room-spine[data-band="xbox"] { --case-band: color-mix(in oklab, #17901a, var(--dusk) calc(var(--night) * 30%)); }
+.room-spine[data-band="nintendo"] { --case-band: color-mix(in oklab, #d8dadf, var(--dusk) calc(var(--night) * 40%)); }
+.room-spine[data-band="pc"] { --case-band: color-mix(in oklab, #2f3237, var(--dusk) calc(var(--night) * 20%)); }
+/* The marks on a spine, each placed on whole dots so they stay crisp:
+   the band across the top, a short title under it (one dot in from the
+   darker right edge) and the age-rating badge at the foot, with the
+   game's art filling the rest, as on a real case. Slim cases have a
+   slimmer band and no room for a badge; a big box has no band, just a
+   title block on its art. */
 .room-spine::before {
   content: "";
   position: absolute;
-  inset: 0 var(--u);
+  inset: 0;
   pointer-events: none;
-}
-/* Light bands near the top and the foot. */
-.room-spine[data-pattern="0"]::before {
+  --badge: color-mix(in oklab, #fff, var(--dusk) calc(var(--night) * 40%));
   background:
-    linear-gradient(var(--band), var(--band)) 0 calc(var(--u) * 2) / 100% var(--u) no-repeat,
-    linear-gradient(var(--band), var(--band)) 0 calc(100% - var(--u) * 3) / 100% var(--u) no-repeat;
+    linear-gradient(var(--case-band), var(--case-band)) 0 0 / 100% calc(var(--u) * 3) no-repeat,
+    linear-gradient(var(--title), var(--title)) calc(var(--u) * 2) calc(var(--u) * 5) / var(--u)
+      calc(var(--u) * 4) no-repeat,
+    linear-gradient(var(--badge), var(--badge)) calc(var(--u) * 2) calc(100% - var(--u)) / var(--u)
+      calc(var(--u) * 2) no-repeat;
 }
-/* A title label. */
-.room-spine[data-pattern="1"]::before {
-  background: linear-gradient(var(--room-paper), var(--room-paper)) 0 calc(var(--u) * 3) / 100%
-    calc(var(--u) * 3) no-repeat;
-  opacity: 0.85;
-}
-/* A dark header band, where the platform's name goes, and a thin foot
-   band. */
-.room-spine[data-pattern="2"]::before {
+.room-spine[data-case="slim"]::before {
   background:
-    linear-gradient(var(--dark), var(--dark)) 0 0 / 100% calc(var(--u) * 3) no-repeat,
-    linear-gradient(var(--band), var(--band)) 0 calc(100% - var(--u) * 2) / 100% var(--u) no-repeat;
+    linear-gradient(var(--case-band), var(--case-band)) 0 0 / 100% calc(var(--u) * 2) no-repeat,
+    linear-gradient(var(--title), var(--title)) var(--u) calc(var(--u) * 4) / var(--u) calc(var(--u) * 3)
+      no-repeat;
 }
-/* One wide dark band with a light stripe. */
-.room-spine[data-pattern="3"]::before {
+.room-spine[data-case="bigbox"]::before {
   background:
-    linear-gradient(var(--dark), var(--dark)) 0 calc(var(--u) * 4) / 100% calc(var(--u) * 3) no-repeat,
-    linear-gradient(var(--band), var(--band)) 0 calc(var(--u) * 5) / 100% var(--u) no-repeat;
-}
-/* A small logo. */
-.room-spine[data-pattern="4"]::before {
-  background: linear-gradient(var(--band), var(--band)) 50% calc(var(--u) * 4) / var(--u) var(--u)
-    no-repeat;
+    linear-gradient(var(--title), var(--title)) var(--u) calc(var(--u) * 2) / calc(var(--u) * 4)
+      calc(var(--u) * 2) no-repeat,
+    linear-gradient(var(--badge), var(--badge)) calc(var(--u) * 2) calc(100% - var(--u)) / var(--u)
+      calc(var(--u) * 2) no-repeat;
 }
 .room-spine[data-away] {
   background: color-mix(in oklab, var(--spine) 14%, transparent);

@@ -9,11 +9,13 @@ import {
   ROOM_PIECES,
   PAD,
   PIECE_WIDTH,
+  SHELF_SLOT,
   SHELF_WIDTH,
   addExtra,
   addRoom,
   bringOut,
   caseCount,
+  caseBand,
   caseKind,
   dressShelf,
   fileByPlatform,
@@ -62,10 +64,36 @@ describe("caseKind", () => {
   });
 });
 
+describe("caseBand", () => {
+  it("gives each system the band its cases wear", () => {
+    expect(caseBand("Nintendo Switch")).toBe("switch");
+    expect(caseBand("Nintendo Switch 2")).toBe("switch");
+    expect(caseBand("PlayStation 5")).toBe("ps5");
+    expect(caseBand("PS5")).toBe("ps5");
+    expect(caseBand("PlayStation 4")).toBe("ps4");
+    expect(caseBand("PlayStation 3")).toBe("playstation");
+    expect(caseBand("PS Vita")).toBe("playstation");
+    expect(caseBand("Xbox Series X|S")).toBe("xbox");
+    expect(caseBand("Xbox 360")).toBe("xbox");
+    expect(caseBand("Wii U")).toBe("nintendo");
+    expect(caseBand("Nintendo 3DS")).toBe("nintendo");
+    expect(caseBand("GameCube")).toBe("nintendo");
+    expect(caseBand("PC")).toBe("pc");
+    expect(caseBand("PC (Microsoft Windows)")).toBe("pc");
+    expect(caseBand("Mac")).toBe("pc");
+  });
+
+  it("falls back to a band in the game's own colour", () => {
+    for (const platform of ["Sega Saturn", "Steam Deck", "PC Engine", "", null]) {
+      expect(caseBand(platform)).toBe("plain");
+    }
+  });
+});
+
 describe("spineFor", () => {
   it("makes thicker cases wider", () => {
     const width = (platform: string | null, format: GameFormat = GameFormat.PHYSICAL) =>
-      spineFor({ title: "Celeste", platform, format }).width;
+      spineFor({ platform, format }).width;
     expect(width("Nintendo Switch")).toBe(3);
     expect(width("PlayStation 5")).toBe(4);
     expect(width(null)).toBe(4);
@@ -73,23 +101,28 @@ describe("spineFor", () => {
     expect(width("PC")).toBe(6);
   });
 
-  it("gives a title the same height and pattern every time", () => {
-    const digital = GameFormat.DIGITAL;
-    expect(spineFor({ title: "Hollow Knight", platform: "PC", format: digital })).toEqual(
-      spineFor({ title: " hollow knight ", platform: "pc", format: digital }),
-    );
-    // Only the thickness comes from the case.
-    const { height, pattern } = spineFor({ title: "Hollow Knight", platform: "Nintendo Switch", format: digital });
-    expect(spineFor({ title: "Hollow Knight", platform: "PC", format: GameFormat.PHYSICAL })).toMatchObject({
-      height,
-      pattern,
-    });
-    for (let i = 0; i < 100; i++) {
-      const spine = spineFor({ title: `Game ${i}`, platform: "PlayStation 5", format: GameFormat.PHYSICAL });
-      expect(spine.height).toBeGreaterThanOrEqual(14);
-      expect(spine.height).toBeLessThanOrEqual(18);
-      expect([0, 1, 2, 3, 4]).toContain(spine.pattern);
+  it("stands every case of a kind at the same height, as on a real shelf", () => {
+    const height = (platform: string | null, format: GameFormat = GameFormat.PHYSICAL) =>
+      spineFor({ platform, format }).height;
+    expect(height("Nintendo Switch")).toBe(14);
+    expect(height("PlayStation 5")).toBe(16);
+    expect(height("Xbox Series X|S")).toBe(16);
+    expect(height("PC")).toBe(18);
+    // Handhelds shorter than consoles, big boxes tallest, and every case
+    // fits under the shelf above with room to lift on hover.
+    expect(height("Nintendo 3DS")).toBeLessThan(height("PlayStation 4"));
+    expect(height("PC")).toBeGreaterThan(height("PlayStation 4"));
+    for (const p of ["Nintendo Switch", "PlayStation 5", "PC", null]) {
+      expect(height(p)).toBeLessThanOrEqual(SHELF_SLOT - 2);
     }
+  });
+
+  it("carries the case kind and the system's band", () => {
+    expect(spineFor({ platform: "Nintendo Switch", format: GameFormat.DIGITAL })).toMatchObject({
+      kind: "slim",
+      band: "switch",
+    });
+    expect(spineFor({ platform: "PC", format: GameFormat.PHYSICAL })).toMatchObject({ kind: "bigbox", band: "pc" });
   });
 });
 

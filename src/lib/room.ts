@@ -17,7 +17,7 @@ import { hash } from "@/lib/cover-art";
 /** Inside width of one shelf. */
 export const SHELF_WIDTH = 40;
 export const SHELVES_PER_CASE = 5;
-/** Clear height above each shelf board; the tallest spine is 18. */
+/** Clear height above each shelf board; the tallest case (a big box) is 18. */
 export const SHELF_SLOT = 20;
 export const SHELF_BOARD = 3;
 /** The moulding along the top of a shelving unit, and the plinth under it. */
@@ -68,6 +68,21 @@ export type CaseKind = "slim" | "standard" | "bigbox";
 /** How thick each kind of case stands on the shelf, in dots. */
 export const CASE_THICKNESS: Record<CaseKind, number> = { slim: 3, standard: 4, bigbox: 6 };
 
+/** How tall each kind of case stands, in dots. Unlike books, every case
+ *  of a kind is the same height, which is a lot of what makes a shelf of
+ *  games look like one: a Switch case is a little shorter than a
+ *  PlayStation or Xbox case, and a boxed PC game towers over both. */
+export const CASE_HEIGHTS: Record<CaseKind, number> = { slim: 14, standard: 16, bigbox: 18 };
+
+/**
+ * The band across the top of a case's spine, in the colours the systems'
+ * cases wear: red for Switch, white for PS5, blue for PS4, black for the
+ * older PlayStations, green for Xbox, light grey for Nintendo's other
+ * systems and charcoal for computers. Any other system gets a band in a
+ * darker shade of the game's own colour.
+ */
+export type CaseBand = "switch" | "ps5" | "ps4" | "playstation" | "xbox" | "nintendo" | "pc" | "plain";
+
 /** A pattern matching any of `names` as whole words, in lower case. */
 const anyOf = (names: readonly string[]) => new RegExp(`\\b(${names.join("|")})\\b`);
 
@@ -94,6 +109,23 @@ const HANDHELD = anyOf([
 /** Computers, whose boxed games came in big boxes. */
 const COMPUTER = anyOf(["pc", "windows", "mac", "macos", "os x", "linux", "dos", "amiga", "atari st", "commodore 64", "c64"]);
 
+const BANDS: [RegExp, CaseBand][] = [
+  [anyOf(["switch"]), "switch"],
+  [anyOf(["playstation 5", "ps5"]), "ps5"],
+  [anyOf(["playstation 4", "ps4"]), "ps4"],
+  [anyOf(["playstation", "ps1", "ps2", "ps3", "psp", "ps vita", "vita", "psx", "ps one"]), "playstation"],
+  [anyOf(["xbox"]), "xbox"],
+  [anyOf(["wii", "wii u", "gamecube", "nintendo 64", "n64", "3ds", "2ds", "ds", "nes", "snes", "game ?boy", "gba", "gbc", "nintendo"]), "nintendo"],
+];
+
+/** The band a game's case wears, from its platform. */
+export function caseBand(platform: string | null): CaseBand {
+  const p = (platform ?? "").trim().toLowerCase();
+  for (const [pattern, band] of BANDS) if (pattern.test(p)) return band;
+  // After the consoles, so "PC Engine" (a console) isn't taken for a PC.
+  return COMPUTER.test(p) && !/\bpc engine\b/.test(p) ? "pc" : "plain";
+}
+
 /** What kind of case a game stands in, from its platform and format. */
 export function caseKind(game: Pick<RoomGame, "platform" | "format">): CaseKind {
   const platform = (game.platform ?? "").trim().toLowerCase();
@@ -103,21 +135,19 @@ export function caseKind(game: Pick<RoomGame, "platform" | "format">): CaseKind 
 }
 
 export interface Spine {
-  /** 3–6 dots, from the kind of case (CASE_THICKNESS). */
+  kind: CaseKind;
+  /** 3–6 dots (CASE_THICKNESS). */
   width: number;
-  /** 14–18 dots. */
+  /** 14–18 dots (CASE_HEIGHTS). */
   height: number;
-  /** Which of the five spine patterns (bands, a label, …) it wears. */
-  pattern: number;
+  band: CaseBand;
 }
 
-/** A game's spine. Its thickness comes from the kind of case it is in,
- *  the height and pattern from its title, so a game looks the same on
- *  every visit and the shelves don't look like one long row of the same
- *  case. */
-export function spineFor(game: Pick<RoomGame, "title" | "platform" | "format">): Spine {
-  const h = hash(game.title.trim().toLowerCase());
-  return { width: CASE_THICKNESS[caseKind(game)], height: 14 + ((h >>> 3) % 5), pattern: (h >>> 11) % 5 };
+/** A game's spine: the size of the case it comes in and the band of its
+ *  system. Its colour comes from its cover (components/game-room.tsx). */
+export function spineFor(game: Pick<RoomGame, "platform" | "format">): Spine {
+  const kind = caseKind(game);
+  return { kind, width: CASE_THICKNESS[kind], height: CASE_HEIGHTS[kind], band: caseBand(game.platform) };
 }
 
 /**
