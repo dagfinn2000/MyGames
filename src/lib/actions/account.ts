@@ -83,7 +83,7 @@ export async function changePassword(
 
 /**
  * Delete the account and everything in it. The database rows cascade from
- * the User delete (games → quotes/playthroughs/progress, shelves, goals);
+ * the User delete (games → playthroughs/progress/loans, shelves, goals);
  * cached cover files don't live in Postgres, so they're cleaned up first.
  * Signs out afterwards — with JWT sessions there's no server-side session row,
  * and a cookie for a deleted user must not linger looking signed-in.

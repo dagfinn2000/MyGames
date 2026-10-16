@@ -375,8 +375,8 @@ function EntryEditor({
   );
 }
 
-/** Trash icon that expands to an inline confirm, same as past playthroughs
- *  and quotes. */
+/** Trash icon that expands to an inline confirm, same as past
+ *  playthroughs. */
 function DeleteEntryButton({ entryId }: { entryId: string }) {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);

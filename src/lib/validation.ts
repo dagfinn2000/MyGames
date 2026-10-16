@@ -269,30 +269,6 @@ export const pastPlaythroughSchema = z.object({
     .optional(),
 }).superRefine(checkPlayDates);
 
-/** The longest speaker name a quote can carry. Shared with the restore. */
-export const MAX_SPEAKER_LENGTH = 200;
-
-/** A favourite line from the game detail page. Forms submit strings. */
-export const quoteSchema = z.object({
-  text: z
-    .string()
-    .trim()
-    .min(1, "Quote text is required")
-    .max(5000, "Quote must be at most 5000 characters"),
-  /** Who says it in the game ("Cave old man"); empty means nobody named. */
-  speaker: optionalText(
-    MAX_SPEAKER_LENGTH,
-    `Speaker must be at most ${MAX_SPEAKER_LENGTH} characters`,
-  ),
-  note: z
-    .string()
-    .trim()
-    .max(2000)
-    .transform((s) => s || null)
-    .nullable()
-    .optional(),
-});
-
 /** Lending a copy out. Only the borrower is required — "I lent it to Kari"
  *  is a complete thought, and the date defaults to today. */
 export const loanSchema = z.object({

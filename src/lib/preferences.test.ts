@@ -38,10 +38,10 @@ describe("parsePreferences", () => {
     const prefs = parsePreferences({
       // "openlibrary" is a book catalogue, not one this app searches.
       catalogues: ["steam", "bogus", "openlibrary", "igdb", "steam"],
-      hiddenStats: ["quote", "quote", "platforms", "goal", 7],
+      hiddenStats: ["formats", "formats", "platforms", "goal", 7],
     });
     expect(prefs.catalogues).toEqual(["steam", "igdb"]);
-    expect(prefs.hiddenStats).toEqual(["quote", "platforms", "goal"]);
+    expect(prefs.hiddenStats).toEqual(["formats", "platforms", "goal"]);
   });
 
   it("searches every catalogue rather than none", () => {
@@ -110,8 +110,6 @@ describe("parsePreferences: the newer settings", () => {
       statsStoppedGames: "none",
       statsPeriod: "all",
       statsBreakdown: "library",
-      quotesOrder: "newest",
-      quotesGroupByGame: false,
       backupReminder: "off",
     });
   });
@@ -128,11 +126,9 @@ describe("parsePreferences: the newer settings", () => {
       statsStoppedGames: "hours",
       statsPeriod: "30d",
       statsBreakdown: "period",
-      quotesOrder: "shuffle",
       backupReminder: "monthly",
       pickOnlyHave: true,
       pickNextInSeries: true,
-      quotesGroupByGame: true,
     });
     expect(valid).toMatchObject({
       addedAsCompletedFinished: "undated",
@@ -145,11 +141,9 @@ describe("parsePreferences: the newer settings", () => {
       statsStoppedGames: "hours",
       statsPeriod: "30d",
       statsBreakdown: "period",
-      quotesOrder: "shuffle",
       backupReminder: "monthly",
       pickOnlyHave: true,
       pickNextInSeries: true,
-      quotesGroupByGame: true,
     });
 
     // Values counted in pages rather than time go back to the defaults
@@ -159,7 +153,6 @@ describe("parsePreferences: the newer settings", () => {
       paceFrom: "read",
       statsHoursPlayed: "pages",
       statsStoppedGames: "pages",
-      quotesOrder: "random",
       backupReminder: "weekly",
       pickOnlyHave: "yes",
       statsPeriod: 2024,
@@ -168,7 +161,6 @@ describe("parsePreferences: the newer settings", () => {
     expect(invalid.paceFrom).toBe("playthrough");
     expect(invalid.statsHoursPlayed).toBe("logged");
     expect(invalid.statsStoppedGames).toBe("none");
-    expect(invalid.quotesOrder).toBe("newest");
     expect(invalid.backupReminder).toBe("off");
     expect(invalid.pickOnlyHave).toBe(false);
     expect(invalid.statsPeriod).toBe("all");
@@ -188,9 +180,9 @@ describe("parsePreferences: the newer settings", () => {
     expect(START_PAGES).toContain("playing");
     expect(START_PAGE_PATHS.playing).toBe("/playing");
     expect(parsePreferences({ startPage: "playing" }).startPage).toBe("playing");
-    expect(parsePreferences({ hiddenNav: ["playing", "quotes"] }).hiddenNav).toEqual([
+    expect(parsePreferences({ hiddenNav: ["playing", "room"] }).hiddenNav).toEqual([
       "playing",
-      "quotes",
+      "room",
     ]);
   });
 
@@ -202,18 +194,17 @@ describe("parsePreferences: the newer settings", () => {
   });
 
   it("always lists every game-page card once", () => {
-    expect(parsePreferences({ gamePageCards: ["quotes", "bogus", "quotes"] }).gamePageCards).toEqual(
-      ["quotes", "shelves", "playing", "history", "lending"],
+    expect(parsePreferences({ gamePageCards: ["lending", "bogus", "lending"] }).gamePageCards).toEqual(
+      ["lending", "shelves", "playing", "history"],
     );
     expect(
-      parsePreferences({ gamePageCards: ["lending", "history", "playing", "shelves", "quotes"] })
-        .gamePageCards,
-    ).toEqual(["lending", "history", "playing", "shelves", "quotes"]);
-    expect(parsePreferences({ gamePageCards: "quotes" }).gamePageCards).toEqual([
+      parsePreferences({ gamePageCards: ["lending", "history", "playing", "shelves"] }).gamePageCards,
+    ).toEqual(["lending", "history", "playing", "shelves"]);
+    expect(parsePreferences({ gamePageCards: "lending" }).gamePageCards).toEqual([
       ...GAME_PAGE_CARDS,
     ]);
-    expect(parsePreferences({ hiddenGamePageCards: ["quotes", "nope"] }).hiddenGamePageCards).toEqual(
-      ["quotes"],
+    expect(parsePreferences({ hiddenGamePageCards: ["lending", "nope"] }).hiddenGamePageCards).toEqual(
+      ["lending"],
     );
   });
 
@@ -470,8 +461,8 @@ describe("cleanPreferencesPatch", () => {
 
   it("cleans the newer settings the same way", () => {
     expect(
-      cleanPreferencesPatch({ quotesOrder: "game", paceFrom: "1y", findLinks: [{ name: "A" }] }),
-    ).toEqual({ quotesOrder: "game", paceFrom: "playthrough", findLinks: [] });
+      cleanPreferencesPatch({ statsBreakdown: "period", paceFrom: "1y", findLinks: [{ name: "A" }] }),
+    ).toEqual({ statsBreakdown: "period", paceFrom: "playthrough", findLinks: [] });
   });
 
   it("returns nothing for a non-object", () => {

@@ -12,7 +12,7 @@ import { startTransition, type FormEvent } from "react";
  * the reset but still reports the form as pending to useFormStatus. Keep
  * the `action` prop as well, for a form sent before the page's script has
  * loaded. A form that should start empty after a save that worked (adding
- * a quote, say) resets itself then.
+ * a past playthrough, say) resets itself then.
  *
  * The button that submitted goes along, as it does with a plain submit:
  * "Add game" and "Add and add another" differ only by it.

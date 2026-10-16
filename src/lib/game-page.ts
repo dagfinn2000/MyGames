@@ -13,13 +13,12 @@ export const FORCED_CARD_NOTES: Partial<Record<GamePageCard, string>> = {
   playing: "Shown although hidden, because you're playing it or wrote a review.",
   history: "Shown although hidden, because this game has past playthroughs.",
   lending: "Shown although hidden, because it's lent out.",
-  quotes: "Shown although hidden, because you've saved quotes from it.",
 };
 
 /**
  * The cards a game's page shows, in the player's order. A hidden card is
  * left out unless it has content, so hiding a card never hides an open loan
- * or a saved quote; such a card comes back `forced`. Every card is placed
+ * or a review; such a card comes back `forced`. Every card is placed
  * even if `gamePageCards` leaves one out (parsePreferences fills it in, but
  * this doesn't rely on that).
  */

@@ -10,7 +10,6 @@ import { buildSearchText, foldForSearch } from "@/lib/utils";
 import {
   MAX_LENGTH_MINUTES,
   MAX_PLAYED_MINUTES,
-  MAX_SPEAKER_LENGTH,
   isAllowedCoverUrl,
   isCatalogueId,
   shelfNameSchema,
@@ -38,7 +37,7 @@ import { parseThemeSetting, serializeThemeSetting } from "@/lib/themes";
  *
  * Every field goes through the same limits as the form that would have
  * saved it, so a hand-edited backup can't store what the app itself
- * couldn't. A bad value (a cover URL, a catalogue id, one quote) is dropped
+ * couldn't. A bad value (a cover URL, a catalogue id, one loan) is dropped
  * on its own; only a game without a usable title is refused whole.
  *
  * Account settings (theme, library view, Preferences) are filled in only
@@ -101,14 +100,6 @@ const minutesField = (min: number, max: number) =>
 
 /** 1–10 in half-star units, as the rating control saves it. */
 const ratingField = z.number().int().min(1).max(10).nullable().optional().catch(null);
-
-/** A favourite line, with who says it. */
-const importedQuoteSchema = z.object({
-  text: z.string().trim().min(1).max(5000),
-  speaker: optionalText(MAX_SPEAKER_LENGTH).catch(null),
-  note: optionalText(2000).catch(null),
-  createdAt: dateField,
-});
 
 /** A past playthrough. Everything is optional, as on the play history card. */
 const importedPlaythroughSchema = z.object({
@@ -185,7 +176,6 @@ const importedGameSchema = z.object({
   timesCompleted: z.number().int().min(0).max(1000).catch(0),
   playedMinutes: minutesField(0, MAX_PLAYED_MINUTES),
   shelves: shelfNames,
-  quotes: eachValid(importedQuoteSchema),
   playthroughs: eachValid(importedPlaythroughSchema),
   progress: eachValid(importedProgressSchema),
   loans: eachValid(importedLoanSchema),
@@ -252,7 +242,6 @@ export interface ImportSummary {
    *  (only ever to an account that had none). */
   settingsRestored: boolean;
   coversRestored: number;
-  quotesRestored: number;
   playthroughsRestored: number;
   progressRestored: number;
   loansRestored: number;
@@ -263,7 +252,7 @@ export interface ImportSummary {
 }
 
 /** How many game creates are in flight at once. Each game is a single nested
- *  write (game + its quotes, playthroughs and play log), so per-game
+ *  write (game + its playthroughs, play log and loans), so per-game
  *  atomicity is already guaranteed by the database; this only bounds how
  *  many of those round-trips overlap. Sequential made a 1000-game restore
  *  1000 waits long; unbounded would open 1000 connections. */
@@ -575,14 +564,13 @@ export async function importLibrary(
 
   let gamesCreated = 0;
   let coversRestored = 0;
-  let quotesRestored = 0;
   let playthroughsRestored = 0;
   let progressRestored = 0;
   let loansRestored = 0;
   let incomplete: ImportSummary["incomplete"];
 
   // Pass 2 — write, with bounded concurrency. Each game is one nested create,
-  // so a game and its quotes, playthroughs and play log can never land
+  // so a game and its playthroughs, play log and loans can never land
   // half-written.
   const createOne = async (g: ImportedGame) => {
     const cover = await resolveCoverUrl(g.coverUrl, getCoverFile);
@@ -645,14 +633,6 @@ export async function importLibrary(
             ),
           ].map((id) => ({ id })),
         },
-        quotes: {
-          create: g.quotes.map((q) => ({
-            text: q.text,
-            speaker: q.speaker,
-            note: q.note,
-            ...(q.createdAt && { createdAt: q.createdAt }),
-          })),
-        },
         playthroughs: {
           create: pastPlaythroughs.map((p) => ({
             dateStarted: p.dateStarted,
@@ -685,7 +665,6 @@ export async function importLibrary(
     // the database rejected.
     if (cover.restored) coversRestored++;
     gamesCreated++;
-    quotesRestored += g.quotes.length;
     playthroughsRestored += pastPlaythroughs.length;
     progressRestored += progress.length;
     loansRestored += g.loans.length;
@@ -714,7 +693,6 @@ export async function importLibrary(
     savedViewsRestored: viewsCreated.count,
     settingsRestored,
     coversRestored,
-    quotesRestored,
     playthroughsRestored,
     progressRestored,
     loansRestored,

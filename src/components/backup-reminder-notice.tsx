@@ -8,7 +8,8 @@ import { snoozeBackupReminder } from "@/lib/actions/backup";
 import { useBackupWatch } from "@/components/backup-download";
 import { Button } from "@/components/ui/button";
 
-/** The Library and Stats pages; not a game page, Add, Quotes or Account. */
+/** The Library and Stats pages; not a game page, Add, Now playing, the
+ *  game room or Account. */
 const SHOWN_ON = new Set(["/games", "/stats"]);
 
 /**

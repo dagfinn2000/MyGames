@@ -192,7 +192,6 @@ model Game {
   /// the browser or into a backup.
   reviewSearchText String @default("")
 
-  quotes       Quote[]
   playthroughs Playthrough[]
   progress     ProgressEntry[]
   loans        Loan[]
@@ -283,25 +282,6 @@ model Loan {
   /// Finding open loans, and listing a game's history newest-first.
   @@index([gameId, returnedAt])
   @@index([gameId, lentAt])
-}
-
-/// A favourite line from a game, with who said it and a personal note on
-/// why it stuck. Ownership is derived through the game (games are per-user).
-model Quote {
-  id     String @id @default(cuid())
-  gameId String
-  game   Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
-
-  text    String
-  /// Who says it in the game ("Cave old man"). Optional.
-  speaker String?
-  note    String?
-
-  createdAt DateTime @default(now())
-
-  @@index([gameId])
-  /// Quotes are always read newest-first within a game.
-  @@index([gameId, createdAt])
 }
 
 /// Caches raw catalogue responses (IGDB, Steam, Wikipedia) so repeated

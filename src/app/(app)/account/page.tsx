@@ -100,8 +100,8 @@ export default async function AccountPage() {
         </CardHeader>
         <CardContent className="grid gap-3">
           <p className="text-sm text-muted-foreground">
-            Download your library (games, playthroughs, quotes, shelves,
-            goals — cover images included) as a zip, or restore a backup
+            Download your library (games, playthroughs, shelves, goals —
+            cover images included) as a zip, or restore a backup
             (the zip, or the library.json inside it). Restoring merges: games
             you already have are skipped.
           </p>

@@ -351,14 +351,14 @@ describe("bulkDeleteGames", () => {
     const [gone, kept] = await Promise.all([makeGame(), makeGame()]);
     const theirs = await makeGame({}, otherUserId);
     await prisma.playthrough.create({ data: { gameId: gone.id } });
-    await prisma.quote.create({ data: { gameId: gone.id, text: "A line" } });
+    await prisma.progressEntry.create({ data: { gameId: gone.id, minutes: 30 } });
     await prisma.loan.create({ data: { gameId: gone.id, borrower: "Sam" } });
 
     expect(await bulkDeleteGames({ gameIds: [gone.id, theirs.id] })).toEqual({ count: 1 });
 
     expect(await prisma.game.findUnique({ where: { id: gone.id } })).toBeNull();
     expect(await prisma.playthrough.count({ where: { gameId: gone.id } })).toBe(0);
-    expect(await prisma.quote.count({ where: { gameId: gone.id } })).toBe(0);
+    expect(await prisma.progressEntry.count({ where: { gameId: gone.id } })).toBe(0);
     expect(await prisma.loan.count({ where: { gameId: gone.id } })).toBe(0);
     expect(await prisma.game.findUnique({ where: { id: kept.id } })).not.toBeNull();
     expect(await prisma.game.findUnique({ where: { id: theirs.id } })).not.toBeNull();

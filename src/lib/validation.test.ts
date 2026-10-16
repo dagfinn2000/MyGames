@@ -4,7 +4,6 @@ import {
   isAllowedCoverUrl,
   pastPlaythroughSchema,
   playSchema,
-  quoteSchema,
 } from "@/lib/validation";
 
 const minimalForm = {
@@ -283,21 +282,5 @@ describe("pastPlaythroughSchema note", () => {
       note: "Second time round",
     });
     expect(res.success).toBe(false);
-  });
-});
-
-describe("quoteSchema speaker", () => {
-  const quote = { text: "It's dangerous to go alone! Take this." };
-
-  it("is trimmed, and none when blank or not sent", () => {
-    expect(quoteSchema.parse({ ...quote, speaker: "  Old man " }).speaker).toBe("Old man");
-    expect(quoteSchema.parse({ ...quote, speaker: "  " }).speaker).toBeNull();
-    expect(quoteSchema.parse(quote).speaker).toBeUndefined();
-  });
-
-  it("refuses a speaker over 200 characters", () => {
-    expect(quoteSchema.parse({ ...quote, speaker: "x".repeat(200) }).speaker).toHaveLength(200);
-    const res = quoteSchema.safeParse({ ...quote, speaker: "x".repeat(201) });
-    expect(res.error?.issues[0]?.message).toBe("Speaker must be at most 200 characters");
   });
 });

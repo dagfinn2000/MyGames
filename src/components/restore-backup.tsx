@@ -37,7 +37,6 @@ export function RestoreBackup() {
         data.gamesSkipped > 0 ? `${data.gamesSkipped} already present` : null,
         data.gamesInvalid > 0 ? `${data.gamesInvalid} invalid` : null,
         data.coversRestored > 0 ? `${n(data.coversRestored, "cover")} restored` : null,
-        data.quotesRestored > 0 ? `${n(data.quotesRestored, "quote")} restored` : null,
         data.playthroughsRestored > 0 ? `${n(data.playthroughsRestored, "past playthrough")} restored` : null,
         data.progressRestored > 0 ? `${n(data.progressRestored, "play log entry", "play log entries")} restored` : null,
         data.loansRestored > 0 ? `${n(data.loansRestored, "loan")} restored` : null,

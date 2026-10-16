@@ -635,8 +635,8 @@ export function LibraryView({
           <DialogHeader>
             <DialogTitle>Delete {gamesLabel(selCount)}?</DialogTitle>
             <DialogDescription>
-              They leave your library with their play history, quotes and
-              loans. This can&apos;t be undone, so{" "}
+              They leave your library with their play history and loans.
+              This can&apos;t be undone, so{" "}
               <a href="/api/export">download a backup</a> first if you might
               want them back.
             </DialogDescription>

@@ -87,7 +87,6 @@ async function snapshot(userId: string) {
       orderBy: [{ createdAt: "asc" }, { title: "asc" }],
       include: {
         shelves: { select: { name: true }, orderBy: { name: "asc" } },
-        quotes: { orderBy: { createdAt: "asc" } },
         playthroughs: { orderBy: { createdAt: "asc" } },
         progress: { orderBy: [{ date: "asc" }, { minutes: "asc" }] },
         loans: { orderBy: { lentAt: "asc" } },
@@ -105,9 +104,8 @@ async function snapshot(userId: string) {
   return {
     shelves,
     goals,
-    games: games.map(({ id: _id, userId: _userId, quotes, playthroughs, progress, loans, ...game }) => ({
+    games: games.map(({ id: _id, userId: _userId, playthroughs, progress, loans, ...game }) => ({
       ...game,
-      quotes: quotes.map(own),
       playthroughs: playthroughs.map(own),
       progress: progress.map(own),
       loans: loans.map(own),
@@ -157,17 +155,6 @@ describe("export -> import round trip", () => {
           createdAt: new Date("2024-05-01T10:00:00.000Z"),
         }),
         shelves: { connect: { id: favourites.id } },
-        quotes: {
-          create: [
-            {
-              text: "Wind's howling.",
-              speaker: "Geralt",
-              note: "Every single time.",
-              createdAt: new Date("2026-01-03T20:00:00.000Z"),
-            },
-            { text: "Evil is evil.", createdAt: new Date("2026-02-01T20:00:00.000Z") },
-          ],
-        },
         playthroughs: {
           create: [
             {
@@ -209,9 +196,6 @@ describe("export -> import round trip", () => {
           createdAt: new Date("2025-01-01T10:00:00.000Z"),
         }),
         shelves: { connect: [{ id: favourites.id }, { id: coop.id }] },
-        quotes: {
-          create: [{ text: "Hallownest is a vast kingdom.", speaker: "Elderbug" }],
-        },
         progress: {
           create: [
             { minutes: 0, date: new Date("2026-09-01T18:00:00.000Z") },
@@ -283,7 +267,6 @@ describe("export -> import round trip", () => {
       savedViewsRestored: 0,
       settingsRestored: false,
       coversRestored: 0,
-      quotesRestored: 3,
       playthroughsRestored: 1,
       progressRestored: 6,
       loansRestored: 2,
@@ -315,10 +298,6 @@ describe("export -> import round trip", () => {
       searchText: "the witcher 3: wild hunt cd projekt red the witcher pc",
       reviewSearchText: "superb. gwent alone is worth it.",
     });
-    expect(witcher.quotes.map((q) => [q.text, q.speaker])).toEqual([
-      ["Wind's howling.", "Geralt"],
-      ["Evil is evil.", null],
-    ]);
     expect(witcher.playthroughs).toMatchObject([{ playedMinutes: 5400, rating: 8, note: "Death March" }]);
     expect(witcher.progress.map((p) => p.minutes)).toEqual([0, 3000, 6120]);
     // Lending survives, including which loan is still open.

@@ -63,7 +63,6 @@ const SEARCH_FIELD_LABELS: Record<SearchField, string> = {
 
 const NAV_LABELS: Record<HideableNav, string> = {
   playing: "Now playing",
-  quotes: "Quotes",
   room: "Game room",
 };
 
@@ -215,7 +214,6 @@ const STATS_LABELS: Record<HideableStat, string> = {
   tags: "Genres & tags",
   platforms: "Platforms",
   formats: "Formats",
-  quote: "From your quotes",
 };
 
 /** "+30 min and +1 h": the two quick-log buttons a choice gives, worded as
@@ -756,7 +754,7 @@ export function PreferencesForm({
         />
         <Choice
           label="Font for long text"
-          hint="Descriptions, reviews, quotes and notes."
+          hint="Descriptions, reviews and notes."
           value={prefs.longTextFont}
           options={[
             { value: "sans", label: "Same as everything else" },
@@ -814,11 +812,6 @@ export function PreferencesForm({
               onChange={(shown) => update({ hiddenNav: toggleIn(prefs.hiddenNav, item, !shown) })}
             />
           ))}
-          {prefs.hiddenNav.includes("quotes") && !prefs.hiddenGamePageCards.includes("quotes") && (
-            <p className="text-xs text-muted-foreground">
-              The Quotes card still shows on game pages. You can hide it under Game page below.
-            </p>
-          )}
         </div>
       </Section>
 

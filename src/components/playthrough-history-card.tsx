@@ -317,7 +317,8 @@ function PlayAgainButton({ gameId }: { gameId: string }) {
   );
 }
 
-/** Trash icon that expands to an inline confirm, same as quotes. */
+/** Trash icon that expands to an inline confirm — no dialog for something
+ *  this small, but still not a single misclick away from data loss. */
 function DeletePlaythroughButton({ playthroughId }: { playthroughId: string }) {
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();

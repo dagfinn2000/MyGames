@@ -138,18 +138,6 @@ CREATE TABLE "Loan" (
 );
 
 -- CreateTable
-CREATE TABLE "Quote" (
-    "id" TEXT NOT NULL,
-    "gameId" TEXT NOT NULL,
-    "text" TEXT NOT NULL,
-    "speaker" TEXT,
-    "note" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "Quote_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "MetadataCache" (
     "id" TEXT NOT NULL,
     "source" TEXT NOT NULL,
@@ -212,12 +200,6 @@ CREATE INDEX "Loan_gameId_returnedAt_idx" ON "Loan"("gameId", "returnedAt");
 CREATE INDEX "Loan_gameId_lentAt_idx" ON "Loan"("gameId", "lentAt");
 
 -- CreateIndex
-CREATE INDEX "Quote_gameId_idx" ON "Quote"("gameId");
-
--- CreateIndex
-CREATE INDEX "Quote_gameId_createdAt_idx" ON "Quote"("gameId", "createdAt");
-
--- CreateIndex
 CREATE UNIQUE INDEX "MetadataCache_source_query_key" ON "MetadataCache"("source", "query");
 
 -- CreateIndex
@@ -243,9 +225,6 @@ ALTER TABLE "ProgressEntry" ADD CONSTRAINT "ProgressEntry_gameId_fkey" FOREIGN K
 
 -- AddForeignKey
 ALTER TABLE "Loan" ADD CONSTRAINT "Loan_gameId_fkey" FOREIGN KEY ("gameId") REFERENCES "Game"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Quote" ADD CONSTRAINT "Quote_gameId_fkey" FOREIGN KEY ("gameId") REFERENCES "Game"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_GameToShelf" ADD CONSTRAINT "_GameToShelf_A_fkey" FOREIGN KEY ("A") REFERENCES "Game"("id") ON DELETE CASCADE ON UPDATE CASCADE;

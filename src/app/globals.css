@@ -677,7 +677,7 @@
    Set on <html> by the root layout from the account's Preferences.
    Text size scales the root font size, which every rem-based size in the
    app follows. The serif choice applies to long passages only — game
-   descriptions, reviews, quotes and notes — marked with `long-text`. It uses
+   descriptions, reviews and notes — marked with `long-text`. It uses
    fonts the device already has, so choosing it downloads nothing. */
 html[data-text-size="large"] {
   font-size: 112.5%;
@@ -1684,7 +1684,7 @@ html.dark[data-background="ripples"] body,
    The colour comes from the title (lib/cover-art.ts) through --cover-hue,
    --cover-sat and --cover-light. Sizes are in cqi (percent of the cover's
    width), so the same cover reads at every size; covers too small for
-   text (list rows, quotes) show just the board.
+   text (list rows) show just the board.
    "Games without a cover: Plain" in Preferences (data-covers="plain")
    shows the grey box with a controller instead. */
 .game-cover {

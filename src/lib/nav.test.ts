@@ -17,7 +17,7 @@ describe("isNavActive", () => {
   it("marks a section on its pages below it, and nothing else", () => {
     expect(isNavActive("/stats", "/stats/year/2025")).toBe(true);
     expect(isNavActive("/stats", "/statsx")).toBe(false);
-    expect(isNavActive("/quotes", "/games")).toBe(false);
+    expect(isNavActive("/room", "/games")).toBe(false);
     expect(isNavActive("/playing", "/playing")).toBe(true);
     expect(isNavActive("/playing", "/games/abc123")).toBe(false);
   });

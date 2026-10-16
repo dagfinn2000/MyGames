@@ -26,7 +26,6 @@ import { GameShelvesCard } from "@/components/game-shelves-card";
 import { CloseGameButton } from "@/components/close-game-button";
 import { DeleteGameButton } from "@/components/delete-game-button";
 import { FindItAt } from "@/components/find-it-at";
-import { QuotesCard } from "@/components/quotes-card";
 import { LendingCard } from "@/components/lending-card";
 import { showsLendingCard } from "@/lib/loans";
 import { PlaythroughHistoryCard } from "@/components/playthrough-history-card";
@@ -66,8 +65,6 @@ export default async function GameDetailPage({
     omit: { searchText: true, reviewSearchText: true },
     include: {
       shelves: { select: { id: true } },
-      // Newest first: a quote has no place in the game to sort by.
-      quotes: { orderBy: [{ createdAt: "desc" }, { id: "asc" }] },
       // Oldest playthrough first; undated ones are presumed oldest.
       playthroughs: {
         orderBy: [
@@ -144,13 +141,11 @@ export default async function GameDetailPage({
         loans={game.loans}
       />
     ) : null,
-    quotes: <QuotesCard gameId={game.id} quotes={game.quotes} />,
   };
   const arranged = arrangeGameCards(prefs, {
     playing: game.status === PlayStatus.PLAYING || !!game.review?.trim(),
     history: game.playthroughs.length > 0,
     lending: game.loans.some((l) => l.returnedAt === null),
-    quotes: game.quotes.length > 0,
   });
 
   return (

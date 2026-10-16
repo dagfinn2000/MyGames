@@ -8,7 +8,6 @@ import {
   LibraryBig,
   LogOut,
   Plus,
-  Quote,
   UserRound,
 } from "lucide-react";
 import { auth, signOut } from "@/auth";
@@ -18,9 +17,9 @@ import { NavLink } from "@/components/nav-link";
 import { ThemePicker } from "@/components/theme-picker";
 
 /** Top navigation for authenticated pages. Server component — reads the
- *  session directly and signs out via a server action. The Now playing,
- *  Quotes and Game room links can be hidden in Preferences; the logo goes
- *  to the start page chosen there. */
+ *  session directly and signs out via a server action. The Now playing and
+ *  Game room links can be hidden in Preferences; the logo goes to the start
+ *  page chosen there. */
 export async function Nav() {
   const [session, prefs] = await Promise.all([auth(), getPreferences()]);
   const hidden = new Set(prefs.hiddenNav);
@@ -54,12 +53,6 @@ export async function Nav() {
           <Plus data-slot="icon" />
           <span className="hidden lg:inline">Add game</span>
         </NavLink>
-        {!hidden.has("quotes") && (
-          <NavLink href="/quotes" title="Quotes">
-            <Quote data-slot="icon" />
-            <span className="hidden lg:inline">Quotes</span>
-          </NavLink>
-        )}
         <NavLink href="/stats" title="Stats">
           <ChartColumn data-slot="icon" />
           <span className="hidden lg:inline">Stats</span>

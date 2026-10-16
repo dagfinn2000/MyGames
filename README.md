@@ -66,8 +66,6 @@ the same app for books, and is built from the same code.
   so logging an evening's play doesn't mean opening each game, and
   Finished and Stopped buttons (with Undo). Under them is what's up next
   from Want to Play, the next game in a series you've started first.
-- Save favourite quotes with who says them, and search all of them on the
-  Quotes page.
 
 **Organising your library**
 
@@ -109,10 +107,11 @@ the same app for books, and is built from the same code.
 **The game room**
 
 - Your library drawn as a cozy pixel-art house. Every game is a case on a
-  shelf, filed by platform and coloured from its cover: handheld games
-  stand in slim cases and boxed PC games in big boxes. Point at one to see
-  its title and platform, click it to open the game; the game's X puts it
-  back on its shelf.
+  shelf, filed by platform and coloured from its cover, with its system's
+  band across the top (red for Switch, blue for PS4, green for Xbox and so
+  on): handheld games stand in slim cases and boxed PC games in big boxes.
+  Point at one to see its title and platform, click it to open the game;
+  the game's X puts it back on its shelf.
 - The house grows with your library: more shelving units, then more
   floors, and furniture moves in as you add games, from a plant and a cat
   asleep in the armchair to a clock, a library ladder, a window seat and a
@@ -182,8 +181,8 @@ the same app for books, and is built from the same code.
 - Preferences on the Account page: date and number formats, your time zone
   and the first day of the week, how titles sort, what new games start as,
   the step buttons for logging time and where your pace comes from, text
-  size, a serif font for reviews and quotes, the font for headings, how
-  round the corners are, flat, raised or frosted cards, one of 26
+  size, a serif font for descriptions and reviews, the font for headings,
+  how round the corners are, flat, raised or frosted cards, one of 26
   background textures (one of them, Sky, follows the time of day where you
   are), a wash of the cover's colours behind each game's page, which cards
   a game's page shows and in what order, which page opens first, and which

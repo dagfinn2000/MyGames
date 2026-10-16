@@ -43,7 +43,7 @@ const lastBackupAt = async (id: string) =>
 describe("export and lastBackupAt", () => {
   it("is set once the whole zip has been read, for this account only", async () => {
     await prisma.game.create({
-      data: { userId, title: "A Game", searchText: "a game", quotes: { create: [{ text: "Hi" }] } },
+      data: { userId, title: "A Game", searchText: "a game", loans: { create: [{ borrower: "Sam" }] } },
     });
     expect(await lastBackupAt(userId)).toBeNull();
 

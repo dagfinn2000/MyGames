@@ -32,7 +32,6 @@ function game(over: Record<string, unknown> = {}) {
     rating: 9,
     timesCompleted: 1,
     shelves: [],
-    quotes: [],
     playthroughs: [],
     progress: [],
     ...over,
@@ -72,7 +71,7 @@ describe("importLibrary", () => {
     expect((res as { error: string }).error).toContain("newer version of MyGames");
   });
 
-  it("restores a game with its quotes, playthroughs and play log", async () => {
+  it("restores a game with its playthroughs and play log", async () => {
     const res = await importLibrary(
       userId,
       payload([
@@ -80,7 +79,6 @@ describe("importLibrary", () => {
           publisher: "Team Cherry",
           releaseDate: "2017-02-24",
           playedMinutes: 1700,
-          quotes: [{ text: "Hallownest is a vast kingdom.", speaker: "Elderbug", note: "the first line" }],
           playthroughs: [
             {
               dateFinished: "2019-05-01T00:00:00.000Z",
@@ -102,14 +100,13 @@ describe("importLibrary", () => {
       gamesCreated: 1,
       gamesSkipped: 0,
       gamesInvalid: 0,
-      quotesRestored: 1,
       playthroughsRestored: 1,
       progressRestored: 2,
     });
 
     const saved = await prisma.game.findFirstOrThrow({
       where: { userId },
-      include: { quotes: true, playthroughs: true, progress: { orderBy: { date: "asc" } } },
+      include: { playthroughs: true, progress: { orderBy: { date: "asc" } } },
     });
     expect(saved).toMatchObject({
       title: "Hollow Knight",
@@ -121,11 +118,6 @@ describe("importLibrary", () => {
       releaseDate: "2017-02-24",
       // Kept on a completed game: the time that playthrough took.
       playedMinutes: 1700,
-    });
-    expect(saved.quotes[0]).toMatchObject({
-      text: "Hallownest is a vast kingdom.",
-      speaker: "Elderbug",
-      note: "the first line",
     });
     expect(saved.playthroughs[0]).toMatchObject({ rating: 8, playedMinutes: 1500, note: "Steel Soul" });
     // The 0-minute anchor is a real entry, not a blank.
@@ -308,10 +300,10 @@ describe("importLibrary", () => {
           playedMinutes: -5,
           releaseDate: "",
           developers: ["Team Cherry", "", 7, "d".repeat(201)],
-          quotes: [
-            { text: "" },
-            { text: "Kept", speaker: "s".repeat(201) },
-            { text: "Also kept", speaker: "  The Hornet  " },
+          loans: [
+            { borrower: "b".repeat(101) },
+            { borrower: "Kept", note: "n".repeat(501) },
+            { borrower: "  Sam  ", note: "  with the case  " },
           ],
           playthroughs: [{ playedMinutes: "lots", rating: 11 }],
           progress: [
@@ -325,14 +317,14 @@ describe("importLibrary", () => {
     expect(res).toMatchObject({
       gamesCreated: 1,
       gamesInvalid: 0,
-      quotesRestored: 2,
       playthroughsRestored: 1,
       progressRestored: 1,
+      loansRestored: 2,
     });
 
     const saved = await prisma.game.findFirstOrThrow({
       where: { userId },
-      include: { quotes: { orderBy: { text: "asc" } }, playthroughs: true, progress: true },
+      include: { loans: { orderBy: { borrower: "asc" } }, playthroughs: true, progress: true },
     });
     expect(saved).toMatchObject({
       catalogueId: null,
@@ -343,9 +335,9 @@ describe("importLibrary", () => {
       releaseDate: null,
       developers: ["Team Cherry"],
     });
-    expect(saved.quotes.map((q) => [q.text, q.speaker])).toEqual([
-      ["Also kept", "The Hornet"],
+    expect(saved.loans.map((l) => [l.borrower, l.note])).toEqual([
       ["Kept", null],
+      ["Sam", "with the case"],
     ]);
     expect(saved.playthroughs[0]).toMatchObject({ playedMinutes: null, rating: null });
     expect(saved.progress.map((p) => p.minutes)).toEqual([30]);
@@ -796,7 +788,7 @@ describe("game-page settings", () => {
     );
     const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
     expect(user.preferences).toEqual({
-      gamePageCards: ["playing", "shelves", "history", "lending", "quotes"],
+      gamePageCards: ["playing", "shelves", "history", "lending"],
       hiddenGamePageCards: ["lending"],
       findLinks: [{ name: "HowLongToBeat", url: "https://howlongtobeat.com/?q={title}" }],
     });

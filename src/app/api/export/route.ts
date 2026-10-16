@@ -10,9 +10,9 @@ import { parsePreferences } from "@/lib/preferences";
 
 /**
  * GET /api/export — downloads the signed-in user's entire library as a zip:
- * `library.json` (every game with its shelf names, quotes, past
- * playthroughs, play log and lending records, every shelf, play goals,
- * saved views, and the account's theme, library view and preferences) plus
+ * `library.json` (every game with its shelf names, past playthroughs, play
+ * log and lending records, every shelf, play goals, saved views, and the
+ * account's theme, library view and preferences) plus
  * `covers/<file>` for each locally cached cover image, so a restore into a
  * fresh instance brings the covers back too. lib/import.ts reads it back.
  *
@@ -38,10 +38,6 @@ export async function GET() {
       orderBy: { createdAt: "asc" },
       include: {
         shelves: { select: { name: true } },
-        quotes: {
-          select: { text: true, speaker: true, note: true, createdAt: true },
-          orderBy: { createdAt: "asc" },
-        },
         playthroughs: {
           select: {
             dateStarted: true,

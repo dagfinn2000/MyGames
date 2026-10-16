@@ -157,7 +157,7 @@ export const START_PAGES = ["library", "stats", "add", "playing"] as const;
 
 /** Top-bar links that can be hidden, in top-bar order. The rest are always
  *  shown. */
-export const HIDEABLE_NAV = ["playing", "quotes", "room"] as const;
+export const HIDEABLE_NAV = ["playing", "room"] as const;
 
 /** Cards on the stats page that can be hidden. */
 export const HIDEABLE_STATS = [
@@ -167,7 +167,6 @@ export const HIDEABLE_STATS = [
   "tags",
   "platforms",
   "formats",
-  "quote",
 ] as const;
 
 /** What "Copy genres from the catalogue as tags" does: nothing, only the
@@ -189,14 +188,13 @@ export const QUICK_LOG_STEPS = ["30m-1h", "1h-2h", "15m-30m"] as const;
 export const PACE_FROM = ["playthrough", "7d", "14d"] as const;
 
 /** Cards on a game's page, in their default order. */
-export const GAME_PAGE_CARDS = ["shelves", "playing", "history", "lending", "quotes"] as const;
+export const GAME_PAGE_CARDS = ["shelves", "playing", "history", "lending"] as const;
 
 export const GAME_PAGE_CARD_LABELS: Record<(typeof GAME_PAGE_CARDS)[number], string> = {
   shelves: "Shelves",
   playing: "My playthrough",
   history: "Play history",
   lending: "Lending",
-  quotes: "Quotes",
 };
 
 /** A long description in full, or its first lines with a More button. */
@@ -225,9 +223,6 @@ export const STATS_PERIODS = ["all", "year", "12m", "30d"] as const;
 /** What the Genres & tags, Platforms and Formats cards count: the whole
  *  library, or only the games completed in the chosen period. */
 export const STATS_BREAKDOWNS = ["library", "period"] as const;
-
-/** The quotes page's order. */
-export const QUOTE_ORDERS = ["newest", "oldest", "game", "shuffle"] as const;
 
 /** A reminder on the account page when the last backup is old. */
 export const BACKUP_REMINDERS = ["off", "monthly"] as const;
@@ -286,7 +281,6 @@ export type StatsHoursPlayed = (typeof STATS_HOURS_PLAYED)[number];
 export type StatsStoppedGames = (typeof STATS_STOPPED_GAMES)[number];
 export type StatsPeriod = (typeof STATS_PERIODS)[number];
 export type StatsBreakdown = (typeof STATS_BREAKDOWNS)[number];
-export type QuoteOrder = (typeof QUOTE_ORDERS)[number];
 export type BackupReminder = (typeof BACKUP_REMINDERS)[number];
 
 // A type alias (not an interface) so it satisfies Prisma's Json input type,
@@ -383,9 +377,7 @@ export type Preferences = {
   statsPeriod: StatsPeriod;
   statsBreakdown: StatsBreakdown;
 
-  // Quotes and backups
-  quotesOrder: QuoteOrder;
-  quotesGroupByGame: boolean;
+  // Backups
   backupReminder: BackupReminder;
 
   // The game room (Decorate on the Room page; lib/room-styles.ts)
@@ -475,8 +467,6 @@ export const DEFAULT_PREFERENCES: Preferences = {
   statsStoppedGames: "none",
   statsPeriod: "all",
   statsBreakdown: "library",
-  quotesOrder: "newest",
-  quotesGroupByGame: false,
   backupReminder: "off",
   roomStyle: "cottage",
   roomWalls: "style",
@@ -758,8 +748,6 @@ export function parsePreferences(raw: unknown): Preferences {
     statsStoppedGames: pick(STATS_STOPPED_GAMES, obj.statsStoppedGames, d.statsStoppedGames),
     statsPeriod: pick(STATS_PERIODS, obj.statsPeriod, d.statsPeriod),
     statsBreakdown: pick(STATS_BREAKDOWNS, obj.statsBreakdown, d.statsBreakdown),
-    quotesOrder: pick(QUOTE_ORDERS, obj.quotesOrder, d.quotesOrder),
-    quotesGroupByGame: bool(obj.quotesGroupByGame, d.quotesGroupByGame),
     backupReminder: pick(BACKUP_REMINDERS, obj.backupReminder, d.backupReminder),
     roomStyle: pick(ROOM_STYLES, obj.roomStyle, d.roomStyle),
     roomWalls: pick(ROOM_WALLS, obj.roomWalls, d.roomWalls),

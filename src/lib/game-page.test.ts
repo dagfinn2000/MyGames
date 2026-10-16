@@ -14,53 +14,49 @@ describe("arrangeGameCards", () => {
       { key: "playing", forced: false },
       { key: "history", forced: false },
       { key: "lending", forced: false },
-      { key: "quotes", forced: false },
     ]);
   });
 
   it("follows the player's order", () => {
-    const order: GamePageCard[] = ["playing", "quotes", "shelves", "lending", "history"];
+    const order: GamePageCard[] = ["history", "playing", "lending", "shelves"];
     expect(arrangeGameCards(prefs(order), {}).map((c) => c.key)).toEqual(order);
   });
 
   it("places a card the stored order leaves out, after the listed ones", () => {
-    expect(arrangeGameCards(prefs(["quotes", "playing"]), {}).map((c) => c.key)).toEqual([
-      "quotes",
+    expect(arrangeGameCards(prefs(["lending", "playing"]), {}).map((c) => c.key)).toEqual([
+      "lending",
       "playing",
       "shelves",
       "history",
-      "lending",
     ]);
   });
 
   it("leaves out hidden cards with nothing in them", () => {
-    const arranged = arrangeGameCards(prefs(undefined, ["lending", "quotes"]), {
+    const arranged = arrangeGameCards(prefs(undefined, ["lending", "history"]), {
       lending: false,
     });
-    expect(arranged.map((c) => c.key)).toEqual(["shelves", "playing", "history"]);
+    expect(arranged.map((c) => c.key)).toEqual(["shelves", "playing"]);
   });
 
   it("keeps a hidden Lending card with an open loan, in its place", () => {
-    const order: GamePageCard[] = ["playing", "lending", "shelves", "history", "quotes"];
+    const order: GamePageCard[] = ["playing", "lending", "shelves", "history"];
     const arranged = arrangeGameCards(prefs(order, ["lending"]), { lending: true });
     expect(arranged).toEqual([
       { key: "playing", forced: false },
       { key: "lending", forced: true },
       { key: "shelves", forced: false },
       { key: "history", forced: false },
-      { key: "quotes", forced: false },
     ]);
   });
 
-  it("keeps hidden Quotes, Play history and My playthrough that have content", () => {
+  it("keeps a hidden Play history and My playthrough that have content", () => {
     const arranged = arrangeGameCards(
-      prefs(undefined, ["playing", "history", "quotes", "lending", "shelves"]),
-      { playing: true, history: true, quotes: true, lending: false },
+      prefs(undefined, ["playing", "history", "lending", "shelves"]),
+      { playing: true, history: true, lending: false },
     );
     expect(arranged).toEqual([
       { key: "playing", forced: true },
       { key: "history", forced: true },
-      { key: "quotes", forced: true },
     ]);
   });
 

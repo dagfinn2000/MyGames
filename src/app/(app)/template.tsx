@@ -1,7 +1,7 @@
 /**
  * Fades each page in. Next.js re-mounts a template whenever the segment
  * under it changes, which here means moving between the app's sections
- * (Library, Now playing, Stats, Quotes, Account). Moving within one, like
+ * (Library, Now playing, Stats, Room, Account). Moving within one, like
  * filtering the library or opening a game, keeps the page mounted, so
  * typing in the search box never replays the fade. See `.page-in` in
  * globals.css.

@@ -67,13 +67,13 @@ describe("savePreferences", () => {
         { name: "Unknown", url: "https://shop.example/?q={publisher}" },
         { name: "Old", url: "https://shop.example/?q={isbn}" },
       ],
-      gamePageCards: ["quotes", "bogus"],
+      gamePageCards: ["lending", "bogus"],
     } as unknown as Parameters<typeof savePreferences>[0]);
     expect(await storedPreferences()).toEqual({
       findLinks: [
         { name: "PCGamingWiki", url: "https://www.pcgamingwiki.com/w/index.php?search={title}" },
       ],
-      gamePageCards: ["quotes", "shelves", "playing", "history", "lending"],
+      gamePageCards: ["lending", "shelves", "playing", "history"],
     });
   });
 

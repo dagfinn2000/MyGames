@@ -135,8 +135,8 @@ export function GamePageCardList({ prefs, update }: { prefs: Preferences; update
       </ul>
       <p className="text-xs text-muted-foreground">
         A hidden card still shows on a game when it has something in it: your
-        review or a game in progress, past playthroughs, an open loan or saved
-        quotes. Hiding Play history also hides Play it again, and hiding My
+        review or a game in progress, past playthroughs or an open loan.
+        Hiding Play history also hides Play it again, and hiding My
         playthrough hides the status menu (Select in the library can still
         change it).
       </p>

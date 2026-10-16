@@ -68,7 +68,7 @@ export default async function StatsPage({
   const period = parsePeriod(sp.period, prefs.statsPeriod);
   const words = PERIOD_WORDS[period];
 
-  const [inputs, goals, minuteTotals, quoteCount, randomQuotes] = await Promise.all([
+  const [inputs, goals, minuteTotals] = await Promise.all([
     // Games, past playthroughs and the log by game and day: what
     // lib/stats-count.ts turns into passes, by the "What counts"
     // preferences.
@@ -82,22 +82,8 @@ export default async function StatsPage({
     // lib/progress-query.ts for why this is not simply a date-bounded
     // findMany.
     dailyMinuteTotalsForUser(userId, prefs.timeZone),
-    prisma.quote.count({ where: { game: { userId } } }),
-    // A random quote for the serendipity card — new one on every visit.
-    // ORDER BY random() picks uniformly in one query, where the previous
-    // count-then-skip needed the count first (a second round-trip).
-    prisma.$queryRaw<
-      { id: string; text: string; speaker: string | null; gameId: string; gameTitle: string }[]
-    >`
-      SELECT q."id", q."text", q."speaker", g."id" AS "gameId", g."title" AS "gameTitle"
-      FROM "Quote" q
-      JOIN "Game" g ON g."id" = q."gameId"
-      WHERE g."userId" = ${userId}
-      ORDER BY random()
-      LIMIT 1`,
   ]);
 
-  const randomQuote = randomQuotes[0] ?? null;
   const { games } = inputs;
   const playing = games.filter((g) => g.status === PlayStatus.PLAYING);
 
@@ -409,32 +395,6 @@ export default async function StatsPage({
                   {byPeriod ? nothingCompleted : "No games yet."}
                 </p>
               )}
-            </CardContent>
-          </Card>
-        )}
-
-        {randomQuote && !hidden.has("quote") && (
-          <Card>
-            <CardHeader>
-              <CardTitle>From your quotes</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-3">
-              <blockquote className="long-text whitespace-pre-line break-words border-l-2 border-primary/50 pl-3 text-sm leading-relaxed">
-                {randomQuote.text}
-              </blockquote>
-              <p className="text-sm text-muted-foreground">
-                — {randomQuote.speaker && `${randomQuote.speaker}, `}
-                <Link
-                  href={`/games/${randomQuote.gameId}`}
-                  className="font-medium hover:underline"
-                >
-                  {randomQuote.gameTitle}
-                </Link>
-                {" · "}
-                <Link href="/quotes" className="hover:underline">
-                  browse all {quoteCount}
-                </Link>
-              </p>
             </CardContent>
           </Card>
         )}

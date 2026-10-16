@@ -61,8 +61,8 @@ search IGDB as well. The tests never reach the catalogues: they answer
   round trip, merging, duplicates, and settings), replay counts and the
   time each playthrough keeps, the game form and the play log it writes,
   logging and fixing time, library search and filters, bulk edit, stats
-  and goals, quotes, saving preferences and saved views, and the checks
-  that stop one user from touching another user's games.
+  and goals, saving preferences and saved views, and the checks that stop
+  one user from touching another user's games.
 
 These run against a real database because a stand-in would copy Postgres's
 behaviour wrongly in exactly the places that matter, and because restore is
@@ -89,7 +89,7 @@ src/
 │  ├─ (auth)/          login and register pages
 │  ├─ (app)/           pages behind login: games (the library), games/new,
 │  │                   games/[id], games/[id]/edit, playing (Now
-│  │                   playing), quotes, room (the game room), stats,
+│  │                   playing), room (the game room), stats,
 │  │                   stats/year/[year], account
 │  └─ api/             Auth.js, register, metadata search/details/covers,
 │                      cover upload and serving, backup export and import

@@ -236,8 +236,8 @@ export async function bulkUpdateGames(input: BulkInput): Promise<BulkResult> {
 }
 
 /**
- * Delete many games at once, with their play history, quotes and loans
- * (the schema cascades), then their cached covers where no other game uses
+ * Delete many games at once, with their play history and loans (the
+ * schema cascades), then their cached covers where no other game uses
  * them. For "every game that matches", the count the confirmation showed
  * must still be the count that matches, or nothing is deleted: a game
  * added or changed in the meantime must not quietly join the delete.
@@ -275,6 +275,5 @@ export async function bulkDeleteGames(input: BulkDeleteInput): Promise<BulkResul
 
   revalidatePath("/games");
   revalidatePath("/stats");
-  revalidatePath("/quotes");
   return { count: doomed.length };
 }
