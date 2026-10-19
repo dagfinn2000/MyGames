@@ -23,6 +23,7 @@ function game(overrides: Partial<GroupableGame> & { title: string }): GroupableG
     dateFinished: null,
     dateStarted: null,
     lengthMinutes: null,
+    playedMinutes: null,
     releaseDate: null,
     createdAt: new Date(0),
     updatedAt: new Date(0),
@@ -257,6 +258,7 @@ describe("games without a value, and ties", () => {
       ["dateFinished", { dateFinished: day("2024-01-01") }, { dateFinished: day("2025-01-01") }],
       ["dateStarted", { dateStarted: day("2024-01-01") }, { dateStarted: day("2025-01-01") }],
       ["length", { lengthMinutes: 600 }, { lengthMinutes: 3000 }],
+      ["played", { playedMinutes: 45 }, { playedMinutes: 2610 }],
       ["released", { releaseDate: "1998" }, { releaseDate: "2017-03" }],
     ];
     for (const [sort, low, high] of cases) {
@@ -276,6 +278,15 @@ describe("games without a value, and ties", () => {
       game({ title: "Some", lengthMinutes: 10 }),
     ];
     expect(titles(sortGames(games, "length", "asc"))).toEqual(["Some", "Zero"]);
+  });
+
+  it("counts a game not played yet as having no time played", () => {
+    const games = [
+      game({ title: "Unplayed", playedMinutes: null }),
+      game({ title: "Zero", playedMinutes: 0 }),
+      game({ title: "Played", playedMinutes: 90 }),
+    ];
+    expect(titles(sortGames(games, "played", "asc"))).toEqual(["Played", "Unplayed", "Zero"]);
   });
 
   it("breaks ties by developer, then title, A to Z even when sorted descending", () => {

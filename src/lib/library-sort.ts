@@ -22,6 +22,8 @@ export interface SortableGame {
   dateStarted: Date | null;
   /** Typical time to beat, in minutes. */
   lengthMinutes: number | null;
+  /** Time played in the current (or last completed) playthrough, minutes. */
+  playedMinutes: number | null;
   /** As the catalogue gave it or as typed: "1998", "2017-03", "2017-03-03". */
   releaseDate: string | null;
   createdAt: Date;
@@ -145,7 +147,8 @@ function seriesShelfOrder(
 }
 
 /** Each sort's value for one game; null is "no value", which always sorts
- *  last. A rating, time to beat or date of 0 means not filled in. */
+ *  last. A rating, time to beat, time played or date of 0 means not
+ *  filled in. */
 const SORT_VALUES: Record<string, (b: SortableGame, opts: SortOptions) => string | number | null> = {
   createdAt: (b) => b.createdAt.getTime(),
   title: (b, opts) => titleSortKey(b.title, opts),
@@ -153,6 +156,7 @@ const SORT_VALUES: Record<string, (b: SortableGame, opts: SortOptions) => string
   dateFinished: (b) => b.dateFinished?.getTime() ?? null,
   dateStarted: (b) => b.dateStarted?.getTime() ?? null,
   length: (b) => b.lengthMinutes || null,
+  played: (b) => b.playedMinutes || null,
   released: (b) => releaseSortKey(b.releaseDate),
   updatedAt: (b) => b.updatedAt.getTime(),
 };

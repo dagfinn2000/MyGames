@@ -144,4 +144,13 @@ describe("the newer sorts, groupings and display options", () => {
     expect(cleanLibraryViewPatch({ rowDate: "added" })).toEqual({ rowDate: "added" });
     expect(cleanLibraryViewPatch({ showPlatform: false })).toEqual({ showPlatform: false });
   });
+
+  it("shows the time played unless it was turned off, and sorts by it", () => {
+    expect(parseLibraryView({}).showPlayed).toBe(true);
+    expect(parseLibraryView({ showPlayed: false }).showPlayed).toBe(false);
+    expect(parseLibraryView({ showPlayed: "no" }).showPlayed).toBe(true);
+    expect(cleanLibraryViewPatch({ showPlayed: false })).toEqual({ showPlayed: false });
+    expect(parseLibraryView({ sort: "played" }).sort).toBe("played");
+    expect(naturalDir("played")).toBe("desc");
+  });
 });

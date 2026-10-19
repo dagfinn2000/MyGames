@@ -20,6 +20,7 @@ export const LIBRARY_SORTS = [
   "dateFinished",
   "dateStarted",
   "length",
+  "played",
   "released",
   "updatedAt",
 ] as const;
@@ -56,6 +57,7 @@ export const NATURAL_DIRS: Record<LibrarySortKey, LibraryDir> = {
   dateFinished: "desc",
   dateStarted: "desc",
   length: "desc",
+  played: "desc",
   released: "desc",
   updatedAt: "desc",
 };
@@ -102,6 +104,8 @@ export type LibraryView = {
   rowDate: (typeof ROW_DATES)[number];
   /** List layout only: the time to beat ("about 40 h"). */
   showLength: boolean;
+  /** How long you've played it ("12 h 30 min played"). */
+  showPlayed: boolean;
 };
 
 /** The drawing half of a view — what the View menu changes. */
@@ -118,6 +122,7 @@ export type LibraryDisplay = Pick<
   | "showOwnership"
   | "rowDate"
   | "showLength"
+  | "showPlayed"
 >;
 
 export const DEFAULT_LIBRARY_VIEW: LibraryView = {
@@ -135,6 +140,7 @@ export const DEFAULT_LIBRARY_VIEW: LibraryView = {
   showOwnership: false,
   rowDate: "none",
   showLength: false,
+  showPlayed: true,
 };
 
 /** Stored JSON (or anything else) → a safe view, unknown fields defaulted. */
@@ -166,6 +172,7 @@ export function parseLibraryView(raw: unknown): LibraryView {
     showOwnership: bool(obj.showOwnership, d.showOwnership),
     rowDate: pick(ROW_DATES, obj.rowDate, d.rowDate),
     showLength: bool(obj.showLength, d.showLength),
+    showPlayed: bool(obj.showPlayed, d.showPlayed),
   };
 }
 

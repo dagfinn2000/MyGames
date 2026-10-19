@@ -147,6 +147,13 @@ export function LibraryViewMenu({
             >
               Ownership
             </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={display.showPlayed}
+              onCheckedChange={(c) => save({ showPlayed: c === true })}
+              onSelect={(e) => e.preventDefault()}
+            >
+              Time played
+            </DropdownMenuCheckboxItem>
             {display.layout === "list" && (
               <DropdownMenuCheckboxItem
                 checked={display.showLength}

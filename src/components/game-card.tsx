@@ -174,6 +174,7 @@ export type CardDetails = Pick<
   | "showOwnership"
   | "rowDate"
   | "showLength"
+  | "showPlayed"
 >;
 
 const ALL_DETAILS: CardDetails = {
@@ -184,6 +185,7 @@ const ALL_DETAILS: CardDetails = {
   showOwnership: false,
   rowDate: "none",
   showLength: false,
+  showPlayed: true,
 };
 
 /**
@@ -263,9 +265,15 @@ function shownPlatform(game: GameCardGame, details: CardDetails): string | null 
   return details.showPlatform ? game.platform?.trim() || null : null;
 }
 
-/** A list row's extra line: the date added or finished and the time to
- *  beat, as the View menu asks. Empty when there is nothing to show (a date
- *  finished for a game not finished, say). */
+/** How long you've played a game, when the View menu shows it and there
+ *  is a time: "12 h 30 min played". */
+function shownPlayed(game: GameCardGame, details: CardDetails): string | null {
+  return details.showPlayed && game.playedMinutes ? `${formatPlaytime(game.playedMinutes)} played` : null;
+}
+
+/** A list row's extra line: the date added or finished, the time played
+ *  and the time to beat, as the View menu asks. Empty when there is
+ *  nothing to show (a date finished for a game not finished, say). */
 function rowFacts(game: GameCardGame, details: CardDetails, formatPrefs?: FormatPrefs): string {
   const facts: string[] = [];
   if (details.rowDate === "added" && game.createdAt) {
@@ -274,6 +282,8 @@ function rowFacts(game: GameCardGame, details: CardDetails, formatPrefs?: Format
   if (details.rowDate === "finished" && game.dateFinished) {
     facts.push(`Finished ${formatDate(game.dateFinished, formatPrefs)}`);
   }
+  const played = shownPlayed(game, details);
+  if (played) facts.push(played);
   if (details.showLength && game.lengthMinutes) {
     facts.push(`About ${formatPlaytime(game.lengthMinutes)} to beat`);
   }
@@ -351,6 +361,7 @@ export function GameCard({
 }) {
   const progress = playProgress(game);
   const platform = shownPlatform(game, details);
+  const played = shownPlayed(game, details);
 
   return (
     <GameLink
@@ -384,6 +395,7 @@ export function GameCard({
             {seriesLabel(game)}
           </p>
         )}
+        {played && <p className="line-clamp-1 text-xs text-muted-foreground tabular-nums">{played}</p>}
         {/* flex-wrap: on narrow cards the badge drops below the stars
             instead of overflowing the card. */}
         <div className="mt-auto flex flex-wrap items-center justify-between gap-1 pt-1">

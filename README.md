@@ -76,12 +76,14 @@ the same app for books, and is built from the same code.
 - Search, filter, sort and group the library: by developer, platform,
   series, year finished, status, format, ownership, tag, shelf or rating.
   Filter by platform, or find the games missing a cover, a time to beat, a
-  platform or tags. "Pick for me" opens a random game from Want to Play.
+  platform or tags. Sort by time played to see what you've sunk the most
+  hours into. "Pick for me" opens a random game from Want to Play.
 - A game opened from the library has an X in its corner (or press Esc) that
   takes you back to the same spot in the library, with your filters still
   on.
 - Show the library as cards, bare covers or a shelf, in three sizes, or
-  as a list, and choose what each game shows. Covers can look like little
+  as a list, and choose what each game shows (rating, status, series,
+  platform, ownership, time played, time to beat). Covers can look like little
   game cases, and games without a cover get one drawn with their title.
   Save the searches and filters you use often as views, and open the
   library on one of them if you like.

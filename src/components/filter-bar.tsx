@@ -66,6 +66,7 @@ const SORT_OPTIONS = [
   { value: "dateFinished", label: "Date finished" },
   { value: "dateStarted", label: "Date started" },
   { value: "length", label: "Time to beat" },
+  { value: "played", label: "Time played" },
   { value: "released", label: "Release date" },
   { value: "updatedAt", label: "Recently edited" },
 ];
@@ -113,6 +114,10 @@ const DIR_LABELS: Record<string, { asc: string; desc: string }> = {
   length: {
     asc: "Sorted shortest first. Click for longest first.",
     desc: "Sorted longest first. Click for shortest first.",
+  },
+  played: {
+    asc: "Sorted least played first. Click for most played first.",
+    desc: "Sorted most played first. Click for least played first.",
   },
   updatedAt: {
     asc: "Sorted least recently edited first. Click for most recent first.",
