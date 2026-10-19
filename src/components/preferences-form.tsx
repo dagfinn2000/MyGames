@@ -211,6 +211,7 @@ const STATS_LABELS: Record<HideableStat, string> = {
   goal: "Play goal",
   heatmap: "Play days calendar",
   perYear: "Games and hours per year",
+  mostPlayed: "Most played",
   tags: "Genres & tags",
   platforms: "Platforms",
   formats: "Formats",

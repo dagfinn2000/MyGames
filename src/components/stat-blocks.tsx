@@ -19,26 +19,55 @@ function Track({ value, max, pale = false }: { value: number; max: number; pale?
 /**
  * Simple horizontal CSS bar — no chart library needed at this scale.
  * `display` replaces the plain number at the end when the value needs a
- * unit ("42 h"); the column is a little wider then to fit it.
+ * unit ("42 h"); the column is a little wider then to fit it. `hours` adds
+ * a column after the number for the time played on the row's games, as
+ * the breakdown cards show it (headed by BarHeader).
  */
 export function Bar({
   label,
   value,
   max,
   display,
+  hours,
+  wide = false,
 }: {
   label: string;
   value: number;
   max: number;
   display?: string;
+  hours?: string;
+  /** A wider label, for game titles rather than short names. */
+  wide?: boolean;
 }) {
+  const columns = wide
+    ? "grid-cols-[minmax(0,11rem)_1fr_4rem]"
+    : hours !== undefined
+      ? "grid-cols-[7rem_1fr_2.5rem_3.5rem]"
+      : display === undefined
+        ? "grid-cols-[7rem_1fr_2.5rem]"
+        : "grid-cols-[7rem_1fr_4rem]";
   return (
-    <div
-      className={`grid items-center gap-2 text-sm ${display === undefined ? "grid-cols-[7rem_1fr_2.5rem]" : "grid-cols-[7rem_1fr_4rem]"}`}
-    >
+    <div className={`grid items-center gap-2 text-sm ${columns}`}>
       <span className="truncate text-muted-foreground">{label}</span>
       <Track value={value} max={max} />
       <span className="text-right tabular-nums">{display ?? value}</span>
+      {hours !== undefined && (
+        <span className="text-right text-muted-foreground tabular-nums">{hours}</span>
+      )}
+    </div>
+  );
+}
+
+/** Column headings over bars that carry an Hours column: what the number
+ *  counts, and the hours. */
+export function BarHeader({ count }: { count: string }) {
+  return (
+    <div
+      className="grid grid-cols-[7rem_1fr_2.5rem_3.5rem] gap-2 text-xs text-muted-foreground"
+      aria-hidden="true"
+    >
+      <span className="col-start-3 text-right">{count}</span>
+      <span className="text-right">Hours</span>
     </div>
   );
 }

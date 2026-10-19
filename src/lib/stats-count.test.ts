@@ -10,8 +10,12 @@ import {
   gamesLabel,
   goalRuleLine,
   inWindow,
+  minutesByGame,
+  minutesByKey,
+  mostPlayed,
   perYear,
   platformCounts,
+  platformKey,
   ruleNotes,
   tally,
   type CountGame,
@@ -501,6 +505,79 @@ describe("platformCounts", () => {
       ["PC", 2],
       ["Mac", 1],
     ]);
+  });
+});
+
+describe("time played per game", () => {
+  type Titled = CountGame & { title: string };
+  const titled = (id: string, title: string, over: Partial<CountGame> = {}): Titled => ({
+    ...game(id, over),
+    title,
+  });
+  const library = inputs<Titled>(
+    [
+      // Logged over two years, completed this year.
+      titled("hk", "Hollow Knight", { dateFinished: d("2026-03-01"), playedMinutes: 600 }),
+      // On the go: only its logged time counts.
+      titled("w3", "The Witcher 3", { status: "PLAYING", playedMinutes: 900 }),
+      // Completed twice: an earlier, unlogged playthrough of 25 h, and now.
+      titled("hd", "Hades", { dateFinished: d("2026-02-01"), playedMinutes: 120 }),
+      // Never played.
+      titled("sv", "Stardew Valley", { status: "WANT_TO_PLAY" }),
+    ],
+    [playthrough("hd", "2025-06-01", { playedMinutes: 1500 })],
+    [
+      log("hk", "2025-12-30", 0),
+      log("hk", "2025-12-31", 240),
+      log("hk", "2026-02-10", 360),
+      log("w3", "2026-04-01", 900),
+      log("hd", "2026-01-15", 120),
+    ],
+  );
+
+  it("adds up each game's time by the Hours played rules, and ranks the most played", () => {
+    const allTime = countWindow(buildPasses(library, LOGGED, TZ), ALL_TIME, LOGGED);
+    expect(Object.fromEntries(minutesByGame(allTime))).toEqual({ hk: 600, w3: 900, hd: 1620 });
+    expect(mostPlayed(allTime).map((r) => [r.game.title, r.minutes])).toEqual([
+      ["Hades", 1620],
+      ["The Witcher 3", 900],
+      ["Hollow Knight", 600],
+    ]);
+    // In a year, only the time in it; the top few only.
+    const year2026 = countWindow(buildPasses(library, LOGGED, TZ), yearWindow(2026), LOGGED);
+    expect(mostPlayed(year2026, 2).map((r) => [r.game.title, r.minutes])).toEqual([
+      ["The Witcher 3", 900],
+      ["Hollow Knight", 360],
+    ]);
+  });
+
+  it("counts whole playthroughs when completed under the finished rule", () => {
+    const allTime = countWindow(buildPasses(library, FINISHED, TZ), ALL_TIME, FINISHED);
+    // The Witcher 3 isn't completed, so it adds nothing yet.
+    expect(Object.fromEntries(minutesByGame(allTime))).toEqual({ hk: 600, hd: 1620 });
+  });
+
+  it("adds each breakdown row's games together, a game counting under every key it has", () => {
+    const minutes = new Map([
+      ["a", 60],
+      ["b", 120],
+      ["c", 0],
+    ]);
+    const games = [
+      { id: "a", platform: "PC", tags: ["rpg", "co-op"] },
+      { id: "b", platform: " PC ", tags: ["rpg"] },
+      { id: "c", platform: null, tags: ["puzzle"] },
+      { id: "d", platform: "", tags: [] },
+    ];
+    expect(Object.fromEntries(minutesByKey(games, minutes, (g) => [platformKey(g)]))).toEqual({
+      PC: 180,
+    });
+    expect(Object.fromEntries(minutesByKey(games, minutes, (g) => g.tags))).toEqual({
+      rpg: 180,
+      "co-op": 60,
+    });
+    expect(platformKey({ platform: null })).toBe(NO_PLATFORM);
+    expect(platformKey({ platform: "  " })).toBe(NO_PLATFORM);
   });
 });
 

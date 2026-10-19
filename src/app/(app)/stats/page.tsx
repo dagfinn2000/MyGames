@@ -16,8 +16,12 @@ import {
   gamesCompletedAllTime,
   gamesLabel,
   goalRuleLine,
+  minutesByGame,
+  minutesByKey,
+  mostPlayed,
   perYear,
   platformCounts,
+  platformKey,
   ruleNotes,
   tally,
 } from "@/lib/stats-count";
@@ -33,7 +37,7 @@ import {
 import { loadStatsInputs } from "@/lib/stats-query";
 import { GoalCard } from "@/components/goal-card";
 import { PlayHeatmap } from "@/components/play-heatmap";
-import { Bar, BarPair, HoursValue, StatCard, barHours } from "@/components/stat-blocks";
+import { Bar, BarHeader, BarPair, HoursValue, StatCard, barHours } from "@/components/stat-blocks";
 import { StatsPeriodNav } from "@/components/stats-period-nav";
 import { Stars } from "@/components/stars";
 import {
@@ -159,6 +163,19 @@ export default async function StatsPage({
   const nothingCompleted =
     period === "all" ? "Nothing completed yet." : "Nothing in this period.";
 
+  // Time played on each game in the period, by the Hours played rules:
+  // the Most played card, and the Hours column of the breakdowns (time
+  // played in the period on the games in each row).
+  const minutes = minutesByGame(counted);
+  const topPlayed = mostPlayed(counted);
+  const maxPlayed = topPlayed[0]?.minutes ?? 0;
+  const breakdownHours = (byKey: Map<string, number>, key: string) => {
+    const m = byKey.get(key) ?? 0;
+    return m > 0 ? barHours(m, prefs) : "–";
+  };
+  const hoursNote =
+    period === "all" ? "Hours: time played on them." : `Hours: time played on them ${words}.`;
+
   // Genre/tag breakdown, top 10.
   const tagCounts = new Map<string, number>();
   for (const g of breakdownGames) {
@@ -168,11 +185,15 @@ export default async function StatsPage({
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10);
   const maxTag = topTags[0]?.[1] ?? 0;
+  const tagMinutes = minutesByKey(breakdownGames, minutes, (g) => g.tags);
+  const tagHours = topTags.some(([tag]) => tagMinutes.has(tag));
 
   // Platform breakdown, top 10, then the games with no platform.
   const platforms = platformCounts(breakdownGames);
   const maxPlatform = Math.max(...platforms.map(([, n]) => n), 0);
   const noPlatformsYet = platforms.length === 1 && platforms[0][0] === NO_PLATFORM;
+  const platformMinutes = minutesByKey(breakdownGames, minutes, (g) => [platformKey(g)]);
+  const platformHours = platforms.some(([platform]) => platformMinutes.has(platform));
 
   // Format breakdown.
   const formatCounts = new Map<string, number>();
@@ -181,6 +202,8 @@ export default async function StatsPage({
     formatCounts.set(label, (formatCounts.get(label) ?? 0) + 1);
   }
   const maxFormat = Math.max(...formatCounts.values(), 0);
+  const formatMinutes = minutesByKey(breakdownGames, minutes, (g) => [FORMAT_LABELS[g.format]]);
+  const formatHours = formatMinutes.size > 0;
 
   /** The card title's note on what the breakdowns count. */
   const breakdownSuffix = breakdownNote && (
@@ -328,6 +351,39 @@ export default async function StatsPage({
           </Card>
         )}
 
+        {!hidden.has("mostPlayed") && (
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                Most played
+                {period !== "all" && (
+                  <span className="font-normal text-muted-foreground"> · {words}</span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-2">
+              {topPlayed.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {period === "all"
+                    ? "Log the time you play, and the games you've played most show up here."
+                    : "No time played in this period."}
+                </p>
+              ) : (
+                topPlayed.map(({ game, minutes: m }) => (
+                  <Link
+                    key={game.id}
+                    href={`/games/${game.id}`}
+                    className="-mx-1.5 rounded px-1.5 py-0.5 transition-colors hover:bg-accent/50"
+                    title={game.title}
+                  >
+                    <Bar label={game.title} value={m} max={maxPlayed} display={barHours(m, prefs)} wide />
+                  </Link>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {!hidden.has("tags") && (
           <Card>
             <CardHeader>
@@ -344,9 +400,19 @@ export default async function StatsPage({
                     : "Tag your games to see the breakdown."}
                 </p>
               ) : (
-                topTags.map(([tag, count]) => (
-                  <Bar key={tag} label={tag} value={count} max={maxTag} />
-                ))
+                <>
+                  {tagHours && <BarHeader count="Games" />}
+                  {topTags.map(([tag, count]) => (
+                    <Bar
+                      key={tag}
+                      label={tag}
+                      value={count}
+                      max={maxTag}
+                      hours={tagHours ? breakdownHours(tagMinutes, tag) : undefined}
+                    />
+                  ))}
+                  {tagHours && <p className="pt-1 text-xs text-muted-foreground">{hoursNote}</p>}
+                </>
               )}
             </CardContent>
           </Card>
@@ -361,9 +427,17 @@ export default async function StatsPage({
               </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-2">
+              {platformHours && <BarHeader count="Games" />}
               {platforms.map(([platform, count]) => (
-                <Bar key={platform} label={platform} value={count} max={maxPlatform} />
+                <Bar
+                  key={platform}
+                  label={platform}
+                  value={count}
+                  max={maxPlatform}
+                  hours={platformHours ? breakdownHours(platformMinutes, platform) : undefined}
+                />
               ))}
+              {platformHours && <p className="pt-1 text-xs text-muted-foreground">{hoursNote}</p>}
               {platforms.length === 0 && (
                 <p className="text-sm text-muted-foreground">
                   {byPeriod ? nothingCompleted : "No games yet."}
@@ -387,9 +461,17 @@ export default async function StatsPage({
               </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-2">
+              {formatHours && <BarHeader count="Games" />}
               {[...formatCounts.entries()].map(([label, count]) => (
-                <Bar key={label} label={label} value={count} max={maxFormat} />
+                <Bar
+                  key={label}
+                  label={label}
+                  value={count}
+                  max={maxFormat}
+                  hours={formatHours ? breakdownHours(formatMinutes, label) : undefined}
+                />
               ))}
+              {formatHours && <p className="pt-1 text-xs text-muted-foreground">{hoursNote}</p>}
               {formatCounts.size === 0 && (
                 <p className="text-sm text-muted-foreground">
                   {byPeriod ? nothingCompleted : "No games yet."}

@@ -164,6 +164,7 @@ export const HIDEABLE_STATS = [
   "goal",
   "heatmap",
   "perYear",
+  "mostPlayed",
   "tags",
   "platforms",
   "formats",

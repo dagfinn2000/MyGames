@@ -402,3 +402,51 @@ export function platformCounts(
     .slice(0, limit);
   return none > 0 ? [...top, [NO_PLATFORM, none]] : top;
 }
+
+/** Time played on each game in a window's counted passes, by game id: what
+ *  the Most played card ranks and the breakdowns' Hours column adds up, by
+ *  the same rules as Hours played. */
+export function minutesByGame(items: readonly Counted[]): Map<string, number> {
+  const minutes = new Map<string, number>();
+  for (const i of items) {
+    if (i.minutes > 0) minutes.set(i.pass.game.id, (minutes.get(i.pass.game.id) ?? 0) + i.minutes);
+  }
+  return minutes;
+}
+
+/** The games with the most time played in a window, most first (ties by
+ *  title), top `limit`. Games with no time in it are left out. */
+export function mostPlayed<G extends CountGame & { title: string }>(
+  items: readonly Counted<G>[],
+  limit = 10,
+): { game: G; minutes: number }[] {
+  const minutes = minutesByGame(items);
+  const games = new Map(items.map((i) => [i.pass.game.id, i.pass.game]));
+  return [...minutes.entries()]
+    .map(([id, m]) => ({ game: games.get(id)!, minutes: m }))
+    .sort((a, b) => b.minutes - a.minutes || a.game.title.localeCompare(b.game.title))
+    .slice(0, limit);
+}
+
+/** The breakdown key of a game's platform: as written, or "No platform",
+ *  the same buckets platformCounts makes. */
+export function platformKey(game: { platform: string | null }): string {
+  return game.platform?.trim() || NO_PLATFORM;
+}
+
+/** Time played on each breakdown row's games: every game's minutes added
+ *  under each key `keysOf` gives it (a game with two tags counts in both,
+ *  as it does in the tag counts). */
+export function minutesByKey<G extends { id: string }>(
+  games: readonly G[],
+  minutes: ReadonlyMap<string, number>,
+  keysOf: (game: G) => readonly string[],
+): Map<string, number> {
+  const byKey = new Map<string, number>();
+  for (const g of games) {
+    const m = minutes.get(g.id) ?? 0;
+    if (m === 0) continue;
+    for (const key of keysOf(g)) byKey.set(key, (byKey.get(key) ?? 0) + m);
+  }
+  return byKey;
+}

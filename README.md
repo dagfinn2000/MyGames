@@ -96,8 +96,9 @@ the same app for books, and is built from the same code.
 **Stats**
 
 - Games completed and hours played per year, ratings, genres and tags,
-  platforms and formats, and a calendar of the days you played. Look at all
-  time, this year, the last 12 months or the last 30 days.
+  platforms and formats (each with the hours you played them), your most
+  played games, and a calendar of the days you played. Look at all time,
+  this year, the last 12 months or the last 30 days.
 - Decide what counts: the time you log, on the day you play, or a game's
   whole time when you complete it; and whether games you drop count, by
   their hours or as a game.
