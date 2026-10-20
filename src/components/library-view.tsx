@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { startTransition as startLoad, useId, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
 import { Check, Dices, SquareCheckBig, X } from "lucide-react";
-import { bulkDeleteGames, bulkUpdateGames } from "@/lib/actions/bulk";
+import { bulkDeleteGames, bulkUpdateGames, libraryPlatforms } from "@/lib/actions/bulk";
+import { BULK_PLATFORM_MAX, platformSuggestions } from "@/lib/bulk";
 import { pickRandomGame } from "@/lib/actions/pick";
 import { isClosingGame } from "@/lib/cover-flight";
 import { FORMAT_LABELS, OWNERSHIP_LABELS, STATUS_LABELS, formatNumber } from "@/lib/display";
@@ -87,10 +88,10 @@ function splitTags(text: string): string[] {
  * The library grid with bulk-edit support. Normally the cards are plain
  * links; toggling select mode overlays each card with a checkbox hitbox and
  * shows a floating action bar (status, shelf, format, ownership, tags to
- * add or remove, or delete) that applies to every selected game in one
- * server action. Once every card on screen is picked, "Select all N games
- * that match" widens the selection to every game the filters match, which
- * the server finds again from the same URL parameters.
+ * add or remove, platform, or delete) that applies to every selected game
+ * in one server action. Once every card on screen is picked, "Select all
+ * N games that match" widens the selection to every game the filters
+ * match, which the server finds again from the same URL parameters.
  *
  * Renders only the slice the server sent. "Show more" and "Pick for me" both
  * go back to the server rather than working from a full in-memory library.
@@ -143,6 +144,17 @@ export function LibraryView({
   const [ownership, setOwnership] = useState("keep");
   const [tags, setTags] = useState("");
   const [removeTags, setRemoveTags] = useState("");
+  // Set platform is opted into ("keep" or "set") rather than read from the
+  // box alone, so an empty box can mean "clear it" without every Apply
+  // clearing platforms nobody meant to touch.
+  const [platformMode, setPlatformMode] = useState("keep");
+  const [platform, setPlatform] = useState("");
+  // The library's own platforms, fetched when Set platform is chosen.
+  const [ownPlatforms, setOwnPlatforms] = useState<string[]>([]);
+  const [clearPlatformOpen, setClearPlatformOpen] = useState(false);
+  const cancelClearRef = useRef<HTMLButtonElement>(null);
+  const applyRef = useRef<HTMLButtonElement>(null);
+  const platformListId = useId();
   // The filters (as matchKey below) for which "every game that matches" was
   // chosen. Any other filters on screen and it no longer applies.
   const [matchingFor, setMatchingFor] = useState<string | null>(null);
@@ -204,7 +216,27 @@ export function LibraryView({
     setOwnership("keep");
     setTags("");
     setRemoveTags("");
+    setPlatformMode("keep");
+    setPlatform("");
     setMessage(null);
+  }
+
+  /** The library's platforms, for Set platform to suggest first. Only a
+   *  nicety: if they can't be had, the common platforms still show. A
+   *  transition of its own, so fetching them never shows Apply as busy. */
+  function loadPlatforms() {
+    startLoad(async () => {
+      try {
+        setOwnPlatforms(await libraryPlatforms());
+      } catch {
+        // Keep whatever was suggested before.
+      }
+    });
+  }
+
+  function choosePlatformMode(mode: string) {
+    setPlatformMode(mode);
+    if (mode === "set") loadPlatforms();
   }
 
   /** Random pick from the current tab and filters, narrowed by the Pick for
@@ -228,20 +260,30 @@ export function LibraryView({
   }
   const shownPickNote = pickNote?.key === viewKey ? pickNote.reason : null;
 
-  function apply() {
+  /** Sends every change picked. An empty platform box clears the platform
+   *  of every game selected, which can't be taken back in one go, so that
+   *  waits for the dialog to confirm it (`clearConfirmed`). */
+  function apply(clearConfirmed = false) {
     const addTags = splitTags(tags);
     const dropTags = splitTags(removeTags);
     // The shelf select's values are "add:<id>" and "remove:<id>".
     const [shelfAction, shelfTarget] = shelfId.split(":");
+    // undefined = leave alone, "" = clear.
+    const newPlatform = platformMode === "set" ? platform.trim() : undefined;
     if (
       status === "keep" &&
       shelfId === "keep" &&
       format === "keep" &&
       ownership === "keep" &&
+      newPlatform === undefined &&
       addTags.length === 0 &&
       dropTags.length === 0
     ) {
       setMessage("Pick a change first.");
+      return;
+    }
+    if (newPlatform === "" && !clearConfirmed) {
+      setClearPlatformOpen(true);
       return;
     }
     startTransition(async () => {
@@ -254,7 +296,9 @@ export function LibraryView({
         removeShelfId: shelfAction === "remove" ? shelfTarget : undefined,
         addTags: addTags.length ? addTags : undefined,
         removeTags: dropTags.length ? dropTags : undefined,
+        platform: newPlatform === undefined ? undefined : newPlatform || null,
       });
+      setClearPlatformOpen(false);
       if (res.error) {
         setMessage(res.error);
       } else {
@@ -264,6 +308,8 @@ export function LibraryView({
         // rather than falling to the page.
         messageRef.current?.focus();
         router.refresh();
+        // A platform new to the library joins the suggestions.
+        if (newPlatform) loadPlatforms();
       }
     });
   }
@@ -373,9 +419,10 @@ export function LibraryView({
 
   return (
     // While selecting, room at the bottom so the action bar never covers
-    // the last games. data-library-view tells a closing game page that the
-    // library itself is back, not its loading skeleton (lib/cover-flight.ts).
-    <div className={cn("grid gap-4", selectMode && "pb-80 sm:pb-48")} data-library-view="">
+    // the last games, platform box and all. data-library-view tells a
+    // closing game page that the library itself is back, not its loading
+    // skeleton (lib/cover-flight.ts).
+    <div className={cn("grid gap-4", selectMode && "pb-96 sm:pb-56")} data-library-view="">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground tabular-nums">
           {totalCount} game{totalCount === 1 ? "" : "s"}
@@ -585,11 +632,42 @@ export function LibraryView({
               aria-label="Remove tags, comma separated"
               className="col-span-2"
             />
+            <Select value={platformMode} onValueChange={choosePlatformMode}>
+              {/* A row of its own on phones, so the box below doesn't leave
+                  it beside an empty cell. */}
+              <SelectTrigger aria-label="Platform" className="col-span-2 w-full min-w-0 sm:col-span-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="keep">Platform: don&apos;t change</SelectItem>
+                <SelectItem value="set">Set platform</SelectItem>
+              </SelectContent>
+            </Select>
+            {platformMode === "set" && (
+              <>
+                <Input
+                  value={platform}
+                  onChange={(e) => setPlatform(e.target.value)}
+                  placeholder="Platform (leave empty to clear)"
+                  aria-label="Platform to set, or empty to clear it"
+                  maxLength={BULK_PLATFORM_MAX}
+                  list={platformListId}
+                  className="col-span-2 sm:col-span-3"
+                />
+                {/* The library's spellings first, then the common ones. */}
+                <datalist id={platformListId}>
+                  {platformSuggestions(ownPlatforms).map((p) => (
+                    <option key={p} value={p} />
+                  ))}
+                </datalist>
+              </>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button
+              ref={applyRef}
               size="sm"
-              onClick={apply}
+              onClick={() => apply()}
               disabled={pending || deleting || selCount === 0}
               className="flex-1 sm:flex-initial"
             >
@@ -615,6 +693,46 @@ export function LibraryView({
           </div>
         </div>
       )}
+
+      <Dialog open={clearPlatformOpen} onOpenChange={setClearPlatformOpen}>
+        <DialogContent
+          // Start on Cancel: Enter shouldn't clear anything.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            cancelClearRef.current?.focus();
+          }}
+          // Nothing opened this through a DialogTrigger, so left to itself
+          // Radix would hand focus to no one and it would fall to the page,
+          // with every card between it and the bar. So back to Apply while
+          // games are still selected (cancelled, or refused); once applied
+          // nothing is selected and Apply is disabled, so to how it went.
+          onCloseAutoFocus={(e) => {
+            e.preventDefault();
+            const back = selCount > 0 ? applyRef.current : null;
+            back?.focus();
+            if (!back || document.activeElement !== back) messageRef.current?.focus();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Clear the platform on {gamesLabel(selCount)}?</DialogTitle>
+            <DialogDescription>
+              The platform box is empty, so Apply takes the platform off every
+              selected game, along with any other changes you picked. To give
+              them one instead, type it in the box.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button ref={cancelClearRef} variant="outline">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button disabled={pending} onClick={() => apply(true)}>
+              {pending ? "Clearing…" : "Clear platform"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent

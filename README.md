@@ -92,8 +92,9 @@ the same app for books, and is built from the same code.
   their title and their system's band across the top.
   Save the searches and filters you use often as views, and open the
   library on one of them if you like.
-- Edit many games at once: set their status, format or ownership, add or
-  remove tags, put them on a shelf or take them off it, or delete them.
+- Edit many games at once: set their status, format, platform or
+  ownership, add or remove tags, put them on a shelf or take them off it,
+  or delete them.
   Pick the games on screen, or every game that matches your filters.
 - Rename, merge, reorder and hide shelves, and choose which status tabs the
   library shows. Saved views can be renamed and reordered too.

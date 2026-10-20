@@ -10,9 +10,11 @@ import {
   bulkDeleteSchema,
   bulkSchema,
   chunk,
+  replatform,
   retag,
   type BulkDeleteInput,
   type BulkInput,
+  type PlatformTarget,
 } from "@/lib/bulk";
 import { deleteCachedCovers } from "@/lib/covers";
 import { getPreferences } from "@/lib/current-user";
@@ -76,9 +78,9 @@ async function resolveTarget(
 
 /**
  * Apply changes to many games at once: play status, format, ownership,
- * tags to add or remove, and/or a shelf to put them on or take them off.
- * The games are the ids picked on screen, each checked against the
- * account, or every game matching the library's filters ("Select all N
+ * platform, tags to add or remove, and/or a shelf to put them on or take
+ * them off. The games are the ids picked on screen, each checked against
+ * the account, or every game matching the library's filters ("Select all N
  * games that match").
  */
 export async function bulkUpdateGames(input: BulkInput): Promise<BulkResult> {
@@ -88,13 +90,15 @@ export async function bulkUpdateGames(input: BulkInput): Promise<BulkResult> {
 
   const parsed = bulkSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
-  const { status, format, ownership, addShelfId, removeShelfId, addTags, removeTags } =
+  const { status, format, ownership, addShelfId, removeShelfId, addTags, removeTags, platform } =
     parsed.data;
 
+  // A null platform is a change (clear it); only a missing one isn't.
   if (
     !status &&
     !format &&
     !ownership &&
+    platform === undefined &&
     !addShelfId &&
     !removeShelfId &&
     !addTags?.length &&
@@ -196,6 +200,30 @@ export async function bulkUpdateGames(input: BulkInput): Promise<BulkResult> {
       }
     }
 
+    if (platform !== undefined) {
+      // Per game, because searchText folds the platform in with the title,
+      // developers and series (buildSearchText): a bare updateMany of the
+      // platform would leave search finding games by the one they used to
+      // have. The rows are read here, locked, rather than taken from
+      // `owned`, so a title saved from another tab between the read and the
+      // write can't be overwritten by searchText built from the old one.
+      // Still only the player's games: the ids came from target.where, and
+      // the lock checks the account again. Games already set that way are
+      // left alone.
+      for (const part of chunk(ownedIds, BULK_CHUNK)) {
+        const rows = await tx.$queryRaw<(PlatformTarget & { id: string })[]>`
+          SELECT "id", "title", "developers", "seriesName", "platform", "searchText"
+          FROM "Game"
+          WHERE "id" = ANY(${part}) AND "userId" = ${userId}
+          ORDER BY "id"
+          FOR UPDATE`;
+        for (const g of rows) {
+          const next = replatform(g, platform);
+          if (next) await tx.game.update({ where: { id: g.id }, data: next });
+        }
+      }
+    }
+
     if (addTags?.length || removeTags?.length) {
       // Per-row updates so existing tags are merged without duplicates —
       // updateMany's `push` would blindly append. Only games whose tags
@@ -230,9 +258,27 @@ export async function bulkUpdateGames(input: BulkInput): Promise<BulkResult> {
   if (outcome === "timeout") return { error: TOO_LONG };
 
   revalidatePath("/games");
-  // Status, format and ownership all feed the stats page.
+  // Status, format, ownership and platform all feed the stats page.
   revalidatePath("/stats");
   return { count: ownedIds.length };
+}
+
+/**
+ * The platforms already in the player's library, once each and in their
+ * alphabet, for the Set platform field to suggest before the common ones.
+ * Asked for when that field opens rather than sent with every library
+ * page, which only needs them once someone bulk-edits a platform.
+ */
+export async function libraryPlatforms(): Promise<string[]> {
+  const session = await auth();
+  if (!session?.user?.id) return [];
+  const rows = await prisma.game.findMany({
+    where: { userId: session.user.id, platform: { not: null } },
+    distinct: ["platform"],
+    select: { platform: true },
+  });
+  const names = new Set(rows.map((r) => r.platform?.trim() ?? "").filter(Boolean));
+  return [...names].sort(new Intl.Collator((await getPreferences()).sortAlphabet).compare);
 }
 
 /**

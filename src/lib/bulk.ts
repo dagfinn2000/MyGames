@@ -1,5 +1,7 @@
 import { GameFormat, GameOwnership, PlayStatus } from "@prisma/client";
 import { z } from "zod";
+import { COMMON_PLATFORMS } from "@/lib/platforms";
+import { buildSearchText } from "@/lib/utils";
 
 /**
  * Bulk edit's limits and input rules, shared by the server actions
@@ -34,6 +36,54 @@ export function retag(tags: readonly string[], add: readonly string[], remove: r
   const next = [...new Set([...tags, ...add])].filter((t) => !remove.includes(t));
   const same = next.length === tags.length && next.every((t, i) => t === tags[i]);
   return same ? null : next;
+}
+
+/** Longest platform a bulk edit sets: the game form's limit (validation.ts). */
+export const BULK_PLATFORM_MAX = 100;
+
+/**
+ * The Set platform field's suggestions: the platforms already in the
+ * library first, so a bulk edit spells a system the way the library already
+ * does ("PS5" stays "PS5" rather than gaining a "PlayStation 5" twin), then
+ * the common ones. Each once whatever its case, the first spelling winning.
+ */
+export function platformSuggestions(library: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const name of [...library, ...COMMON_PLATFORMS]) {
+    const tidy = name.trim();
+    const key = tidy.toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(tidy);
+  }
+  return out;
+}
+
+/** The fields Set platform reads from a game to rewrite it. */
+export interface PlatformTarget {
+  title: string;
+  developers: string[];
+  seriesName: string | null;
+  platform: string | null;
+  searchText: string;
+}
+
+/**
+ * What Set platform writes to one game: the new platform (null clears it)
+ * and its searchText rebuilt to match, or null when the game already says
+ * exactly that. searchText folds the platform in (buildSearchText), so
+ * changing one without the other would leave search finding the game by
+ * the platform it used to have. A searchText that is somehow out of step
+ * is rewritten even when the platform itself is unchanged.
+ */
+export function replatform(
+  game: PlatformTarget,
+  platform: string | null,
+): { platform: string | null; searchText: string } | null {
+  const searchText = buildSearchText(game.title, game.developers, game.seriesName, platform);
+  if (game.platform === platform && game.searchText === searchText) return null;
+  return { platform, searchText };
 }
 
 const tagList = z
@@ -90,6 +140,15 @@ export const bulkSchema = z
     removeShelfId: z.string().max(64).optional(),
     addTags: tagList,
     removeTags: tagList,
+    /** Set platform: the name to give every game, trimmed. Empty (or null)
+     *  clears it; leaving it out leaves each game's platform alone. */
+    platform: z
+      .string()
+      .trim()
+      .max(BULK_PLATFORM_MAX, `A platform can be at most ${BULK_PLATFORM_MAX} characters.`)
+      .transform((p) => p || null)
+      .nullable()
+      .optional(),
   })
   .superRefine((data, ctx) => {
     oneTarget(data, ctx);
