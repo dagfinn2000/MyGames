@@ -19,9 +19,10 @@ import {
   formatDate,
   type FormatPrefs,
 } from "@/lib/display";
-import { coverArt } from "@/lib/cover-art";
+import { bandLabel, coverArt } from "@/lib/cover-art";
 import type { LibraryDisplay } from "@/lib/library-view";
 import { formatPlaytime, progressFigure, progressPercent } from "@/lib/progress-units";
+import { caseBand } from "@/lib/room";
 import { cn } from "@/lib/utils";
 
 /** Box art, or a stand-in when the game has none.
@@ -34,7 +35,10 @@ export function GameCover({
   loading = "lazy",
   flightTarget,
 }: {
-  game: Pick<Game, "title" | "coverUrl"> & { developers?: string[] };
+  /** `platform` is required, null when there is none, so a page that
+   *  forgets to fetch it fails to compile instead of drawing every case
+   *  with the plain band. */
+  game: Pick<Game, "title" | "coverUrl" | "platform"> & { developers?: string[] };
   className?: string;
   loading?: "eager" | "lazy";
   /** The game's id, on the game page's own cover: where a cover clicked
@@ -56,7 +60,11 @@ export function GameCover({
           className="h-full w-full object-cover"
         />
       ) : (
-        <MissingCover title={game.title} developer={game.developers?.[0]} />
+        <MissingCover
+          title={game.title}
+          developer={game.developers?.[0]}
+          platform={game.platform}
+        />
       )}
     </div>
   );
@@ -103,17 +111,29 @@ export function GameBackdrop({ game }: { game: Pick<Game, "title" | "coverUrl"> 
  * component that server and client pages can share without passing the
  * setting down.
  *
- * The drawn cover is a coloured board with the title and first developer,
- * coloured from the title (lib/cover-art.ts). The plain one is a grey box
- * with a controller.
+ * The drawn cover is the front of a game case: across the top the band of
+ * its system, in the colour the game room's shelves give it (caseBand in
+ * lib/room.ts) with the platform's name on it, and under that an insert
+ * with the title and first developer, coloured from the title
+ * (lib/cover-art.ts). The plain one is a grey box with a controller.
  */
-function MissingCover({ title, developer }: { title: string; developer?: string }) {
+function MissingCover({
+  title,
+  developer,
+  platform,
+}: {
+  title: string;
+  developer?: string;
+  platform: string | null;
+}) {
   const art = coverArt(title);
+  const label = bandLabel(platform);
   return (
     <>
       <div
         className="drawn-cover"
         data-layout={art.layout}
+        data-band={caseBand(platform)}
         style={
           {
             "--cover-hue": art.hue,
@@ -124,6 +144,16 @@ function MissingCover({ title, developer }: { title: string; developer?: string 
         }
         aria-hidden="true"
       >
+        <div className="drawn-cover-band">
+          {label && (
+            <span
+              className="drawn-cover-system"
+              style={{ "--band-label": `${label.size}cqi` } as React.CSSProperties}
+            >
+              {label.text}
+            </span>
+          )}
+        </div>
         <div className="drawn-cover-frame">
           <span className="drawn-cover-title">{title}</span>
           <span className="drawn-cover-rule" />

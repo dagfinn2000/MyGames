@@ -1,11 +1,13 @@
 /**
  * The colours of the drawn cover a game gets when it has no box art
- * (GameCover in components/game-card.tsx).
+ * (GameCover in components/game-card.tsx), and the words on the band of
+ * its system across the top (bandLabel, below).
  *
- * Everything comes from the title, so a game keeps the same cover on every
- * page and every visit, and different titles spread around the colour
- * wheel instead of all coming out one shade. Saturation and lightness stay
- * in a band dark enough for the pale title text to read on any hue.
+ * Everything but the band comes from the title, so a game keeps the same
+ * cover on every page and every visit, and different titles spread around
+ * the colour wheel instead of all coming out one shade. Saturation and
+ * lightness stay in a range dark enough for the pale title text to read
+ * on any hue.
  */
 export interface CoverArt {
   /** 0–359 */
@@ -59,4 +61,47 @@ export function coverArt(title: string): CoverArt {
     layout: ((h >>> 5) % 3) as CoverArt["layout"],
     titleSize: titleSize(title),
   };
+}
+
+/**
+ * The system's name on the band across the top of a drawn cover, as a real
+ * case prints its own ("NINTENDO SWITCH" on the red band, "PS5" on the
+ * white). The band's colour comes from caseBand in lib/room.ts, so the
+ * library and the game room's shelves agree; this is only the words on it.
+ */
+export interface BandLabel {
+  /** The platform as the player typed it, spaces tidied; the cover sets
+   *  it in capitals. */
+  text: string;
+  /** Size as a percent of the cover's width, BAND_LABEL_MIN to
+   *  BAND_LABEL_MAX. */
+  size: number;
+}
+
+/** The size a short name gets: capitals a little under half the band's
+ *  height (globals.css, .drawn-cover-band). */
+export const BAND_LABEL_MAX = 6;
+/** Smaller than this a name can't be made out on any but the largest
+ *  covers, so a very long one stops shrinking here and the cover's
+ *  ellipsis cuts it short instead. */
+export const BAND_LABEL_MIN = 3.5;
+/** The name runs from the band's left edge, a little in from it as on a
+ *  real case, and must stop well short of the right one: 80% of the
+ *  cover's width, inside the 88% the band's padding leaves (globals.css),
+ *  so a name with more wide capitals than most still fits. */
+export const BAND_LABEL_WIDTH = 80;
+/** A capital of the band's bold, letter-spaced face averages a little
+ *  under 0.8 of its size. An estimate, not a measure: a name of all W's
+ *  runs wider, and the cover's ellipsis catches it. */
+export const BAND_LETTER_WIDTH = 0.78;
+
+/** The words for a cover's band: null without a platform, which leaves
+ *  the plain band. Shrinks a long name ("Nintendo Entertainment System")
+ *  so it fits on one line rather than being cut off. */
+export function bandLabel(platform: string | null | undefined): BandLabel | null {
+  const text = (platform ?? "").trim().replace(/\s+/g, " ");
+  if (!text) return null;
+  const fits = BAND_LABEL_WIDTH / ([...text].length * BAND_LETTER_WIDTH);
+  const size = Math.floor(Math.min(BAND_LABEL_MAX, fits) * 10) / 10;
+  return { text, size: Math.max(BAND_LABEL_MIN, size) };
 }

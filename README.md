@@ -84,7 +84,8 @@ the same app for books, and is built from the same code.
 - Show the library as cards, bare covers or a shelf, in three sizes, or
   as a list, and choose what each game shows (rating, status, series,
   platform, ownership, time played, time to beat). Covers can look like little
-  game cases, and games without a cover get one drawn with their title.
+  game cases, and games without a cover get one drawn like a game box, with
+  their title and their system's band across the top.
   Save the searches and filters you use often as views, and open the
   library on one of them if you like.
 - Edit many games at once: set their status, format or ownership, add or

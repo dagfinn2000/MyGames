@@ -95,8 +95,9 @@ export default async function GameDetailPage({
             seriesName: { equals: game.seriesName, mode: "insensitive" },
             id: { not: game.id },
           },
-          // Just what the cover strip renders — not the full rows.
-          select: { id: true, title: true, coverUrl: true, seriesNumber: true },
+          // Just what the cover strip renders — not the full rows. The
+          // platform picks a drawn cover's band.
+          select: { id: true, title: true, coverUrl: true, platform: true, seriesNumber: true },
           orderBy: { seriesNumber: "asc" },
         })
       : Promise.resolve([]),

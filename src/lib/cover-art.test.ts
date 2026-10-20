@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { coverArt } from "@/lib/cover-art";
+import {
+  BAND_LABEL_MAX,
+  BAND_LABEL_MIN,
+  BAND_LABEL_WIDTH,
+  BAND_LETTER_WIDTH,
+  bandLabel,
+  coverArt,
+} from "@/lib/cover-art";
 
 describe("coverArt", () => {
   it("gives a title the same cover every time, whatever its case or spacing", () => {
@@ -36,5 +43,60 @@ describe("coverArt", () => {
     );
     // 50 titles should touch most of the twelve 30° slices.
     expect(hues.size).toBeGreaterThanOrEqual(9);
+  });
+});
+
+describe("bandLabel", () => {
+  it("leaves the band plain when there is no platform", () => {
+    expect(bandLabel(null)).toBeNull();
+    expect(bandLabel(undefined)).toBeNull();
+    expect(bandLabel("")).toBeNull();
+    expect(bandLabel("   ")).toBeNull();
+  });
+
+  it("keeps the platform as typed, with its spaces tidied", () => {
+    expect(bandLabel("PS5")?.text).toBe("PS5");
+    expect(bandLabel("  Nintendo   Switch ")?.text).toBe("Nintendo Switch");
+    expect(bandLabel("Xbox Series X|S")?.text).toBe("Xbox Series X|S");
+  });
+
+  it("gives short names the full size", () => {
+    expect(bandLabel("PC")?.size).toBe(BAND_LABEL_MAX);
+    expect(bandLabel("PS5")?.size).toBe(BAND_LABEL_MAX);
+  });
+
+  it("shrinks a long name so it fits across the band on one line", () => {
+    const switchLabel = bandLabel("Nintendo Switch")!;
+    const nes = bandLabel("Nintendo Entertainment System")!;
+    expect(nes.size).toBeLessThan(switchLabel.size);
+    // Twenty-nine capitals at the estimated width each, within the share
+    // of the cover's width the name may take.
+    expect(nes.size * 29 * BAND_LETTER_WIDTH).toBeLessThanOrEqual(BAND_LABEL_WIDTH);
+    expect(nes.size).toBeGreaterThanOrEqual(BAND_LABEL_MIN);
+  });
+
+  it("stops shrinking where a name would be too small to make out", () => {
+    const label = bandLabel("Sega Mega Drive / Genesis with the Mega-CD and the 32X add-ons")!;
+    expect(label.size).toBe(BAND_LABEL_MIN);
+  });
+
+  // Only a name's length counts here: the letters' widths are an average
+  // (BAND_LETTER_WIDTH), so this checks the sizing against that estimate,
+  // not how wide any one name really sets.
+  it("sizes a name to the estimated share of the band, short of the smallest size", () => {
+    for (let n = 1; n <= 60; n++) {
+      const { size } = bandLabel("A".repeat(n))!;
+      expect(size).toBeLessThanOrEqual(BAND_LABEL_MAX);
+      expect(size).toBeGreaterThanOrEqual(BAND_LABEL_MIN);
+      if (size > BAND_LABEL_MIN) {
+        expect(size * n * BAND_LETTER_WIDTH).toBeLessThanOrEqual(BAND_LABEL_WIDTH);
+      }
+    }
+  });
+
+  it("leaves the estimate room to spare inside the band's padding", () => {
+    // The band is padded 6% of the cover's width at each end
+    // (globals.css, .drawn-cover-band).
+    expect(BAND_LABEL_WIDTH).toBeLessThan(100 - 2 * 6);
   });
 });

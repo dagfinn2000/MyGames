@@ -54,6 +54,8 @@ export default async function NowPlayingPage() {
         id: true,
         title: true,
         developers: true,
+        // For a drawn cover's band.
+        platform: true,
         coverUrl: true,
         status: true,
         timesCompleted: true,
