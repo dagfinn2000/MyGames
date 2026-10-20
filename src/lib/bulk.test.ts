@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { BULK_MAX_IDS, bulkDeleteSchema, bulkSchema, chunk, retag } from "@/lib/bulk";
+import {
+  BULK_MAX_IDS,
+  bulkDeleteSchema,
+  bulkSchema,
+  chunk,
+  platformSuggestions,
+  replatform,
+  retag,
+} from "@/lib/bulk";
+import { COMMON_PLATFORMS } from "@/lib/platforms";
+import { buildSearchText } from "@/lib/utils";
 
 const firstError = (result: { success: boolean; error?: { issues: { message: string }[] } }) =>
   result.success ? null : result.error?.issues[0]?.message;
@@ -17,6 +27,77 @@ describe("retag", () => {
   it("removes tags, alone or together with adding", () => {
     expect(retag(["rpg", "epic", "owned"], [], ["epic"])).toEqual(["rpg", "owned"]);
     expect(retag(["rpg", "epic"], ["replay"], ["rpg"])).toEqual(["epic", "replay"]);
+  });
+});
+
+describe("replatform", () => {
+  const game = {
+    title: "Pokémon Legends: Arceus",
+    developers: ["Game Freak"],
+    seriesName: "Pokémon",
+    platform: "Switch",
+    searchText: buildSearchText("Pokémon Legends: Arceus", ["Game Freak"], "Pokémon", "Switch"),
+  };
+
+  it("rebuilds searchText around the new platform", () => {
+    expect(replatform(game, "Nintendo Switch 2")).toEqual({
+      platform: "Nintendo Switch 2",
+      searchText: "pokemon legends: arceus game freak pokemon nintendo switch 2",
+    });
+  });
+
+  it("clears the platform out of searchText too", () => {
+    expect(replatform(game, null)).toEqual({
+      platform: null,
+      searchText: "pokemon legends: arceus game freak pokemon",
+    });
+  });
+
+  it("is null when the game already says exactly that", () => {
+    expect(replatform(game, "Switch")).toBeNull();
+    const none = {
+      ...game,
+      platform: null,
+      searchText: buildSearchText(game.title, game.developers, game.seriesName),
+    };
+    expect(replatform(none, null)).toBeNull();
+  });
+
+  it("still writes a change of case, and a searchText out of step", () => {
+    expect(replatform(game, "switch")?.platform).toBe("switch");
+    expect(replatform({ ...game, searchText: "stale" }, "Switch")).toEqual({
+      platform: "Switch",
+      searchText: game.searchText,
+    });
+    // An empty string stored by an old import is not the same as no platform.
+    expect(replatform({ ...game, platform: "" }, null)?.platform).toBeNull();
+  });
+});
+
+describe("platformSuggestions", () => {
+  it("puts the library's platforms first, then the common ones", () => {
+    const list = platformSuggestions(["Amiga", "PS5"]);
+    expect(list.slice(0, 3)).toEqual(["Amiga", "PS5", COMMON_PLATFORMS[0]]);
+    expect(list).toHaveLength(2 + COMMON_PLATFORMS.length);
+  });
+
+  it("keeps the library's spelling over a common one in another case", () => {
+    const list = platformSuggestions(["pc", "nintendo switch"]);
+    expect(list.slice(0, 2)).toEqual(["pc", "nintendo switch"]);
+    expect(list).not.toContain("PC");
+    expect(list).not.toContain("Nintendo Switch");
+    expect(list).toHaveLength(COMMON_PLATFORMS.length);
+  });
+
+  it("trims names and skips blanks and repeats", () => {
+    expect(platformSuggestions([" Amiga ", "", "  ", "amiga"]).slice(0, 2)).toEqual([
+      "Amiga",
+      COMMON_PLATFORMS[0],
+    ]);
+  });
+
+  it("offers the common platforms for an empty library", () => {
+    expect(platformSuggestions([])).toEqual([...COMMON_PLATFORMS]);
   });
 });
 
@@ -63,6 +144,20 @@ describe("bulkSchema", () => {
     expect(parsed.removeTags).toEqual(["old"]);
     expect(firstError(bulkSchema.safeParse({ gameIds: ["a"], removeTags: ["x".repeat(51)] }))).toBe(
       "Tags can be at most 50 characters.",
+    );
+  });
+
+  it("trims a platform, turns an empty one into clearing it, and leaves it out when not given", () => {
+    expect(bulkSchema.parse({ gameIds: ["a"], platform: "  Steam Deck " }).platform).toBe("Steam Deck");
+    expect(bulkSchema.parse({ gameIds: ["a"], platform: "   " }).platform).toBeNull();
+    expect(bulkSchema.parse({ gameIds: ["a"], platform: null }).platform).toBeNull();
+    expect(bulkSchema.parse({ gameIds: ["a"], status: "COMPLETED" }).platform).toBeUndefined();
+  });
+
+  it("explains a platform that is too long", () => {
+    expect(bulkSchema.safeParse({ gameIds: ["a"], platform: "x".repeat(100) }).success).toBe(true);
+    expect(firstError(bulkSchema.safeParse({ gameIds: ["a"], platform: "x".repeat(101) }))).toBe(
+      "A platform can be at most 100 characters.",
     );
   });
 

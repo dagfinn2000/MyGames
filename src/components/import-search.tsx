@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Gamepad2, Loader2 } from "lucide-react";
+import { Fragment, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { Gamepad2, LibraryBig, Loader2 } from "lucide-react";
 import { catalogueGameValues, cataloguePlatforms, roundTimeToBeat } from "@/lib/catalogue-values";
+import { copyLabels, type LibraryCandidate, type LibraryGame } from "@/lib/library-match";
 import { SOURCE_LABELS, type GameDetails, type GameMetadata } from "@/lib/metadata/types";
 import { formatPlaytime } from "@/lib/progress-units";
 import type { TagImportSettings } from "@/lib/tag-rules";
@@ -41,21 +43,77 @@ function platformList(platforms: string[]): string {
   return more > 0 ? `${shown} +${more}` : shown;
 }
 
+/** For a caller that doesn't pass the library: nothing is in it. */
+const NOT_IN_LIBRARY = (): LibraryGame[] => [];
+
+/**
+ * "In your library · Nintendo Switch" under a result the player already
+ * has, linking to their copy; with copies on several platforms, each
+ * platform links to its own. It sits under the result's button rather
+ * than in it, since a link can't go inside a button.
+ *
+ * It wraps rather than being cut short: on a phone, three platforms don't
+ * fit on one line, and a link cut off can be neither seen nor tapped.
+ */
+function InLibraryNote({ copies }: { copies: LibraryGame[] }) {
+  const link = "font-medium text-foreground underline-offset-2 hover:underline";
+  const labels = copyLabels(copies, "no platform");
+  return (
+    // pl-17 lines it up with the result's text: the padding, the cover
+    // (w-11) and the gap after it. -mt-2 takes back most of the button's
+    // own padding below, so the note reads as the result's last line.
+    <p className="-mt-2 flex items-start gap-1.5 pr-3 pb-3 pl-17 text-xs text-muted-foreground">
+      {/* mt-px centres it on the first line (h-4) when the note wraps. */}
+      <LibraryBig className="mt-px size-3.5 shrink-0 text-primary" aria-hidden />
+      <span className="min-w-0 break-words">
+        {copies.length === 1 ? (
+          <Link href={`/games/${copies[0].id}`} className={link}>
+            In your library{copies[0].platform?.trim() ? ` · ${copies[0].platform.trim()}` : ""}
+          </Link>
+        ) : (
+          <>
+            In your library
+            {copies.map((copy, i) => (
+              <Fragment key={copy.id}>
+                {" "}
+                {/* Kept whole on a line where it fits ("· PlayStation 5"),
+                    and wrapped within only when it is longer than one. */}
+                <span className="inline-block max-w-full">
+                  ·{" "}
+                  <Link href={`/games/${copy.id}`} className={link}>
+                    {labels[i]}
+                  </Link>
+                </span>
+              </Fragment>
+            ))}
+          </>
+        )}
+      </span>
+    </p>
+  );
+}
+
 /**
  * Search-as-you-type against /api/metadata/search (IGDB when the server is
  * set up for it, Wikipedia and Steam, in the player's order). Picking a
  * result fetches the entry's full record (description, studios, time to
  * beat) and hands prefilled form values to the parent, which switches to
  * the review form, along with every platform the catalogue lists for the
- * form's suggestions.
+ * form's suggestions. A result the player already has says so (see
+ * InLibraryNote), but can be picked all the same.
  */
 export function ImportSearch({
   onPick,
   tagImport = IMPORT_ALL_TAGS,
+  findInLibrary = NOT_IN_LIBRARY,
 }: {
   onPick: (values: GameFormValues, platforms: string[]) => void;
   /** How catalogue genres become tags (Preferences, New games). */
   tagImport?: TagImportSettings;
+  /** The player's copies of a result, if any (lib/library-match). Checked
+   *  in the browser against the library the page loaded, so it costs no
+   *  request per result. */
+  findInLibrary?: (candidate: LibraryCandidate) => LibraryGame[];
 }) {
   const [query, setQuery] = useState("");
   // Results are stored with the query they answer. Everything the UI needs —
@@ -172,13 +230,19 @@ export function ImportSearch({
           const key = r.catalogueId ?? `${r.title}-${i}`;
           const year = r.releaseDate?.slice(0, 4);
           const made = [year, r.developers.join(", ")].filter(Boolean).join(" · ");
+          const copies = findInLibrary(r);
           return (
-            <li key={key}>
+            // The card is the item rather than the button, so the library
+            // note (with its links) can sit inside it, below the button.
+            <li
+              key={key}
+              className="rounded-lg border bg-card transition-colors has-[>button:disabled]:opacity-60 has-[>button:hover]:border-ring/60"
+            >
               <button
                 type="button"
                 onClick={() => pick(r, key)}
                 disabled={pickingId !== null}
-                className="flex w-full items-center gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:border-ring/60 disabled:opacity-60"
+                className="flex w-full items-center gap-3 rounded-lg p-3 text-left"
               >
                 <div className="h-16 w-11 shrink-0 overflow-hidden rounded bg-muted">
                   {r.coverUrl ? (
@@ -213,6 +277,7 @@ export function ImportSearch({
                   <Loader2 className="ml-auto size-4 shrink-0 animate-spin" />
                 )}
               </button>
+              {copies.length > 0 && <InLibraryNote copies={copies} />}
             </li>
           );
         })}

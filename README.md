@@ -24,6 +24,10 @@ the same app for books, and is built from the same code.
 - Each game has the platform you play it on. The form suggests the
   platforms the catalogue lists for the game, then the common ones, and you
   can type any other system.
+- Games you already have are marked in the search results ("In your
+  library · Nintendo Switch"), with a link to your copy, so you don't add
+  one twice by mistake. Adding the same game on another platform is still
+  fine.
 - "Add and add another" brings you straight back for the next game. In
   Preferences you choose what adding a game does: open it, add another, or
   go to the library.
@@ -84,11 +88,13 @@ the same app for books, and is built from the same code.
 - Show the library as cards, bare covers or a shelf, in three sizes, or
   as a list, and choose what each game shows (rating, status, series,
   platform, ownership, time played, time to beat). Covers can look like little
-  game cases, and games without a cover get one drawn with their title.
+  game cases, and games without a cover get one drawn like a game box, with
+  their title and their system's band across the top.
   Save the searches and filters you use often as views, and open the
   library on one of them if you like.
-- Edit many games at once: set their status, format or ownership, add or
-  remove tags, put them on a shelf or take them off it, or delete them.
+- Edit many games at once: set their status, format, platform or
+  ownership, add or remove tags, put them on a shelf or take them off it,
+  or delete them.
   Pick the games on screen, or every game that matches your filters.
 - Rename, merge, reorder and hide shelves, and choose which status tabs the
   library shows. Saved views can be renamed and reordered too.
