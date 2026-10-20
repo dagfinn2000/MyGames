@@ -13,7 +13,7 @@ export default async function NewGamePage() {
   if (!session?.user?.id) redirect("/login"); // revoked session (see auth.ts)
   const userId = session.user.id;
 
-  const [seriesRows, platformRows, prefs] = await Promise.all([
+  const [seriesRows, platformRows, library, prefs] = await Promise.all([
     // Existing series names, for the form's autocomplete suggestions.
     prisma.game.findMany({
       where: { userId, seriesName: { not: null } },
@@ -28,6 +28,17 @@ export default async function NewGamePage() {
       where: { userId, platform: { not: null } },
       _count: { platform: true },
       orderBy: [{ _count: { platform: "desc" } }, { platform: "asc" }],
+    }),
+    // Every game's title, platform, catalogue entry and release date (whose
+    // year tells a remake from the original), so the search can say which
+    // results are already in the library (see lib/library-match) in the
+    // browser, rather than asking the server about each one as the player
+    // types. A personal library is small enough to send whole.
+    // Oldest first: the copy the player has had longest is named first.
+    prisma.game.findMany({
+      where: { userId },
+      select: { id: true, title: true, platform: true, catalogueId: true, releaseDate: true },
+      orderBy: { createdAt: "asc" },
     }),
     getPreferences(),
   ]);
@@ -47,6 +58,7 @@ export default async function NewGamePage() {
       <AddGameClient
         seriesNames={seriesNames}
         libraryPlatforms={libraryPlatforms}
+        library={library}
         defaults={{
           format: prefs.newGameFormat,
           status: prefs.newGameStatus,

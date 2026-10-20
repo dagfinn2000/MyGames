@@ -24,6 +24,10 @@ the same app for books, and is built from the same code.
 - Each game has the platform you play it on. The form suggests the
   platforms the catalogue lists for the game, then the common ones, and you
   can type any other system.
+- Games you already have are marked in the search results ("In your
+  library · Nintendo Switch"), with a link to your copy, so you don't add
+  one twice by mistake. Adding the same game on another platform is still
+  fine.
 - "Add and add another" brings you straight back for the next game. In
   Preferences you choose what adding a game does: open it, add another, or
   go to the library.
