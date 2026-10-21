@@ -7,6 +7,8 @@ thought of them, on your own server.
 MyGames is a sibling of [MyReads](https://github.com/dagfinn2000/MyReads),
 the same app for books, and is built from the same code.
 
+![The library: games without box art get a drawn cover with their system's band](docs/library.png)
+
 ## What it does
 
 **Adding games**
@@ -211,6 +213,49 @@ the same app for books, and is built from the same code.
 
 Deliberately out of scope: anything social, recommendation engines, and CSV
 import.
+
+## Screenshots
+
+<details>
+<summary>Show screenshots: game page, now playing, series, stats, year in review, game room, themes</summary>
+
+**Game page**: details, your playthrough with its time and pace, play
+history, shelves and lending.
+
+![Game page](docs/game-page.png)
+
+**Now playing**: every game you're playing, with a time box each, and what's
+up next.
+
+![Now playing](docs/playing.png)
+
+**Grouped by series**, in order:
+
+![Library grouped by series](docs/series-grouping.png)
+
+**Stats and play goals**: hours played, most played, and genres, platforms
+and formats with their hours.
+
+![Stats page](docs/stats.png)
+
+**Year in review**:
+
+![Year in review](docs/year-in-review.png)
+
+**Game room**: the library as a house, by day and by lamplight, each case
+wearing its system's band.
+
+![The game room in a light theme, with a game's title showing over its case](docs/room.png)
+
+![The game room in a dark theme](docs/room-dark.png)
+
+**Themes**: a dark theme, and the theme picker.
+
+![Library in a dark theme](docs/library-dark.png)
+
+![Theme picker](docs/themes.png)
+
+</details>
 
 ## Install
 
